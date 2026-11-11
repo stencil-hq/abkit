@@ -1,0 +1,37 @@
+# What the macOS engine is built from, besides the Xcode command line tools
+# (which provide clang, gperf, unifdef, mig, libxml2, libxslt, ICU and zlib):
+# `brew bundle --file=WebKitBuild/darwin/Brewfile`.
+
+# Build tools.
+brew "ccache"
+brew "cmake"
+brew "ninja"
+brew "pkgconf"
+brew "python"
+brew "ruby"
+
+# darwin/build-deps.sh: libsoup and the BoringSSL TLS backend.
+brew "brotli"
+brew "glib"
+brew "libnghttp2"
+brew "libpsl"
+brew "sqlite"
+brew "zstd"
+
+# The engine.
+brew "fontconfig"
+brew "freetype"
+brew "gettext"
+brew "gstreamer"
+brew "harfbuzz"
+brew "icu4c"
+brew "jpeg-turbo"
+brew "jpeg-xl"
+brew "libavif"
+brew "libepoxy"
+brew "libpng"
+brew "libxkbcommon"
+brew "openssl@3"
+brew "webp"
+brew "woff2"
+brew "curl"

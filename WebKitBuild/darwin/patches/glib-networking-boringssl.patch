@@ -1,0 +1,323 @@
+diff --git a/tls/base/gtlssessioncache.c b/tls/base/gtlssessioncache.c
+--- a/tls/base/gtlssessioncache.c
++++ b/tls/base/gtlssessioncache.c
+@@ -213,12 +213,19 @@
+ 
+           if (!session_data)
+             {
++#ifdef __APPLE__
++              /* Safari offers a cached TLS 1.2 session to one connection
++               * only, so the cache hands its reference over.
++               */
++              session_data = g_steal_pointer (&cache_data->tls1_2_session_ticket);
++#else
+               session_data = cache_data->tls1_2_session_ticket;
+               if (session_data && cache_data->inc_ref && !cache_data->inc_ref (session_data))
+                 {
+                   g_debug ("Failed to acquire cached TLS session, will not try to resume session");
+                   session_data = NULL;
+                 }
++#endif
+             }
+ 
+           /* If the session data is NULL at this point, we do not have a valid
+diff --git a/tls/openssl/gtlsbackend-openssl.c b/tls/openssl/gtlsbackend-openssl.c
+--- a/tls/openssl/gtlsbackend-openssl.c
++++ b/tls/openssl/gtlsbackend-openssl.c
+@@ -36,6 +36,9 @@
+ #include "gtlsserverconnection-openssl.h"
+ #include "gtlsclientconnection-openssl.h"
+ #include "gtlsfiledatabase-openssl.h"
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#include "GTlsDatabaseSecTrust.h"
++#endif
+ 
+ struct _GTlsBackendOpenssl
+ {
+@@ -212,7 +215,11 @@
+     }
+   else
+     {
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++      result = g_tls_database_sec_trust_new (&error);
++#else
+       result = G_TLS_DATABASE (g_tls_database_openssl_new (&error));
++#endif
+       if (error)
+         {
+           g_warning ("Couldn't load TLS file database: %s",
+@@ -249,8 +256,18 @@
+   g_tls_backend_openssl_register_type (G_TYPE_MODULE (module));
+   if (!module)
+     g_io_extension_point_register (G_TLS_BACKEND_EXTENSION_POINT_NAME);
++#ifdef OPENSSL_IS_BORINGSSL
++  /* Whoever loads this module wants its ClientHello, so it ranks above the
++   * backends GIO finds installed.
++   */
+   g_io_extension_point_implement (G_TLS_BACKEND_EXTENSION_POINT_NAME,
+                                   g_tls_backend_openssl_get_type (),
++                                  "boringssl",
++                                  10);
++#else
++  g_io_extension_point_implement (G_TLS_BACKEND_EXTENSION_POINT_NAME,
++                                  g_tls_backend_openssl_get_type (),
+                                   "openssl",
+                                   -1);
++#endif
+ }
+diff --git a/tls/openssl/gtlsclientconnection-openssl.c b/tls/openssl/gtlsclientconnection-openssl.c
+--- a/tls/openssl/gtlsclientconnection-openssl.c
++++ b/tls/openssl/gtlsclientconnection-openssl.c
+@@ -36,6 +36,9 @@
+ #include "gtlssessioncache.h"
+ #include "gtlscertificate-openssl.h"
+ #include "gtlsdatabase-openssl.h"
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#include "SafariClientHello.h"
++#endif
+ #include <glib/gi18n-lib.h>
+ 
+ struct _GTlsClientConnectionOpenssl
+@@ -442,6 +445,12 @@
+ 
+   tls = G_TLS_CONNECTION_BASE (client);
+ 
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++  /* Safari resumes TLS 1.2 sessions and never offers a TLS 1.3 ticket. */
++  if (SSL_SESSION_get_protocol_version (sess) >= TLS1_3_VERSION)
++    return 0;
++#endif
++
+   if (g_tls_connection_base_get_session_resumption (tls))
+     g_tls_store_session_data (client->session_id,
+                               (gpointer)sess,
+@@ -469,6 +478,12 @@
+ 
+   client->session = (SSL_SESSION *) g_tls_lookup_session_data (client->session_id);
+ 
++#ifdef OPENSSL_IS_BORINGSSL
++  /* A blank session belongs to a context and cannot be offered to a server,
++   * so there is none until the cache has one.
++   */
++  client->session_reused = client->session != NULL;
++#else
+   if (!client->session)
+     {
+       client->session = SSL_SESSION_new ();
+@@ -485,6 +500,7 @@
+     {
+       client->session_reused = TRUE;
+     }
++#endif
+ 
+   client->ssl_ctx = SSL_CTX_new (g_tls_connection_base_is_dtls (G_TLS_CONNECTION_BASE (client))
+                                  ? DTLS_client_method ()
+@@ -498,6 +514,18 @@
+       return FALSE;
+     }
+ 
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++  if (!g_tls_connection_base_is_dtls (G_TLS_CONNECTION_BASE (client)) &&
++      !g_tls_boringssl_configure_safari_client_hello (client->ssl_ctx))
++    {
++      ERR_error_string_n (ERR_get_error (), error_buffer, sizeof (error_buffer));
++      g_set_error (error, G_TLS_ERROR, G_TLS_ERROR_MISC,
++                   _("Could not create TLS context: %s"),
++                   error_buffer);
++      return FALSE;
++    }
++#endif
++
+   if (!set_cipher_list (client, error))
+     return FALSE;
+ 
+@@ -547,7 +575,8 @@
+       return FALSE;
+     }
+ 
+-  SSL_set_session (client->ssl, client->session);
++  if (client->session)
++    SSL_set_session (client->ssl, client->session);
+ 
+   if (hostname && !g_hostname_is_ip_address (hostname))
+     SSL_set_tlsext_host_name (client->ssl, hostname);
+diff --git a/tls/openssl/gtlsconnection-openssl.c b/tls/openssl/gtlsconnection-openssl.c
+--- a/tls/openssl/gtlsconnection-openssl.c
++++ b/tls/openssl/gtlsconnection-openssl.c
+@@ -36,6 +36,9 @@
+ #include "gtlsdatabase-openssl.h"
+ #include "gtlsbio.h"
+ #include "gtlslog.h"
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#include "GTlsDatabaseSecTrust.h"
++#endif
+ 
+ #include <glib/gi18n-lib.h>
+ 
+@@ -49,6 +52,11 @@
+   GMutex ssl_mutex;
+ 
+   gboolean shutting_down;
++
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++  gboolean system_trust_evaluated;
++  GTlsCertificateFlags system_trust_errors;
++#endif
+ } GTlsConnectionOpensslPrivate;
+ 
+ typedef int (*GTlsOpensslIOFunc) (SSL *ssl, gpointer user_data);
+@@ -517,6 +525,16 @@
+   GTlsCertificateFlags errors = 0;
+ 
+   database = g_tls_connection_get_database (G_TLS_CONNECTION (tls));
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++  if (database && G_IS_TLS_DATABASE_SEC_TRUST (database))
++    {
++      GTlsConnectionOpensslPrivate *priv;
++
++      priv = g_tls_connection_openssl_get_instance_private (G_TLS_CONNECTION_OPENSSL (tls));
++      if (priv->system_trust_evaluated)
++        return priv->system_trust_errors;
++    }
++#endif
+   if (database)
+     {
+       errors |= g_tls_database_verify_chain (database,
+@@ -792,6 +810,59 @@
+   return FALSE;
+ }
+ 
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++/* The Security framework may wait for the trust daemon to fetch an
++ * intermediate or a revocation status, and it wants what the peer stapled to
++ * the handshake. Both call for evaluating here, on the handshake thread, and
++ * handing the result to verify_chain(), which runs on the thread that owns the
++ * connection.
++ */
++static void
++handshake_thread_evaluate_system_trust (GTlsConnectionOpenssl *openssl)
++{
++  GTlsConnectionBase *tls = G_TLS_CONNECTION_BASE (openssl);
++  GTlsConnectionOpensslPrivate *priv;
++  GSocketConnectable *identity = NULL;
++  GTlsCertificate *chain;
++  const uint8_t *ocsp_response, *sct_list;
++  size_t ocsp_response_length, sct_list_length;
++  gboolean is_client;
++  SSL *ssl;
++
++  priv = g_tls_connection_openssl_get_instance_private (openssl);
++  priv->system_trust_evaluated = FALSE;
++
++  if (!G_IS_TLS_DATABASE_SEC_TRUST (g_tls_connection_get_database (G_TLS_CONNECTION (tls))))
++    return;
++
++  chain = g_tls_connection_openssl_retrieve_peer_certificate (tls);
++  if (!chain)
++    return;
++
++  is_client = G_IS_TLS_CLIENT_CONNECTION (tls);
++  if (is_client)
++    {
++      if (!g_tls_connection_base_is_dtls (tls))
++        identity = g_tls_client_connection_get_server_identity (G_TLS_CLIENT_CONNECTION (tls));
++      else
++        identity = g_dtls_client_connection_get_server_identity (G_DTLS_CLIENT_CONNECTION (tls));
++    }
++
++  ssl = g_tls_connection_openssl_get_ssl (openssl);
++  SSL_get0_ocsp_response (ssl, &ocsp_response, &ocsp_response_length);
++  SSL_get0_signed_cert_timestamp_list (ssl, &sct_list, &sct_list_length);
++
++  priv->system_trust_errors = g_tls_database_sec_trust_evaluate (chain,
++                                                                 is_client ? G_TLS_DATABASE_PURPOSE_AUTHENTICATE_SERVER : G_TLS_DATABASE_PURPOSE_AUTHENTICATE_CLIENT,
++                                                                 identity,
++                                                                 ocsp_response, ocsp_response_length,
++                                                                 sct_list, sct_list_length);
++  priv->system_trust_evaluated = TRUE;
++
++  g_object_unref (chain);
++}
++#endif
++
+ static GTlsConnectionBaseStatus
+ g_tls_connection_openssl_handshake_thread_handshake (GTlsConnectionBase  *tls,
+                                                      gint64               timeout,
+@@ -809,6 +880,9 @@
+ 
+   if (ret > 0)
+     {
++#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++      handshake_thread_evaluate_system_trust (G_TLS_CONNECTION_OPENSSL (tls));
++#endif
+       if (!g_tls_connection_base_handshake_thread_verify_certificate (tls))
+         {
+           g_set_error_literal (error, G_TLS_ERROR, G_TLS_ERROR_BAD_CERTIFICATE,
+diff --git a/tls/openssl/gtlsserverconnection-openssl.c b/tls/openssl/gtlsserverconnection-openssl.c
+--- a/tls/openssl/gtlsserverconnection-openssl.c
++++ b/tls/openssl/gtlsserverconnection-openssl.c
+@@ -363,6 +363,7 @@
+ 
+   ERR_clear_error ();
+ 
++#ifndef OPENSSL_IS_BORINGSSL
+   server->session = SSL_SESSION_new ();
+   if (!server->session)
+     {
+@@ -372,6 +373,7 @@
+                    error_buffer);
+       return FALSE;
+     }
++#endif
+ 
+   server->ssl_ctx = SSL_CTX_new (g_tls_connection_base_is_dtls (G_TLS_CONNECTION_BASE (server))
+                                  ? DTLS_server_method ()
+@@ -402,7 +404,9 @@
+             SSL_OP_NO_TLSv1_1;
+   SSL_CTX_set_options (server->ssl_ctx, options);
+ 
++#ifndef OPENSSL_IS_BORINGSSL
+   SSL_CTX_add_session (server->ssl_ctx, server->session);
++#endif
+ 
+   set_signature_algorithm_list (server);
+   set_curve_list (server);
+diff --git a/tls/openssl/openssl-include.h b/tls/openssl/openssl-include.h
+--- a/tls/openssl/openssl-include.h
++++ b/tls/openssl/openssl-include.h
+@@ -51,4 +51,35 @@
+ #include <openssl/x509_vfy.h>
+ #include <openssl/x509v3.h>
+ #include <openssl/crypto.h>
++#ifdef OPENSSL_IS_BORINGSSL
++#include <openssl/pkcs8.h>
++#include <openssl/posix_time.h>
++
++/* What the backend uses of OpenSSL that BoringSSL names differently or
++ * leaves out.
++ */
++#define PKCS12_R_MAC_VERIFY_FAILURE PKCS8_R_INCORRECT_PASSWORD
++#define SSL_R_BAD_PROTOCOL_VERSION_NUMBER SSL_R_WRONG_VERSION_NUMBER
++#define SSL_R_TLSV13_ALERT_CERTIFICATE_REQUIRED SSL_R_TLSV1_ALERT_CERTIFICATE_REQUIRED
++
++static inline int
++ASN1_TIME_to_tm (const ASN1_TIME *time,
++                 struct tm       *tm)
++{
++  int64_t posix_time;
++
++  return ASN1_TIME_to_posix (time, &posix_time) && OPENSSL_posix_to_tm (posix_time, tm);
++}
++
++/* Sessions are immutable once established, so a second reference serves as
++ * a copy.
++ */
++static inline SSL_SESSION *
++SSL_SESSION_dup (SSL_SESSION *session)
++{
++  SSL_SESSION_up_ref (session);
++  return session;
++}
++#else
+ #include <openssl/ocsp.h>
++#endif
