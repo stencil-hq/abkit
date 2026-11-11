@@ -34,6 +34,7 @@
 #include <limits>
 #include <mutex>
 #include <skia/core/SkGraphics.h>
+#include <wtf/FileSystem.h>
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
@@ -136,6 +137,26 @@ static void initializeRemoteInspectorServer()
 }
 #endif
 
+#if PLATFORM(WPE) && OS(DARWIN)
+// A packaged engine has no install prefix: the inspector resources sit beside the library, which the embedder
+// that ships the engine in its own bundle may put anywhere, so point the loader at them before the paths built
+// into the library.
+static void pointInspectorResourcesAtEngineBundle()
+{
+    // A directory named by the embedder itself is kept.
+    if (g_getenv("WEBKIT_INSPECTOR_RESOURCES_PATH"))
+        return;
+
+    auto directory = directoryOfWebKitLibrary();
+    if (directory.isNull())
+        return;
+    if (!FileSystem::fileExists(FileSystem::pathByAppendingComponent(directory, "inspector.gresource"_s)))
+        return;
+
+    g_setenv("WEBKIT_INSPECTOR_RESOURCES_PATH", directory.utf8().spanIncludingNullTerminator().data(), TRUE);
+}
+#endif
+
 void webkitInitialize()
 {
     static std::once_flag onceFlag;
@@ -157,6 +178,10 @@ void webkitInitialize()
 #endif
 
         SkGraphics::Init();
+
+#if PLATFORM(WPE) && OS(DARWIN)
+        pointInspectorResourcesAtEngineBundle();
+#endif
 
 #if ENABLE(REMOTE_INSPECTOR)
         initializeRemoteInspectorServer();

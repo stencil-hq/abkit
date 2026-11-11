@@ -326,6 +326,9 @@ bool gstElementFactoryEquals(GstElement*, ASCIILiteral name);
 
 GstElement* createAutoAudioSink(const String& role);
 GstElement* createPlatformAudioSink(const String& role, const String& deviceId = { }, const GRefPtr<GstDevice>& = { });
+// A sink for a page that is not to be heard: it consumes audio at the pace of the pipeline's clock,
+// as a device would, and drops it.
+GstElement* createDiscardingAudioSink();
 
 #if ENABLE(MEDIA_STREAM)
 // Resolves an audio output device ID ("default" or an existing persistent ID)

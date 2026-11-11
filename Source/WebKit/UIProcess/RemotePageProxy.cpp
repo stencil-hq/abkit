@@ -68,7 +68,7 @@
 #include "WebFullScreenManagerProxy.h"
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 #include "RemotePageVideoPresentationManagerProxy.h"
 #include "VideoPresentationManagerProxy.h"
 #endif
@@ -157,7 +157,7 @@ void RemotePageProxy::disconnect(ShouldSendCloseMessage shouldSendCloseMessage)
 #if ENABLE(FULLSCREEN_API)
     m_fullscreenManager = nullptr;
 #endif
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     m_videoPresentationManager = nullptr;
 #endif
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
@@ -199,7 +199,7 @@ void RemotePageProxy::injectPageIntoNewProcess()
 #if ENABLE(FULLSCREEN_API)
     m_fullscreenManager = RemotePageFullscreenManagerProxy::create(pageID(), protect(page->fullScreenManager()), m_process);
 #endif
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, protect(page->videoPresentationManager()));
 #endif
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)

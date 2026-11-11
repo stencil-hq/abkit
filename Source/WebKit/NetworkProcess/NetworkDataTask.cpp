@@ -222,12 +222,22 @@ void NetworkDataTask::setH2PingCallback(const URL& url, CompletionHandler<void(s
     completionHandler(makeUnexpected(internalError(url)));
 }
 
-void NetworkDataTask::restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest& request)
+bool NetworkDataTask::restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest& request)
 {
     CheckedPtr session = m_session.get();
 
-    if ((session->sessionID().isEphemeral() || session->isTrackingPreventionEnabled()) && session->shouldDowngradeReferrer() && request.isThirdParty())
+#if OS(DARWIN) && USE(SOUP)
+    // Safari runs with tracking prevention on, and a third-party request then carries its referrer's
+    // origin only. Here the embedder decides about tracking prevention, and the referrer is Safari's either way.
+    bool restrictsThirdPartyReferrer = true;
+#else
+    bool restrictsThirdPartyReferrer = session->sessionID().isEphemeral() || session->isTrackingPreventionEnabled();
+#endif
+    if (restrictsThirdPartyReferrer && session->shouldDowngradeReferrer() && request.isThirdParty() && request.hasHTTPReferrer()) {
         request.setExistingHTTPReferrerToOriginString();
+        return true;
+    }
+    return false;
 }
 
 String NetworkDataTask::attributedBundleIdentifier(WebPageProxyIdentifier pageID)

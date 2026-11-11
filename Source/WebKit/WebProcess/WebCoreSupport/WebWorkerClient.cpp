@@ -38,6 +38,7 @@
 #include "WebProcess.h"
 #include <WebCore/ImageBuffer.h>
 #include <WebCore/Page.h>
+#include <WebCore/WebGPUCreateImpl.h>
 #include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(WEBGL) && ENABLE(GPU_PROCESS)
@@ -46,6 +47,10 @@
 
 #if ENABLE(WEBGL)
 #include <WebCore/GraphicsContextGL.h>
+#endif
+
+#if ENABLE(WEBGL) && PLATFORM(WPE) && OS(DARWIN)
+#include <WebCore/PlatformDisplay.h>
 #endif
 
 namespace WebKit {
@@ -169,6 +174,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(WebWorkerClient);
 UniqueRef<WebWorkerClient> WebWorkerClient::create(Page& page, SerialFunctionDispatcher& dispatcher)
 {
     ASSERT(isMainRunLoop());
+#if ENABLE(WEBGL) && PLATFORM(WPE) && OS(DARWIN)
+    // A worker's WebGL context shares with the display's sharing context, which only the main thread makes.
+    WebProcess::singleton().initializePlatformDisplayIfNeeded();
+    PlatformDisplay::sharedDisplay().sharingGLContext();
+#endif
 #if ENABLE(GPU_PROCESS)
     return UniqueRef<GPUProcessWebWorkerClient> { *new GPUProcessWebWorkerClient { dispatcher, page.displayID() } };
 #else
@@ -218,15 +228,26 @@ RefPtr<ImageBuffer> WebWorkerClient::createImageBuffer(const FloatSize& size, Re
 RefPtr<GraphicsContextGL> WebWorkerClient::createGraphicsContextGL(const GraphicsContextGLAttributes& attributes) const
 {
     assertIsCurrent(*dispatcher().get());
+#if PLATFORM(WPE) && OS(DARWIN)
+    // ANGLE is built with its share-context lock there (PlatformWPE.cmake), so the context can be
+    // one of this process, used on the worker's thread, as Safari has WebGL in workers.
+    return WebCore::createWebProcessGraphicsContextGL(attributes);
+#else
     // ANGLE does not support multithreading, so we cannot create in-process contexts in worker threads.
     return nullptr;
+#endif
 }
 #endif
 
 #if HAVE(WEBGPU_IMPLEMENTATION)
 RefPtr<WebCore::WebGPUIntegration> WebWorkerClient::createGPUForWebGPU() const
 {
-    return nullptr;
+    assertIsCurrent(*dispatcher().get());
+    // Without a GPU process the worker has an instance of its own, whose work runs on the worker's thread.
+    return WebCore::createInProcessWebGPUIntegration([weakDispatcher = m_dispatcher](Function<void()>&& workItem) {
+        if (RefPtr dispatcher = weakDispatcher.get())
+            dispatcher->dispatch(WTF::move(workItem));
+    });
 }
 #endif
 

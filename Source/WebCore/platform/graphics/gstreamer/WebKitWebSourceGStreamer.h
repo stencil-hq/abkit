@@ -62,6 +62,15 @@ bool webKitSrcIsCrossOrigin(WebKitWebSrc*, const WebCore::SecurityOrigin&);
 bool webKitSrcIsSeekable(WebKitWebSrc*);
 void webKitWebSrcSetPlayer(WebKitWebSrc*, ThreadSafeWeakPtr<WebCore::MediaPlayerPrivateGStreamer>&&);
 
+#if OS(DARWIN)
+// How the system's players ask a server for media, which the server can tell from a plain download.
+// AVFoundation, which plays everything but WebM, names its playback session, takes no content coding,
+// and asks for the first two bytes of a file before it asks for the file by its length; it fetches
+// HLS playlists and segments without ranges. WebM goes through WebKit's loader like any subresource.
+enum class WebKitWebSrcRequestStyle : uint8_t { Subresource, ProgressiveFile, HLS };
+void webKitWebSrcSetRequestStyle(WebKitWebSrc*, WebKitWebSrcRequestStyle, const String& playbackSessionIdentifier);
+#endif
+
 G_END_DECLS
 
 #endif // ENABLE(VIDEO) && USE(GSTREAMER)

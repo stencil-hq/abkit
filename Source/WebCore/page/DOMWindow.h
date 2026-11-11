@@ -225,7 +225,7 @@ public:
     ExceptionOr<String> btoa(const String&);
     ExceptionOr<String> atob(const String&);
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
     ExceptionOr<PushManager&> pushManager();
 #endif
 

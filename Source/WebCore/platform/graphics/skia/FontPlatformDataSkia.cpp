@@ -30,6 +30,7 @@
 #include "FontCascadeInlines.h"
 #include "FontCustomPlatformData.h"
 #include "FontRenderOptions.h"
+#include "FontTrackingSkia.h"
 #include "FontVariationsSkia.h"
 #include "NotImplemented.h"
 #include "OpenTypeTypes.h"
@@ -156,6 +157,77 @@ void FontPlatformData::platformDataInit()
     auto& typeface = *m_font.getTypeface();
     m_hbFont = SkiaHarfBuzzFont::getOrCreate(typeface);
     m_isColorBitmapFont = m_hbFont->isColorBitmapFont();
+    updateSizeDependentState();
+}
+
+#if OS(DARWIN)
+// Core Text draws the Mac's emoji font larger than the text it accompanies while that text is small:
+// a quarter larger up to 16 pixels, then by less and less, until at 24 pixels both are the same size.
+static float appleColorEmojiSize(float size)
+{
+    if (size <= 16)
+        return size * 1.25f;
+    if (size < 24)
+        return 20 + (size - 16) / 2;
+    return size;
+}
+
+// Core Text also sets the glyphs of that font below the baseline, which the font itself puts them on:
+// by an eighth of their size, and by more while they are enlarged, which keeps them centred on the
+// text around them.
+static float appleColorEmojiBaselineShift(float size)
+{
+    if (size <= 16)
+        return size / 4;
+    if (size < 24)
+        return 4 - (size - 16) / 8;
+    return size / 8;
+}
+#endif
+
+void FontPlatformData::updateSizeDependentState()
+{
+    float size = m_metadata.pointSize;
+    float drawnSize = size;
+    m_glyphBaselineShift = 0;
+    m_hasWholePixelAdvances = !m_font.isSubpixel();
+    m_advanceAdjustment = 0;
+    if (!m_hbFont) {
+        m_font.setSize(drawnSize);
+        return;
+    }
+
+#if OS(DARWIN)
+    if (m_hbFont->isAppleColorEmoji()) {
+        drawnSize = appleColorEmojiSize(size);
+        m_glyphBaselineShift = appleColorEmojiBaselineShift(size);
+        // Core Text gives these glyphs advances of whole pixels.
+        m_hasWholePixelAdvances = true;
+    }
+#endif
+    m_font.setSize(drawnSize);
+
+    if (auto* tracking = m_hbFont->tracking()) {
+        if (int unitsPerEm = m_font.getTypeface()->getUnitsPerEm())
+            m_advanceAdjustment = tracking->valueForSize(m_metadata.trackingSize ? m_metadata.trackingSize : size) * drawnSize / unitsPerEm;
+    }
+#if OS(DARWIN)
+    // Core Text's synthetic bold is the glyph drawn twice, a 36th of the font's size apart, and
+    // every advance grows by as much.
+    if (m_metadata.isSyntheticBold)
+        m_advanceAdjustment += size / 36;
+#endif
+}
+
+float FontPlatformData::glyphAdvance(SkGlyphID glyph) const
+{
+    return m_hbFont->glyphAdvance(m_font, glyph, m_advanceAdjustment, m_hasWholePixelAdvances);
+}
+
+void FontPlatformData::setTrackingSize(float trackingSize)
+{
+    m_metadata.trackingSize = trackingSize;
+    updateSizeDependentState();
 }
 
 std::optional<FontPlatformData> FontPlatformData::fromIPCData(const FontMetadata& metadata, IPCData&& ipcData)
@@ -285,7 +357,7 @@ HbUniquePtr<hb_font_t> FontPlatformData::createOpenTypeMathHarfBuzzFont() const
 void FontPlatformData::updateSize(float size)
 {
     m_metadata.pointSize = size;
-    m_font.setSize(m_metadata.pointSize);
+    updateSizeDependentState();
 }
 
 Vector<FontPlatformData::FontVariationAxis> FontPlatformData::variationAxes(ShouldLocalizeAxisNames) const

@@ -34,6 +34,7 @@
 #include "InbandTextTrackPrivateGStreamer.h"
 #include "MediaPlayer.h"
 #include "MediaSourcePrivateClient.h"
+#include "MediaTypeSupportDarwin.h"
 #include "MediaSourceTrackGStreamer.h"
 #include "SourceBufferPrivateGStreamer.h"
 #include "VideoTrackPrivateGStreamer.h"
@@ -618,7 +619,11 @@ void MediaPlayerPrivateGStreamerMSE::rebuildPipeline()
 
 void MediaPlayerPrivateGStreamerMSE::getSupportedTypes(HashSet<String>& types)
 {
+#if OS(DARWIN)
+    MediaTypeSupportDarwin::getSupportedMediaSourceTypes(types);
+#else
     GStreamerRegistryScannerMSE::getSupportedDecodingTypes(types);
+#endif
 }
 
 MediaPlayer::SupportsType MediaPlayerPrivateGStreamerMSE::supportsType(const MediaEngineSupportParameters& parameters)
@@ -642,8 +647,12 @@ MediaPlayer::SupportsType MediaPlayerPrivateGStreamerMSE::supportsType(const Med
     registerWebKitGStreamerElements();
 
     GST_DEBUG("Checking mime-type \"%s\"", parameters.type.raw().utf8());
+#if OS(DARWIN)
+    result = MediaTypeSupportDarwin::supportsMediaSourceType(parameters.type);
+#else
     auto& gstRegistryScanner = GStreamerRegistryScannerMSE::singleton();
     result = gstRegistryScanner.isContentTypeSupported(GStreamerRegistryScanner::Configuration::Decoding, parameters.type, parameters.contentTypesRequiringHardwareSupport);
+#endif
 
     GST_DEBUG("Supported: %s", convertEnumerationToString(result).utf8());
     return result;

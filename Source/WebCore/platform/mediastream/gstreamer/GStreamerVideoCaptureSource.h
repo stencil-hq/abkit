@@ -35,6 +35,7 @@ namespace WebCore {
 class GStreamerVideoCaptureSource final : public RealtimeVideoCaptureSource, GStreamerCapturerObserver {
 public:
     static CaptureSourceOrError create(String&& deviceID, MediaDeviceHashSalts&&, const MediaConstraints*);
+    static CaptureSourceOrError create(GStreamerCaptureDevice&&, MediaDeviceHashSalts&&, const MediaConstraints*);
     static CaptureSourceOrError createPipewireSource(const PipeWireCaptureDevice&, MediaDeviceHashSalts&&, const MediaConstraints*);
 
     WEBCORE_EXPORT static VideoCaptureFactory& factory();
@@ -78,6 +79,14 @@ protected:
 private:
     bool isCaptureSource() const final { return true; }
     void settingsDidChange(OptionSet<RealtimeMediaSourceSettings::Flag>) final;
+
+#if OS(DARWIN)
+    // Safari's ImageCapture encodes the photo from the camera's live stream.
+    Ref<TakePhotoNativePromise> takePhotoInternal(PhotoSettings&&) final;
+
+    Lock m_lastFrameLock;
+    RefPtr<VideoFrame> m_lastFrame WTF_GUARDED_BY_LOCK(m_lastFrameLock);
+#endif
 
     const RefPtr<GStreamerVideoCapturer> m_capturer;
     CaptureDevice::DeviceType m_deviceType;

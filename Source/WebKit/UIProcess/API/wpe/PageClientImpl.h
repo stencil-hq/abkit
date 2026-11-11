@@ -139,6 +139,8 @@ private:
 
     RefPtr<WebDateTimePicker> createDateTimePicker(WebPageProxy&) override;
 
+    bool showShareSheet(WebCore::ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&&) final;
+
     void enterAcceleratedCompositingMode(const LayerTreeContext&) override;
     void exitAcceleratedCompositingMode() override;
     void updateAcceleratedCompositingMode(const LayerTreeContext&) override;

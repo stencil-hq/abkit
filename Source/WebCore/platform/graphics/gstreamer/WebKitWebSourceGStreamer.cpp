@@ -46,6 +46,7 @@
 #include <wtf/glib/GThreadSafeWeakPtr.h>
 #include <wtf/glib/WTFGType.h>
 #include <wtf/text/CString.h>
+#include <wtf/text/MakeString.h>
 #include <wtf/text/StringToIntegerConversion.h>
 
 using namespace WebCore;
@@ -108,6 +109,12 @@ struct WebKitWebSrcPrivate {
         // main thread, so the value needs to be cached before use in non-main thread.
         String referrer;
 
+#if OS(DARWIN)
+        // Set by the player with the referrer, or received with the loader's context.
+        WebKitWebSrcRequestStyle requestStyle { WebKitWebSrcRequestStyle::Subresource };
+        String playbackSessionIdentifier;
+#endif
+
         // Properties used for GStreamer data-flow in create().
         bool isFlushing { false };
         Condition responseCondition; // Must be signaled after any updates on HTTP requests, and when flushing.
@@ -134,7 +141,7 @@ class CachedResourceStreamingClient final : public PlatformMediaResourceClient {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(CachedResourceStreamingClient);
     WTF_MAKE_NONCOPYABLE(CachedResourceStreamingClient);
 public:
-    CachedResourceStreamingClient(WebKitWebSrc*, ResourceRequest&&, unsigned requestNumber);
+    CachedResourceStreamingClient(WebKitWebSrc*, ResourceRequest&&, unsigned requestNumber, bool isLengthProbe = false);
     virtual ~CachedResourceStreamingClient();
 
 private:
@@ -161,6 +168,12 @@ private:
 
     GThreadSafeWeakPtr<WebKitWebSrc> m_src;
     ResourceRequest m_request;
+
+    // A request for the first two bytes, made to learn the length of the file before the request for
+    // all of it. None of its data goes downstream.
+    bool m_isLengthProbe { false };
+    bool m_didAnswerLengthProbe { false };
+    void lengthProbeAnswered(WebKitWebSrc*, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>&, std::optional<uint64_t> length);
 };
 
 enum {
@@ -185,6 +198,7 @@ static void webKitWebSrcSetProperty(GObject*, guint propertyID, const GValue*, G
 static void webKitWebSrcGetProperty(GObject*, guint propertyID, GValue*, GParamSpec*);
 static GstFlowReturn webKitWebSrcCreate(GstPushSrc*, GstBuffer**);
 static void webKitWebSrcMakeRequest(WebKitWebSrc*, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>&);
+static void webKitWebSrcStartResourceRequest(WebKitWebSrc*, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>&, ResourceRequest&&, unsigned requestNumber, bool isLengthProbe);
 static gboolean webKitWebSrcStart(GstBaseSrc*);
 static gboolean webKitWebSrcStop(GstBaseSrc*);
 static gboolean webKitWebSrcGetSize(GstBaseSrc*, guint64* size);
@@ -381,6 +395,16 @@ static void webKitWebSrcSetContext(GstElement* element, GstContext* context)
         const GValue* value = gst_structure_get_value(gst_context_get_structure(context), "loader");
         DataMutexLocker members { priv->dataMutex };
         members->loader = reinterpret_cast<WebCore::PlatformMediaResourceLoader*>(g_value_get_pointer(value));
+#if OS(DARWIN)
+        // The sources a demuxer makes for its playlists and segments ask as the player's own source does.
+        auto* structure = gst_context_get_structure(context);
+        if (const char* referrer = gst_structure_get_string(structure, "referrer"))
+            members->referrer = String::fromUTF8(referrer);
+        if (const char* identifier = gst_structure_get_string(structure, "playback-session-id")) {
+            members->playbackSessionIdentifier = String::fromUTF8(identifier);
+            members->requestStyle = WebKitWebSrcRequestStyle::HLS;
+        }
+#endif
     }
     GST_ELEMENT_CLASS(webkit_web_src_parent_class)->set_context(element, context);
 }
@@ -614,6 +638,20 @@ static GRefPtr<WebKitWebSrc> webKitWebSrcEnsureGRef(WebKitWebSrc* src)
     return GRefPtr<WebKitWebSrc>(src);
 }
 
+static void webKitWebSrcStartResourceRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>& members, ResourceRequest&& request, unsigned requestNumber, bool isLengthProbe)
+{
+    ASSERT(isMainThread());
+    PlatformMediaResourceLoader::LoadOptions loadOptions = 0;
+    members->resource = members->loader->requestResource(ResourceRequest(request), loadOptions);
+    if (members->resource) {
+        members->resource->setClient(adoptRef(*new CachedResourceStreamingClient(src, WTF::move(request), requestNumber, isLengthProbe)));
+        GST_DEBUG_OBJECT(src, "Started request R%u", requestNumber);
+    } else {
+        GST_ERROR_OBJECT(src, "Failed to setup streaming client to handle R%u", requestNumber);
+        members->loader = nullptr;
+    }
+}
+
 static void webKitWebSrcMakeRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>& members)
 {
     WebKitWebSrcPrivate* priv = src->priv;
@@ -641,10 +679,37 @@ static void webKitWebSrcMakeRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWeb
     // compressed data), even though the data received in didReceiveData is uncompressed.
     // This is however useful to enable for adaptive streaming
     // scenarios, when the demuxer needs to download playlists.
+#if OS(DARWIN)
+    // AVFoundation asks for the media as it is. WebM goes through WebKit's loader on a Mac, with the
+    // content codings of any subresource; a response that does use one has no length to seek by.
+    if (members->requestStyle != WebKitWebSrcRequestStyle::Subresource) {
+        // A playlist is text AVFoundation takes with the content coding of a subresource, which on a
+        // Mac is CFNetwork's gzip; a segment is media it takes as it is. A coded response has no
+        // length to seek by, which is why the segment keeps the coding switched off.
+        bool isPlaylist = members->requestStyle == WebKitWebSrcRequestStyle::HLS && url.path().endsWithIgnoringASCIICase(".m3u8"_s);
+        request.setAcceptEncoding(isPlaylist);
+        request.setHTTPHeaderField(HTTPHeaderName::AcceptEncoding, isPlaylist ? "gzip"_s : "identity"_s);
+        if (!members->playbackSessionIdentifier.isEmpty())
+            request.setHTTPHeaderField(String { "X-Playback-Session-Id"_s }, members->playbackSessionIdentifier);
+    }
+#else
     if (!priv->compress)
         request.setAcceptEncoding(false);
 #endif
+#endif
 
+    bool isLengthProbe = false;
+#if OS(DARWIN)
+    // AVFoundation asks for the first two bytes of a file, then for the file by its length, and for
+    // the rest of it up to its last byte after a seek.
+    bool hasOpenEnd = members->stopPosition == UINT64_MAX;
+    isLengthProbe = members->requestStyle == WebKitWebSrcRequestStyle::ProgressiveFile && hasOpenEnd && !members->requestedPosition && !members->size;
+    if (isLengthProbe)
+        request.setHTTPHeaderField(HTTPHeaderName::Range, "bytes=0-1"_s);
+    else if (members->requestStyle == WebKitWebSrcRequestStyle::ProgressiveFile && hasOpenEnd && members->size && *members->size > members->requestedPosition)
+        request.setHTTPHeaderField(HTTPHeaderName::Range, makeString("bytes="_s, members->requestedPosition, '-', *members->size - 1));
+    else
+#endif
     if (members->requestedPosition || members->stopPosition != UINT64_MAX) {
         GMallocString formatedRange;
         if (members->stopPosition != UINT64_MAX)
@@ -657,8 +722,11 @@ static void webKitWebSrcMakeRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWeb
     ASSERT(members->readPosition == members->requestedPosition);
 
     GST_DEBUG_OBJECT(src, "Persistent connection support %s", priv->keepAlive ? "enabled" : "disabled");
+#if !OS(DARWIN)
+    // The system's players leave the connection to the network stack, which keeps it.
     if (!priv->keepAlive)
         request.setHTTPHeaderField(HTTPHeaderName::Connection, "close"_s);
+#endif
 
     if (priv->extraHeaders) {
         gstStructureForeach(priv->extraHeaders.get(), [&](auto id, auto value) -> bool {
@@ -687,11 +755,13 @@ static void webKitWebSrcMakeRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWeb
         });
     }
 
+#if !OS(DARWIN)
     // We always request Icecast/Shoutcast metadata, just in case ...
     request.setHTTPHeaderField(HTTPHeaderName::IcyMetadata, "1"_s);
+#endif
 
     ASSERT(!isMainThread());
-    RunLoop::mainSingleton().dispatch([protector = webKitWebSrcEnsureGRef(src), request = WTF::move(request), requestNumber = members->requestNumber] {
+    RunLoop::mainSingleton().dispatch([protector = webKitWebSrcEnsureGRef(src), request = WTF::move(request), requestNumber = members->requestNumber, isLengthProbe]() mutable {
         WebKitWebSrcPrivate* priv = protector->priv;
         DataMutexLocker members { priv->dataMutex };
         // Ignore this task (not making any HTTP request) if by now WebKitWebSrc streaming thread is already waiting
@@ -701,15 +771,7 @@ static void webKitWebSrcMakeRequest(WebKitWebSrc* src, DataMutexLocker<WebKitWeb
             return;
         }
 
-        PlatformMediaResourceLoader::LoadOptions loadOptions = 0;
-        members->resource = members->loader->requestResource(ResourceRequest(request), loadOptions);
-        if (members->resource) {
-            members->resource->setClient(adoptRef(*new CachedResourceStreamingClient(protector.get(), ResourceRequest(request), requestNumber)));
-            GST_DEBUG_OBJECT(protector.get(), "Started request R%u", requestNumber);
-        } else {
-            GST_ERROR_OBJECT(protector.get(), "Failed to setup streaming client to handle R%u", requestNumber);
-            members->loader = nullptr;
-        }
+        webKitWebSrcStartResourceRequest(protector.get(), members, WTF::move(request), requestNumber, isLengthProbe);
     });
 }
 
@@ -957,11 +1019,36 @@ bool webKitSrcPassedCORSAccessCheck(WebKitWebSrc* src)
     return members->didPassAccessControlCheck;
 }
 
-CachedResourceStreamingClient::CachedResourceStreamingClient(WebKitWebSrc* src, ResourceRequest&& request, unsigned requestNumber)
+CachedResourceStreamingClient::CachedResourceStreamingClient(WebKitWebSrc* src, ResourceRequest&& request, unsigned requestNumber, bool isLengthProbe)
     : m_requestNumber(requestNumber)
     , m_src(src)
     , m_request(WTF::move(request))
+    , m_isLengthProbe(isLengthProbe)
 {
+}
+
+void CachedResourceStreamingClient::lengthProbeAnswered(WebKitWebSrc* src, DataMutexLocker<WebKitWebSrcPrivate::StreamingMembers>& members, std::optional<uint64_t> length)
+{
+    if (m_didAnswerLengthProbe)
+        return;
+    m_didAnswerLengthProbe = true;
+
+    // The request for the file itself: all of it by its length when the probe told it, else without a range.
+    ResourceRequest request(m_request);
+    if (length && *length)
+        request.setHTTPHeaderField(HTTPHeaderName::Range, makeString("bytes=0-"_s, *length - 1));
+    else
+        request.removeHTTPHeaderField(HTTPHeaderName::Range);
+
+    // The probe is closed and the request made once this callback of the probe has returned.
+    RunLoop::mainSingleton().dispatch([protector = GRefPtr<WebKitWebSrc>(src), probe = std::exchange(members->resource, nullptr), request = WTF::move(request), requestNumber = m_requestNumber]() mutable {
+        if (probe)
+            probe->shutdown();
+        DataMutexLocker members { protector->priv->dataMutex };
+        if (members->requestNumber != requestNumber || !members->loader)
+            return;
+        webKitWebSrcStartResourceRequest(protector.get(), members, WTF::move(request), requestNumber, false);
+    });
 }
 
 CachedResourceStreamingClient::~CachedResourceStreamingClient() = default;
@@ -1023,6 +1110,19 @@ void CachedResourceStreamingClient::responseReceived(PlatformMediaResource&, con
     }
 
     GST_DEBUG_OBJECT(src.get(), "R%u: Received response: %d", m_requestNumber, response.httpStatusCode());
+
+    if (m_isLengthProbe) {
+        // "bytes 0-1/length"; a server without ranges answers with the whole file, which is then asked for plainly.
+        std::optional<uint64_t> length;
+        if (response.httpStatusCode() == httpStatus206PartialContent) {
+            auto contentRange = response.httpHeaderField(HTTPHeaderName::ContentRange);
+            if (auto slash = contentRange.reverseFind('/'); slash != notFound)
+                length = parseInteger<uint64_t>(StringView { contentRange }.substring(slash + 1));
+        }
+        lengthProbeAnswered(src.get(), members, length);
+        completionHandler(ShouldContinuePolicyCheck::No);
+        return;
+    }
 
     members->didPassAccessControlCheck = members->resource->didPassAccessControlCheck();
     members->origins.add(SecurityOrigin::create(response.url()));
@@ -1168,6 +1268,9 @@ void CachedResourceStreamingClient::recalculateLengthAndSeekableIfNeeded(DataMut
 void CachedResourceStreamingClient::dataReceived(PlatformMediaResource&, const SharedBuffer& data)
 {
     ASSERT(isMainThread());
+    if (m_isLengthProbe)
+        return;
+
     auto src = m_src.get();
     if (!src)
         return;
@@ -1221,6 +1324,13 @@ void CachedResourceStreamingClient::accessControlCheckFailed(PlatformMediaResour
     if (members->requestNumber != m_requestNumber)
         return;
 
+    if (m_isLengthProbe) {
+        // The request for the file itself reports what is wrong with it.
+        if (!error.isCancellation())
+            lengthProbeAnswered(src.get(), members, std::nullopt);
+        return;
+    }
+
     GST_ELEMENT_ERROR(src.get(), RESOURCE, READ, ("R%u: %s", m_requestNumber, error.localizedDescription().utf8().legacyCStringPointer()), (nullptr));
     members->doesHaveEOS = true;
     members->responseCondition.notifyOne();
@@ -1236,6 +1346,13 @@ void CachedResourceStreamingClient::loadFailed(PlatformMediaResource&, const Res
     DataMutexLocker members { src->priv->dataMutex };
     if (members->requestNumber != m_requestNumber)
         return;
+
+    if (m_isLengthProbe) {
+        // The request for the file itself reports what is wrong with it.
+        if (!error.isCancellation())
+            lengthProbeAnswered(src.get(), members, std::nullopt);
+        return;
+    }
 
     if (!error.isCancellation()) {
         GST_ERROR_OBJECT(src.get(), "R%u: Have failure: %s", m_requestNumber, error.localizedDescription().utf8());
@@ -1257,6 +1374,11 @@ void CachedResourceStreamingClient::loadFinished(PlatformMediaResource&, const N
     DataMutexLocker members { src->priv->dataMutex };
     if (members->requestNumber != m_requestNumber)
         return;
+
+    if (m_isLengthProbe) {
+        lengthProbeAnswered(src.get(), members, std::nullopt);
+        return;
+    }
 
     GST_LOG_OBJECT(src.get(), "R%u: Load finished. Read position: %" G_GUINT64_FORMAT, m_requestNumber, members->readPosition);
 
@@ -1285,6 +1407,15 @@ void webKitWebSrcSetPlayer(WebKitWebSrc* src, ThreadSafeWeakPtr<WebCore::MediaPl
 {
     src->priv->player = player;
 }
+
+#if OS(DARWIN)
+void webKitWebSrcSetRequestStyle(WebKitWebSrc* src, WebKitWebSrcRequestStyle style, const String& playbackSessionIdentifier)
+{
+    DataMutexLocker members { src->priv->dataMutex };
+    members->requestStyle = style;
+    members->playbackSessionIdentifier = playbackSessionIdentifier.isolatedCopy();
+}
+#endif
 
 #undef GST_CAT_DEFAULT
 

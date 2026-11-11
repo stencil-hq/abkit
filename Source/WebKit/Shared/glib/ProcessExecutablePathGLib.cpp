@@ -31,7 +31,9 @@
 #include <wtf/FileSystem.h>
 #include <wtf/NeverDestroyed.h>
 
-#if OS(WINDOWS)
+#if OS(DARWIN)
+#include <wtf/darwin/EngineLibrary.h>
+#elif OS(WINDOWS)
 #include <windows.h>
 #else
 #include <dlfcn.h>
@@ -52,7 +54,10 @@ static String getExecutablePath()
 String directoryOfWebKitLibrary()
 {
     static NeverDestroyed<String> directory = [] {
-#if OS(WINDOWS)
+#if OS(DARWIN)
+        // Shared with WebCore, which finds the bundled runtime libraries by it too.
+        return WTF::directoryOfEngineLibrary();
+#elif OS(WINDOWS)
         HMODULE module = nullptr;
         if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&directoryOfWebKitLibrary), &module))
             return String();

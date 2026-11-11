@@ -23,6 +23,8 @@
 
 page/skia/MemoryReleaseSkia.cpp
 
+platform/graphics/BundledRuntime.cpp
+
 platform/graphics/filters/skia/FEColorMatrixSkiaApplier.cpp
 platform/graphics/filters/skia/FEComponentTransferSkiaApplier.cpp
 platform/graphics/filters/skia/FEDropShadowSkiaApplier.cpp
@@ -40,8 +42,11 @@ platform/graphics/skia/FontCascadeSkia.cpp
 platform/graphics/skia/FontCustomPlatformDataSkia.cpp
 platform/graphics/skia/FontDescriptionSkia.cpp
 platform/graphics/skia/FontPlatformDataSkia.cpp
+platform/graphics/skia/FontRasterizationSkiaDarwin.cpp @no-unify
 platform/graphics/skia/FontRenderOptionsSkia.cpp
 platform/graphics/skia/FontSkia.cpp
+platform/graphics/skia/FontTrackingSkia.cpp
+platform/graphics/skia/FontVariableAdvancesSkia.cpp
 platform/graphics/skia/FontVariationsSkia.cpp
 platform/graphics/skia/GlyphPageSkia.cpp
 platform/graphics/skia/GradientSkia.cpp
@@ -52,6 +57,7 @@ platform/graphics/skia/ImageBufferSkiaAcceleratedBackend.cpp
 platform/graphics/skia/ImageBufferSkiaSurfaceBackend.cpp
 platform/graphics/skia/ImageBufferSkiaUnacceleratedBackend.cpp
 platform/graphics/skia/ImageUtilitiesSkia.cpp
+platform/graphics/skia/ImageUtilitiesSkiaDarwin.cpp @no-unify
 platform/graphics/skia/IntRectSkia.cpp
 platform/graphics/skia/NativeImageSkia.cpp
 platform/graphics/skia/PathSkia.cpp
@@ -65,6 +71,7 @@ platform/graphics/skia/SkiaCompositingLayerFilters.cpp
 platform/graphics/skia/SkiaCompositingLayerImageSetBatch.cpp
 platform/graphics/skia/SkiaCompositingLayerOverlapRegions.cpp
 platform/graphics/skia/SkiaGPUAtlas.cpp
+platform/graphics/skia/SkiaCoreGraphicsPathCoverage.cpp @no-unify
 platform/graphics/skia/SkiaHarfBuzzFont.cpp
 platform/graphics/skia/SkiaHarfBuzzFontCache.cpp
 platform/graphics/skia/SkiaImageAtlasLayout.cpp

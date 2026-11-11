@@ -46,6 +46,7 @@
 #include "Logging.h"
 #include "MIMETypeRegistry.h"
 #include "MediaPlayer.h"
+#include "MediaTypeSupportDarwin.h"
 #include "NotImplemented.h"
 #include "OriginAccessPatterns.h"
 #include "SecurityOrigin.h"
@@ -102,6 +103,7 @@
 #include <wtf/StringPrintStream.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/URL.h>
+#include <wtf/UUID.h>
 #include <wtf/UniStdExtras.h>
 #include <wtf/WallTime.h>
 #include <wtf/glib/GMallocString.h>
@@ -974,9 +976,20 @@ const PlatformTimeRanges& MediaPlayerPrivateGStreamer::buffered() const
 
     GRefPtr<GstQuery> query = adoptGRef(gst_query_new_buffering(GST_FORMAT_PERCENT));
 
-    if (!gst_element_query(m_pipeline.get(), query.get()))
-        return PlatformTimeRanges::emptyRanges();
+    // Once playback has ended the pipeline is taken down and has no ranges to report, while what it
+    // had loaded stays loaded.
+    if (!gst_element_query(m_pipeline.get(), query.get())) {
+        if (!m_isEndReached)
+            return PlatformTimeRanges::emptyRanges();
+        // Nobody may have asked before the end: playback got there, so the media was loaded up to it.
+        if (!m_buffered.length()) {
+            if (MediaTime loaded = maxTimeLoaded(); loaded > MediaTime::zeroTime())
+                m_buffered.add(MediaTime::zeroTime(), loaded);
+        }
+        return m_buffered;
+    }
 
+    auto bufferedAtEnd = m_isEndReached ? m_buffered : PlatformTimeRanges { };
     m_buffered.clear();
     unsigned numBufferingRanges = gst_query_get_n_buffering_ranges(query.get());
     for (unsigned index = 0; index < numBufferingRanges; index++) {
@@ -996,6 +1009,9 @@ const PlatformTimeRanges& MediaPlayerPrivateGStreamer::buffered() const
         if (loaded > MediaTime::zeroTime())
             m_buffered.add(MediaTime::zeroTime(), loaded);
     }
+
+    if (!m_buffered.length())
+        m_buffered = WTF::move(bufferedAtEnd);
 
     return m_buffered;
 }
@@ -1171,6 +1187,13 @@ void MediaPlayerPrivateGStreamer::sourceSetup(GstElement* sourceElement)
         webKitWebSrcSetReferrer(source, m_referrer);
         webKitWebSrcSetResourceLoader(source, m_loader);
         webKitWebSrcSetPlayer(source, ThreadSafeWeakPtr { *this });
+#if OS(DARWIN)
+        // Kept for the sources a demuxer makes later, which ask for the context on their own threads.
+        m_systemRequestStyle = systemRequestStyle();
+        if (m_playbackSessionIdentifier.isNull())
+            m_playbackSessionIdentifier = createVersion4UUIDString().convertToASCIIUppercase();
+        webKitWebSrcSetRequestStyle(source, m_systemRequestStyle, m_playbackSessionIdentifier);
+#endif
 #if ENABLE(MEDIA_STREAM)
     } else if (WEBKIT_IS_MEDIA_STREAM_SRC(sourceElement)) {
         RefPtr player = m_player.get();
@@ -1656,9 +1679,12 @@ GstElement* MediaPlayerPrivateGStreamer::createAudioSink()
     auto role = player->isVideoPlayer() ? "video"_s : "music"_s;
     GstElement* audioSink = nullptr;
 
+    if (!player->isAudioOutputEnabled())
+        audioSink = createDiscardingAudioSink();
+
 #if ENABLE(MEDIA_STREAM)
     auto deviceId = player->audioOutputDeviceId();
-    if (!deviceId.isEmpty()) {
+    if (!audioSink && !deviceId.isEmpty()) {
         auto [resolvedId, device] = gstResolveAudioOutputDevice(deviceId);
         if (device)
             audioSink = createPlatformAudioSink(role, resolvedId, device);
@@ -1680,6 +1706,27 @@ GstElement* MediaPlayerPrivateGStreamer::createAudioSink()
     return audioSink;
 #endif
 }
+
+#if OS(DARWIN)
+static bool isHLSLocation(const URL& url, const String& mimeType)
+{
+    return url.path().endsWithIgnoringASCIICase(".m3u8"_s) || equalLettersIgnoringASCIICase(mimeType, "application/vnd.apple.mpegurl"_s)
+        || equalLettersIgnoringASCIICase(mimeType, "application/x-mpegurl"_s) || equalLettersIgnoringASCIICase(mimeType, "audio/mpegurl"_s)
+        || equalLettersIgnoringASCIICase(mimeType, "audio/x-mpegurl"_s);
+}
+
+WebKitWebSrcRequestStyle MediaPlayerPrivateGStreamer::systemRequestStyle() const
+{
+    RefPtr player = m_player.get();
+    auto mimeType = player ? player->contentMIMEType() : String();
+    if (isHLSLocation(m_url, mimeType))
+        return WebKitWebSrcRequestStyle::HLS;
+    if (m_url.path().endsWithIgnoringASCIICase(".webm"_s) || equalLettersIgnoringASCIICase(mimeType, "video/webm"_s) || equalLettersIgnoringASCIICase(mimeType, "audio/webm"_s))
+        return WebKitWebSrcRequestStyle::Subresource;
+    return WebKitWebSrcRequestStyle::ProgressiveFile;
+}
+
+#endif
 
 bool MediaPlayerPrivateGStreamer::isMediaStreamPlayer() const
 {
@@ -2038,6 +2085,10 @@ bool MediaPlayerPrivateGStreamer::handleNeedContextMessage(GstMessage* message)
         GstStructure* contextStructure = gst_context_writable_structure(context.get());
 
         gst_structure_set(contextStructure, "loader", G_TYPE_POINTER, m_loader.ptr(), nullptr);
+#if OS(DARWIN)
+        if (m_systemRequestStyle == WebKitWebSrcRequestStyle::HLS)
+            gst_structure_set(contextStructure, "referrer", G_TYPE_STRING, m_referrer.utf8().legacyCStringPointer(), "playback-session-id", G_TYPE_STRING, m_playbackSessionIdentifier.utf8().legacyCStringPointer(), nullptr);
+#endif
         gst_element_set_context(GST_ELEMENT(GST_MESSAGE_SRC(message)), context.get());
         return true;
     }
@@ -3383,6 +3434,15 @@ void MediaPlayerPrivateGStreamer::recalculateDurationIfNeeded() const
     MediaTime now = currentTime();
     MediaTime currentDuration = duration();
 
+#if OS(DARWIN)
+    // The system's players report the duration of the media itself: an HLS stream's is the sum of the
+    // playlist's #EXTINF entries and a transport stream's is measured over its frames. The position
+    // reached when the stream ends can run past either by a fraction of a second, so a duration that
+    // is already known must not be replaced by it. A live stream is not known to be over yet.
+    if (currentDuration.isFinite() && currentDuration > MediaTime::zeroTime() && !m_isLiveStream.value_or(false))
+        return;
+#endif
+
     auto cacheNewDuration = [&](const MediaTime& now) {
         if (now == currentDuration)
             return;
@@ -3482,7 +3542,11 @@ void MediaPlayerPrivateGStreamer::maybeNotifyClientOfReadyAndNetworkChanges(Medi
 
 void MediaPlayerPrivateGStreamer::getSupportedTypes(HashSet<String>& types)
 {
+#if OS(DARWIN)
+    MediaTypeSupportDarwin::getSupportedFileTypes(types);
+#else
     GStreamerRegistryScanner::getSupportedDecodingTypes(types);
+#endif
 }
 
 MediaPlayer::SupportsType MediaPlayerPrivateGStreamer::supportsType(const MediaEngineSupportParameters& parameters)
@@ -3523,8 +3587,12 @@ MediaPlayer::SupportsType MediaPlayerPrivateGStreamer::supportsType(const MediaE
 
     registerWebKitGStreamerElements();
 
+#if OS(DARWIN)
+    result = MediaTypeSupportDarwin::supportsFileType(parameters.type);
+#else
     auto& gstRegistryScanner = GStreamerRegistryScanner::singleton();
     result = gstRegistryScanner.isContentTypeSupported(GStreamerRegistryScanner::Configuration::Decoding, parameters.type, parameters.contentTypesRequiringHardwareSupport);
+#endif
 
     GST_DEBUG("Supported: %s", convertEnumerationToString(result).utf8());
     return result;
@@ -3666,6 +3734,14 @@ void MediaPlayerPrivateGStreamer::createGSTPlayBin(const URL& url)
     bool isBlob = url.protocolIsBlob();
     if ((usePlaybin2.value_or(0) || !gst_check_version(1, 28, 0)) && !isMediaSource() && !isMediaStream && !isBlob)
         playbinName = "playbin"_s;
+
+#if OS(DARWIN)
+    // HLS plays with the demuxer that fetches through the page's network stack, and that one only
+    // playbin takes: playbin3 wants a demuxer that is aware of streams.
+    bool isHLS = isHLSLocation(url, player->contentMIMEType());
+    if (isHLS && !isMediaSource() && !isMediaStream && !isBlob)
+        playbinName = "playbin"_s;
+#endif
 
     ASSERT(!m_pipeline);
 
@@ -4344,7 +4420,13 @@ void MediaPlayerPrivateGStreamer::managePlayerSuspend()
     static bool allowPlaybackOfInvisibleVideos = false;
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [&] {
+#if OS(DARWIN)
+        // The system's browser keeps a muted video playing wherever it is, out of view or out of the
+        // document, and pages draw such videos into canvases and textures.
+        allowPlaybackOfInvisibleVideos = true;
+#else
         allowPlaybackOfInvisibleVideos = UTF8CStringView::unsafeFromUTF8(g_getenv("WEBKIT_GST_ALLOW_PLAYBACK_OF_INVISIBLE_VIDEOS")) == "1"_s;
+#endif
     });
 
     bool muted = isMuted();
@@ -4965,7 +5047,10 @@ bool MediaPlayerPrivateGStreamer::supportsKeySystem(const String& keySystem, [[m
 {
     bool result = false;
 
-#if ENABLE(ENCRYPTED_MEDIA)
+    // A legacy CDM session has no path to a GStreamer decryptor on this port: the media engine does
+    // not implement setCDM() nor setCDMSession(), so the legacy WebKitMediaKeys API, which asks the
+    // media engine, must answer as it does for an unknown key system.
+#if ENABLE(ENCRYPTED_MEDIA) && !(PLATFORM(WPE) && OS(DARWIN))
     result = GStreamerEMEUtilities::isClearKeyKeySystem(keySystem);
 #endif
 

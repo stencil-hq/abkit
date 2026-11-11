@@ -45,6 +45,9 @@ NetworkProcess/glib/NetworkMDNSRegisterGLib.cpp
 NetworkProcess/glib/WebKitCachedResolver.cpp
 NetworkProcess/glib/WebKitOverridingResolver.cpp
 
+NetworkProcess/DataTaskLoad.cpp
+
+NetworkProcess/soup/BundledTLSBackend.cpp
 NetworkProcess/soup/NetworkDataTaskSoup.cpp
 NetworkProcess/soup/NetworkProcessMainSoup.cpp
 NetworkProcess/soup/NetworkProcessSoup.cpp
@@ -254,6 +257,9 @@ UIProcess/Gamepad/libwpe/UIGamepadProviderLibWPE.cpp
 
 UIProcess/Gamepad/wpe/GamepadProviderWPE.cpp
 UIProcess/Gamepad/wpe/PlatformGamepadWPE.cpp
+
+UIProcess/WebAuthentication/AuthenticatorManager.cpp
+UIProcess/WebAuthentication/wpe/WebAuthenticatorCoordinatorProxyWPE.cpp
 
 UIProcess/geoclue/GeoclueGeolocationProvider.cpp
 

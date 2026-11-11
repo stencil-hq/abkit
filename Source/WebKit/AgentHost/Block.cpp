@@ -67,6 +67,9 @@ void Block::setFeature(const char* identifier, bool enabled)
 void Block::open(const std::string& url)
 {
     m_settings = GRef<WebKitSettings>::adopt(webkit_settings_new());
+    // A remote inspector reaches a page only through the instrumentation developer extras turn on.
+    if (m_host.inspectorEnabled())
+        webkit_settings_set_enable_developer_extras(m_settings.get(), TRUE);
     // The page is always focused in an active window, and renders no frame nobody asked for.
     setFeature("FocusEmulation", true);
     setFeature("CompositionSuppressed", true);

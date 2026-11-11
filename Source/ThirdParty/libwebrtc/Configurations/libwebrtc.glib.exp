@@ -1,0 +1,11 @@
+# What the GLib ports use beyond the Cocoa ports' list: their GStreamer
+# adapters and their network process, which runs libwebrtc's own sockets and
+# network monitor, call into the library widely, so the C++ API is exported
+# whole. BoringSSL and the codec libraries stay private.
+__ZN6webrtc*
+__ZNK6webrtc*
+__ZTVN6webrtc*
+__ZThn*N6webrtc*
+__ZThn*NK6webrtc*
+__ZN4absl*
+__ZNK4absl*

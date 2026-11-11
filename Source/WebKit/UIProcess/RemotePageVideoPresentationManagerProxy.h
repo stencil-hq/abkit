@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 #include "MessageReceiver.h"
 #include <WebCore/PageIdentifier.h>

@@ -51,7 +51,7 @@ NODELETE static constexpr auto multipleOf4(auto input)
 static uint64_t maxBufferSize(id<MTLDevice> device)
 {
     constexpr auto maxBuffersToAllow = 3;
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     auto result = std::max<uint64_t>(std::min<uint64_t>(device.maxBufferLength, GB), std::min<uint64_t>(INT_MAX, device.maxBufferLength / maxBuffersToAllow));
 #else
     auto result = std::max<uint64_t>(WebGPU::defaultLimits().maxBufferSize, std::min<uint64_t>(GB, device.maxBufferLength / maxBuffersToAllow));
@@ -62,6 +62,17 @@ static uint64_t maxBufferSize(id<MTLDevice> device)
 NODELETE static constexpr uint32_t largeReasonableLimit()
 {
     return USHRT_MAX;
+}
+
+NODELETE static constexpr uint32_t dynamicUniformBuffersLimit(uint32_t bindGroups, uint32_t uniformBuffersPerBindGroup)
+{
+#if USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
+    UNUSED_PARAM(bindGroups);
+    UNUSED_PARAM(uniformBuffersPerBindGroup);
+    return largeReasonableLimit();
+#else
+    return bindGroups * uniformBuffersPerBindGroup;
+#endif
 }
 
 NODELETE static constexpr auto workaroundCTSBindGroupLimit(auto valueToClamp)
@@ -122,7 +133,9 @@ static Vector<WebGPU::FeatureName> baseFeatures(id<MTLDevice> device, const Hard
     features.append(WebGPU::FeatureName::Float32Blendable);
 
     features.append(WebGPU::FeatureName::ClipDistances);
+#if !USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
     features.append(WebGPU::FeatureName::DualSourceBlending);
+#endif
     features.append(WebGPU::FeatureName::DepthClipControl);
     features.append(WebGPU::FeatureName::Depth32floatStencil8);
 
@@ -143,7 +156,9 @@ static Vector<WebGPU::FeatureName> baseFeatures(id<MTLDevice> device, const Hard
     features.append(WebGPU::FeatureName::Rg11b10ufloatRenderable);
     features.append(WebGPU::FeatureName::ShaderF16);
     features.append(WebGPU::FeatureName::Bgra8unormStorage);
+#if !USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
     features.append(WebGPU::FeatureName::TextureComponentSwizzle);
+#endif
 #if CPU(ARM64)
     features.append(WebGPU::FeatureName::TextureFormatsTier1);
     features.append(WebGPU::FeatureName::TextureFormatsTier2);
@@ -154,8 +169,10 @@ static Vector<WebGPU::FeatureName> baseFeatures(id<MTLDevice> device, const Hard
     // Subgroup (SIMD-group) built-in functions are guaranteed across GPU vendors by the
     // Metal 3 feature set, which provides the full reduction, prefix-scan, shuffle, ballot,
     // and quad operation set that the WGSL 'subgroups' extension requires.
+#if !USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
     if ([device supportsFamily:MTLGPUFamilyMetal3])
         features.append(WebGPU::FeatureName::Subgroups);
+#endif
 
 #if !PLATFORM(WATCHOS)
     if (device.supports32BitFloatFiltering)
@@ -333,7 +350,7 @@ static HardwareCapabilities apple6(id<MTLDevice> device)
             .maxBindingsPerBindGroup =    largeReasonableLimit(),
             // A dynamic uniform buffer is still a uniform buffer binding, so advertising more of them
             // than a single stage can hold would let the two limits contradict each other.
-            .maxDynamicUniformBuffersPerPipelineLayout =    maxBindGroups * tier2LimitForBuffersAndTextures,
+            .maxDynamicUniformBuffersPerPipelineLayout =    dynamicUniformBuffersLimit(maxBindGroups, tier2LimitForBuffersAndTextures),
             .maxDynamicStorageBuffersPerPipelineLayout =    largeReasonableLimit(),
             .maxSampledTexturesPerShaderStage =    maxBindGroups * tier2LimitForBuffersAndTextures,
             .maxSamplersPerShaderStage =    maxBindGroups * tier2LimitForSamplers,
@@ -394,7 +411,7 @@ static HardwareCapabilities apple7(id<MTLDevice> device)
             .maxBindingsPerBindGroup =    largeReasonableLimit(),
             // A dynamic uniform buffer is still a uniform buffer binding, so advertising more of them
             // than a single stage can hold would let the two limits contradict each other.
-            .maxDynamicUniformBuffersPerPipelineLayout =    maxBindGroups * tier2LimitForBuffersAndTextures,
+            .maxDynamicUniformBuffersPerPipelineLayout =    dynamicUniformBuffersLimit(maxBindGroups, tier2LimitForBuffersAndTextures),
             .maxDynamicStorageBuffersPerPipelineLayout =    largeReasonableLimit(),
             .maxSampledTexturesPerShaderStage =    maxBindGroups * tier2LimitForBuffersAndTextures,
             .maxSamplersPerShaderStage =    maxBindGroups * tier2LimitForSamplers,
@@ -455,7 +472,7 @@ static HardwareCapabilities mac2(id<MTLDevice> device)
             .maxBindingsPerBindGroup =  1000,
             // A dynamic uniform buffer is still a uniform buffer binding, so advertising more of them
             // than a single stage can hold would let the two limits contradict each other.
-            .maxDynamicUniformBuffersPerPipelineLayout =    maxBindGroups * tier2LimitForBuffersAndTextures,
+            .maxDynamicUniformBuffersPerPipelineLayout =    dynamicUniformBuffersLimit(maxBindGroups, tier2LimitForBuffersAndTextures),
             .maxDynamicStorageBuffersPerPipelineLayout =    largeReasonableLimit(),
             .maxSampledTexturesPerShaderStage =    maxBindGroups * tier2LimitForBuffersAndTextures,
             .maxSamplersPerShaderStage =    maxBindGroups * tier2LimitForSamplers,

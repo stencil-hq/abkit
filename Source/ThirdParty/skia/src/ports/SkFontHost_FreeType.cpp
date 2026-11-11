@@ -514,6 +514,12 @@ private:
     bool      fLCDIsVert;
 
     FT_Error setupSize();
+    // Loads the image of |glyphID| from a bitmap strike when the selected one has none, and
+    // returns the transform that scales that strike's image to the requested size. On success the
+    // face and its glyph slot hold the image from the other strike; the caller restores
+    // fStrikeIndex when it is done with it. False leaves the face on the selected strike.
+    // Caller must lock f_t_mutex() before calling this function.
+    bool loadColorBitmapFromOtherStrike(FT_UInt glyphID, SkMatrix* bitmapMatrix);
     // Caller must lock f_t_mutex() before calling this function.
     static bool getBoundsOfCurrentOutlineGlyph(FT_GlyphSlot glyph, SkRect* bounds);
     // Caller must lock f_t_mutex() before calling this function.
@@ -1136,6 +1142,76 @@ FT_Error SkScalerContext_FreeType::setupSize() {
     return 0;
 }
 
+bool SkScalerContext_FreeType::loadColorBitmapFromOtherStrike(FT_UInt glyphID,
+                                                             SkMatrix* bitmapMatrix) {
+    if (fStrikeIndex == -1 || fFace->glyph->format != FT_GLYPH_FORMAT_BITMAP) {
+        return false;
+    }
+    // Every glyph of a colour-bitmap font has an image in the strike that Core Text would draw it
+    // from, which is the one chosen for the requested size; leave those glyphs alone.
+    if (fFace->glyph->bitmap.width && fFace->glyph->bitmap.rows) {
+        return false;
+    }
+    // A few glyphs of such a font have an image in some strikes only. Core Text draws those from
+    // the nearest larger strike that has one, and from the nearest smaller one when none has.
+    if (!(fFace->face_flags & FT_FACE_FLAG_COLOR) || !fFace->num_fixed_sizes) {
+        return false;
+    }
+
+    const FT_Pos selectedPPEM = fFace->available_sizes[fStrikeIndex].y_ppem;
+    bool haveTried = false;
+    FT_Pos triedPPEM = 0;
+    for (int direction = 0; direction < 2; ++direction) {
+        for (;;) {
+            FT_Int candidate = -1;
+            FT_Pos candidatePPEM = 0;
+            for (FT_Int i = 0; i < fFace->num_fixed_sizes; ++i) {
+                if (i == fStrikeIndex) {
+                    continue;
+                }
+                const FT_Pos ppem = fFace->available_sizes[i].y_ppem;
+                if (direction == 0) {
+                    if (ppem <= selectedPPEM || (haveTried && ppem <= triedPPEM)) {
+                        continue;
+                    }
+                    if (candidate == -1 || ppem < candidatePPEM) {
+                        candidate = i;
+                        candidatePPEM = ppem;
+                    }
+                } else {
+                    if (ppem >= selectedPPEM || (haveTried && ppem >= triedPPEM)) {
+                        continue;
+                    }
+                    if (candidate == -1 || ppem > candidatePPEM) {
+                        candidate = i;
+                        candidatePPEM = ppem;
+                    }
+                }
+            }
+            if (candidate == -1) {
+                break;
+            }
+            triedPPEM = candidatePPEM;
+            haveTried = true;
+            if (!FT_Select_Size(fFace, candidate) &&
+                !FT_Load_Glyph(fFace, glyphID, fLoadGlyphFlags) &&
+                fFace->glyph->bitmap.width && fFace->glyph->bitmap.rows) {
+                const FT_Bitmap_Size& selectedSize = fFace->available_sizes[fStrikeIndex];
+                const FT_Bitmap_Size& candidateSize = fFace->available_sizes[candidate];
+                *bitmapMatrix = fMatrix22Scalar;
+                bitmapMatrix->preScale(SkIntToScalar(selectedSize.x_ppem) / candidateSize.x_ppem,
+                                       SkIntToScalar(selectedSize.y_ppem) / candidateSize.y_ppem);
+                return true;
+            }
+        }
+    }
+
+    // The face is shared: put the selected strike back.
+    FT_Select_Size(fFace, fStrikeIndex);
+    FT_Load_Glyph(fFace, glyphID, fLoadGlyphFlags);
+    return false;
+}
+
 bool SkScalerContext_FreeType::getBoundsOfCurrentOutlineGlyph(FT_GlyphSlot glyph, SkRect* bounds) {
     if (glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
         SkDEBUGFAIL("unexpected format type");
@@ -1321,11 +1397,28 @@ SkScalerContext::GlyphMetrics SkScalerContext_FreeType::generateMetrics(const Sk
         } else if (fFace->glyph->format == FT_GLYPH_FORMAT_BITMAP) {
             mx.neverRequestPath = true;
 
+            // A glyph that has no image in the strike chosen for this size is drawn from the strike
+            // that has one, scaled to this size, so it measures like the glyphs around it.
+            SkMatrix otherStrikeMatrix;
+            FT_Matrix otherStrikeMatrix22;
+            const SkMatrix* boundsMatrix = &fMatrix22Scalar;
+            const FT_Matrix* verticalMatrix22 = &fMatrix22;
+            const bool usedOtherStrike =
+                    this->loadColorBitmapFromOtherStrike(glyph.getGlyphID(), &otherStrikeMatrix);
+            if (usedOtherStrike) {
+                otherStrikeMatrix22.xx = SkScalarToFixed(otherStrikeMatrix.getScaleX());
+                otherStrikeMatrix22.xy = SkScalarToFixed(-otherStrikeMatrix.getSkewX());
+                otherStrikeMatrix22.yx = SkScalarToFixed(-otherStrikeMatrix.getSkewY());
+                otherStrikeMatrix22.yy = SkScalarToFixed(otherStrikeMatrix.getScaleY());
+                boundsMatrix = &otherStrikeMatrix;
+                verticalMatrix22 = &otherStrikeMatrix22;
+            }
+
             if (this->isVertical()) {
                 FT_Vector vector;
                 vector.x =  fFace->glyph->metrics.vertBearingX - fFace->glyph->metrics.horiBearingX;
                 vector.y = -fFace->glyph->metrics.vertBearingY - fFace->glyph->metrics.horiBearingY;
-                FT_Vector_Transform(&vector, &fMatrix22);
+                FT_Vector_Transform(&vector, verticalMatrix22);
                 fFace->glyph->bitmap_left += SkFDot6Floor(vector.x);
                 fFace->glyph->bitmap_top  += SkFDot6Floor(vector.y);
             }
@@ -1338,9 +1431,16 @@ SkScalerContext::GlyphMetrics SkScalerContext_FreeType::generateMetrics(const Sk
                                         -SkIntToScalar(fFace->glyph->bitmap_top  ),
                                          SkIntToScalar(fFace->glyph->bitmap.width),
                                          SkIntToScalar(fFace->glyph->bitmap.rows ));
-            fMatrix22Scalar.mapRect(&mx.bounds);
+            boundsMatrix->mapRect(&mx.bounds);
             updateGlyphBoundsIfSubpixel(glyph, &mx.bounds,
-                                        this->shouldSubpixelBitmap(glyph, fMatrix22Scalar));
+                                        this->shouldSubpixelBitmap(glyph, *boundsMatrix));
+
+            if (usedOtherStrike) {
+                // The face is shared, and the advance that follows comes from the selected strike.
+                FT_Select_Size(fFace, fStrikeIndex);
+                FT_Load_Glyph(fFace, glyph.getGlyphID(),
+                              fLoadGlyphFlags | FT_LOAD_BITMAP_METRICS_ONLY);
+            }
 
 #if defined(FT_CONFIG_OPTION_SVG)
         } else if (fFace->glyph->format == FT_GLYPH_FORMAT_SVG) {
@@ -1448,18 +1548,29 @@ void SkScalerContext_FreeType::generateImage(const SkGlyph& glyph, void* imageBu
         sk_bzero(imageBuffer, glyph.imageSize());
         return;
     }
+
+    // A glyph of a colour-bitmap font that has no image in the strike chosen for this size is
+    // drawn from the strike that has one, scaled to this size, so it draws as it measures.
+    SkMatrix otherStrikeMatrix;
+    const bool usedOtherStrike =
+            this->loadColorBitmapFromOtherStrike(glyph.getGlyphID(), &otherStrikeMatrix);
+
     emboldenIfNeeded(fFace, fFace->glyph, glyph.getGlyphID());
 
-    SkMatrix* bitmapMatrix = &fMatrix22Scalar;
+    SkMatrix* bitmapMatrix = usedOtherStrike ? &otherStrikeMatrix : &fMatrix22Scalar;
     SkMatrix subpixelBitmapMatrix;
     if (this->shouldSubpixelBitmap(glyph, *bitmapMatrix)) {
-        subpixelBitmapMatrix = fMatrix22Scalar;
+        subpixelBitmapMatrix = *bitmapMatrix;
         subpixelBitmapMatrix.postTranslate(SkFixedToScalar(glyph.getSubXFixed()),
                                            SkFixedToScalar(glyph.getSubYFixed()));
         bitmapMatrix = &subpixelBitmapMatrix;
     }
 
     fUtils.generateGlyphImage(fFace, glyph, imageBuffer, *bitmapMatrix, fPreBlend);
+
+    if (usedOtherStrike) {
+        FT_Select_Size(fFace, fStrikeIndex);
+    }
 }
 
 sk_sp<SkDrawable> SkScalerContext_FreeType::generateDrawable(const SkGlyph& glyph) {

@@ -38,6 +38,8 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 namespace WebCore {
 
 class FontPlatformData;
+class FontTracking;
+class FontVariableAdvances;
 
 class SkiaHarfBuzzFont final : public ThreadSafeRefCounted<SkiaHarfBuzzFont> {
 public:
@@ -51,6 +53,12 @@ public:
     void glyphExtents(hb_codepoint_t, hb_glyph_extents_t*);
 
     bool isColorBitmapFont() const { return m_isColorBitmapFont; }
+    // Null for a typeface whose advances are used as they are.
+    const FontTracking* tracking() const { return m_tracking.get(); }
+    bool isAppleColorEmoji() const { return m_isAppleColorEmoji; }
+    // The advance of a glyph of the typeface in a font: what the font's tables say, plus an
+    // adjustment for every glyph that has an advance, in whole pixels if asked.
+    SkScalar glyphAdvance(const SkFont&, SkGlyphID, float adjustment, bool inWholePixels) const;
 
     ~SkiaHarfBuzzFont();
 
@@ -62,7 +70,13 @@ private:
     SkTypefaceID m_uniqueID { 0 };
     HbUniquePtr<hb_font_t> m_font;
     SkFont m_scaledFont;
+    std::unique_ptr<FontTracking> m_tracking;
+    std::unique_ptr<FontVariableAdvances> m_variableAdvances;
+    int m_unitsPerEm { 0 };
+    float m_scaledAdvanceAdjustment { 0 };
+    bool m_hasWholePixelAdvances { false };
     bool m_isColorBitmapFont { false };
+    bool m_isAppleColorEmoji { false };
 };
 
 } // namespace WebCore

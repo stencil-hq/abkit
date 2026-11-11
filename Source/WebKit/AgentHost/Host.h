@@ -84,14 +84,19 @@ bool readScale(const Json& operation, double& scale, const Reply&);
 class Host {
 public:
     // `dataDirectory`: where profiles keep their website data; empty for none (every profile is then ephemeral).
+    // `inspectorAddress`: HOST:PORT a remote inspector serves the host's views from; empty for none (nothing
+    // about the engine changes, and the views stay uninspectable).
     // `quit` is called once, with the process's exit status, when the host is done.
-    Host(std::string&& dataDirectory, std::function<void(int)>&& quit);
+    Host(std::string&& dataDirectory, std::string&& inspectorAddress, std::function<void(int)>&& quit);
     ~Host();
 
     // Starts serving the protocol on the two descriptors. Returns false when the host cannot run.
     bool start(int input, int output);
     // Closes every block and writes out what is still queued.
     void stop();
+
+    // Whether a remote inspector serves the host's views. It is what the `--inspector` option names.
+    bool inspectorEnabled() const { return !m_inspectorAddress.empty(); }
 
     WPEDisplay* display() const { return m_display.get(); }
     // The context of every block's web view: it loads the host's extension into their web processes.
@@ -103,6 +108,8 @@ public:
     const std::string& temporaryDirectory();
     // Dark or light appearance. It is the display's, so every block's: the last request wins.
     void setDarkAppearance(bool);
+    // Applies the system's appearance: the Mac's (dark or light) on macOS, light elsewhere.
+    void followSystemAppearance();
 
     // The client a `present` target names (`{"mach":NAME}` on macOS), reached once and shared by every block
     // presented to it. Null, after failing `reply`, when it cannot be reached.
@@ -124,6 +131,7 @@ private:
     GRef<WebKitNetworkSession> sessionInDirectory(const std::string& directory);
 
     std::string m_dataDirectory;
+    std::string m_inspectorAddress;
     std::string m_temporaryDirectory;
     uint64_t m_lastPrivateStore { 0 };
     std::function<void(int)> m_quit;

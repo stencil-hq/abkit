@@ -34,6 +34,16 @@ list(APPEND WebCore_SOURCES
     platform/image-decoders/webp/WEBPImageDecoder.cpp
 )
 
+if (APPLE)
+    # HEIC stills come from ImageIO where the OS is Darwin.
+    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBCORE_DIR}/platform/image-decoders/heic"
+    )
+    list(APPEND WebCore_SOURCES
+        platform/image-decoders/heic/HEICImageDecoder.cpp
+    )
+endif ()
+
 list(APPEND WebCore_LIBRARIES
     JPEG::JPEG
     PNG::PNG

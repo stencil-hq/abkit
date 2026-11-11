@@ -20,7 +20,8 @@
 
 #include "config.h"
 
-#if USE(LIBWEBRTC) && USE(GSTREAMER)
+// On Darwin the codecs are libwebrtc's own, see LibWebRTCProviderGStreamer.cpp.
+#if USE(LIBWEBRTC) && USE(GSTREAMER) && !OS(DARWIN)
 #include "GStreamerVideoDecoderFactory.h"
 
 #include "GStreamerRegistryScanner.h"
@@ -278,4 +279,4 @@ std::vector<webrtc::SdpVideoFormat> GStreamerVideoDecoderFactory::GetSupportedFo
 
 } // namespace WebCore
 
-#endif // USE(LIBWEBRTC) && USE(GSTREAMER)
+#endif // USE(LIBWEBRTC) && USE(GSTREAMER) && !OS(DARWIN)

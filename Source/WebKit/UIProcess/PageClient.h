@@ -763,7 +763,7 @@ public:
     virtual void videoControlsManagerDidChange() { }
     virtual void videosInElementFullscreenChanged() { }
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     virtual WebCore::WebMediaSessionManager& mediaSessionManager() = 0;
 #endif
 
@@ -868,7 +868,7 @@ public:
     virtual bool usesOffscreenRendering() const = 0;
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     virtual void didEnterFullscreen() = 0;
     virtual void didExitFullscreen() = 0;
     virtual void didCleanupFullscreen() = 0;

@@ -1959,7 +1959,7 @@ WebPage::~WebPage()
         modelProcessConnection->destroyVisibilityPropagationContextForPage(*this);
 #endif // ENABLE(MODEL_PROCESS) && HAVE(VISIBILITY_PROPAGATION_VIEW)
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (m_playbackSessionManager)
         m_playbackSessionManager->invalidate();
 
@@ -4255,7 +4255,7 @@ void WebPage::updateDrawingAreaLayerTreeFreezeState()
     if (!drawingArea)
         return;
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     // When the browser is in the background, we should not freeze the layer tree
     // if the page has a video playing in picture-in-picture.
     if (m_videoPresentationManager && m_videoPresentationManager->hasVideoPlayingInPictureInPicture() && m_layerTreeFreezeReasons.hasExactlyOneBitSet() && m_layerTreeFreezeReasons.contains(LayerTreeFreezeReason::BackgroundApplication)) {
@@ -4904,7 +4904,7 @@ void WebPage::resetPointerCapture()
     m_page->pointerCaptureController().reset();
 }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 static HandleUserInputEventResult handleGestureEvent(FrameIdentifier frameID, const WebGestureEvent& event, Page* page)
 {
     RefPtr frame = WebProcess::singleton().webFrame(frameID);
@@ -6141,7 +6141,7 @@ void WebPage::inspectorFrontendCountChanged(unsigned count)
     send(Messages::WebPageProxy::DidChangeInspectorFrontendCount(count));
 }
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 PlaybackSessionManager& WebPage::playbackSessionManager()
 {
     if (!m_playbackSessionManager)
@@ -6238,7 +6238,7 @@ void WebPage::startPlayingPredominantVideo(CompletionHandler<void(bool)>&& compl
     completion(true);
 }
 
-#endif // ENABLE(VIDEO_PRESENTATION_MODE)
+#endif // ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 #if PLATFORM(IOS_FAMILY)
 void WebPage::setSceneIdentifier(String&& sceneIdentifier)

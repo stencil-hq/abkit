@@ -27,9 +27,11 @@
 
 namespace WebCore {
 
+// Without libepoxy the port's own EGL is ANGLE, as on Windows: WebGL contexts are then created on
+// the compositor's display and share objects with its contexts directly.
 EGLDisplay PlatformDisplay::angleEGLDisplay() const
 {
-#if PLATFORM(WIN)
+#if PLATFORM(WIN) || !USE(LIBEPOXY)
     return eglDisplay();
 #else
     if (m_angleEGLDisplay != EGL_NO_DISPLAY)
@@ -69,8 +71,9 @@ EGLDisplay PlatformDisplay::angleEGLDisplay() const
 
 EGLContext PlatformDisplay::angleSharingGLContext()
 {
-#if PLATFORM(WIN)
-    return sharingGLContext()->platformContext();
+#if PLATFORM(WIN) || !USE(LIBEPOXY)
+    auto* sharingContext = sharingGLContext();
+    return sharingContext ? sharingContext->platformContext() : EGL_NO_CONTEXT;
 #else
     ASSERT(m_angleEGLDisplay != EGL_NO_DISPLAY);
     auto sharingContext = sharingGLContext();

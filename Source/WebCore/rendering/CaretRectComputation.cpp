@@ -48,6 +48,9 @@ int caretWidth()
     return 2; // This value should be kept in sync with UIKit. See <rdar://problem/15580601>.
 #elif PLATFORM(MAC) && HAVE(REDESIGNED_TEXT_CURSOR)
     return redesignedTextCursorEnabled() ? 2 : 1;
+#elif OS(MACOS)
+    // The caret of a Mac, which is what a text field leaves room for after its text.
+    return 2;
 #else
     return 1;
 #endif

@@ -66,6 +66,11 @@ bool WebModelPlayerProvider::isAvailable() const
 {
 #if PLATFORM(COCOA)
     return !isInBaseSystem();
+#elif PLATFORM(WPE) && OS(DARWIN)
+    // No model player is linked into this port, so <model> never renders a
+    // model: it draws its fallback content, as the element does on a platform
+    // whose provider cannot hand out a player.
+    return false;
 #else
     return true;
 #endif

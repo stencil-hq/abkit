@@ -37,6 +37,11 @@
 #include <wtf/darwin/DispatchExtras.h>
 #endif
 
+#if ENABLE_MDNS && USE(GLIB)
+#include <arpa/inet.h>
+#include <glib-unix.h>
+#endif
+
 namespace WebKit {
 
 #define MDNS_RELEASE_LOG(fmt, ...) RELEASE_LOG(Network, "%p - NetworkMDNSRegister::" fmt, this, ##__VA_ARGS__)
@@ -51,14 +56,14 @@ NetworkMDNSRegister::PendingRegistrationRequest::PendingRegistrationRequest(Ref<
 {
 }
 
-#if !USE(GLIB)
+#if !USE_AVAHI_MDNS
 NetworkMDNSRegister::NetworkMDNSRegister(NetworkConnectionToWebProcess& connection)
     : m_connection(connection)
 {
 }
 #endif
 
-#if !USE(GLIB)
+#if !USE_AVAHI_MDNS
 NetworkMDNSRegister::~NetworkMDNSRegister() = default;
 #endif
 
@@ -84,9 +89,28 @@ NODELETE static HashMap<NetworkMDNSRegister::PendingRegistrationRequestIdentifie
     return map.get();
 }
 
+#if USE(GLIB)
+// The GLib run loop does not run the main dispatch queue, where the Cocoa ports take the
+// responder's replies. It watches the connection's socket instead.
+static gboolean processDNSServiceResult(int, GIOCondition, gpointer service)
+{
+    if (DNSServiceProcessResult(static_cast<DNSServiceRef>(service)) != kDNSServiceErr_NoError)
+        return G_SOURCE_REMOVE;
+    return G_SOURCE_CONTINUE;
+}
+
+struct NetworkMDNSRegister::DNSServiceDeallocator {
+    void operator()(DNSServiceRef service) const
+    {
+        g_source_remove_by_user_data(service);
+        DNSServiceRefDeallocate(service);
+    }
+};
+#else
 struct NetworkMDNSRegister::DNSServiceDeallocator {
     void operator()(DNSServiceRef service) const { DNSServiceRefDeallocate(service); }
 };
+#endif
 
 void NetworkMDNSRegister::unregisterMDNSNames(WebCore::ScriptExecutionContextIdentifier documentIdentifier)
 {
@@ -135,11 +159,15 @@ void NetworkMDNSRegister::registerMDNSName(WebCore::ScriptExecutionContextIdenti
             MDNS_RELEASE_LOG("registerMDNSName DNSServiceCreateConnection error %d", error);
             return completionHandler(name, WebCore::MDNSRegisterError::DNSSD);
         }
+#if USE(GLIB)
+        g_unix_fd_add(DNSServiceRefSockFD(service), G_IO_IN, processDNSServiceResult, service);
+#else
         error = DNSServiceSetDispatchQueue(service, mainDispatchQueueSingleton());
         if (error) {
             MDNS_RELEASE_LOG("registerMDNSName DNSServiceCreateConnection error %d", error);
             return completionHandler(name, WebCore::MDNSRegisterError::DNSSD);
         }
+#endif
         ASSERT(service);
         m_services.add(documentIdentifier, std::unique_ptr<_DNSServiceRef_t, DNSServiceDeallocator>(service));
     } else
@@ -160,7 +188,8 @@ void NetworkMDNSRegister::registerMDNSName(WebCore::ScriptExecutionContextIdenti
     DNSRecordRef record { nullptr };
     auto error = DNSServiceRegisterRecord(service,
         &record,
-#if HAVE(MDNS_FAST_REGISTRATION)
+#if HAVE(MDNS_FAST_REGISTRATION) || USE(GLIB)
+        // The GLib ports only get here on macOS, whose responder skips the probing as for Safari.
         kDNSServiceFlagsKnownUnique,
 #else
         kDNSServiceFlagsUnique,
@@ -191,7 +220,7 @@ void NetworkMDNSRegister::unregisterMDNSNames(WebCore::ScriptExecutionContextIde
         m_registeredNames.remove(name);
 }
 
-#if !USE(GLIB)
+#if !USE_AVAHI_MDNS
 void NetworkMDNSRegister::registerMDNSName(WebCore::ScriptExecutionContextIdentifier documentIdentifier, const String& ipAddress, CompletionHandler<void(const String&, std::optional<WebCore::MDNSRegisterError>)>&& completionHandler)
 {
     auto name = makeString(WTF::UUID::createVersion4(), ".local"_s);
@@ -199,7 +228,7 @@ void NetworkMDNSRegister::registerMDNSName(WebCore::ScriptExecutionContextIdenti
     MDNS_RELEASE_LOG("registerMDNSName not implemented");
     completionHandler(name, WebCore::MDNSRegisterError::NotImplemented);
 }
-#endif // !USE(GLIB)
+#endif // !USE_AVAHI_MDNS
 #endif // ENABLE_MDNS
 
 PAL::SessionID NetworkMDNSRegister::sessionID() const

@@ -35,7 +35,8 @@
 #define WEBRTC_IOS
 #endif
 
-#if PLATFORM(COCOA)
+// libwebrtc is built the same way for every port on Darwin.
+#if OS(DARWIN)
 #define WEBRTC_MAC
 #define ABSL_ALLOCATOR_NOTHROW 1
 #endif

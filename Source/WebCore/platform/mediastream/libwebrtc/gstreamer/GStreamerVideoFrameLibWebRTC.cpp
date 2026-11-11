@@ -44,8 +44,11 @@ static void ensureDebugCategoryIsRegistered()
 
 GRefPtr<GstSample> convertLibWebRTCVideoFrameToGStreamerSample(const webrtc::VideoFrame& frame)
 {
+#if !OS(DARWIN)
+    // On Darwin the native buffers are those of libwebrtc's VideoToolbox decoders.
     if (frame.video_frame_buffer()->type() == webrtc::VideoFrameBuffer::Type::kNative)
         return static_cast<GStreamerVideoFrameLibWebRTC&>(*frame.video_frame_buffer().get()).sample();
+#endif
 
     auto convertedFrameBuffer = frame.video_frame_buffer()->ToI420();
     if (!convertedFrameBuffer)

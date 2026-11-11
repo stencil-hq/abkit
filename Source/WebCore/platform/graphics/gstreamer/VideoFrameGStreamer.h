@@ -27,6 +27,11 @@
 #include <gst/video/video-format.h>
 #include <gst/video/video-info.h>
 #include <wtf/glib/GRefPtr.h>
+#if OS(DARWIN)
+#include <wtf/Lock.h>
+#include <wtf/Locker.h>
+#include <wtf/RetainPtr.h>
+#endif
 
 #if USE(GBM)
 #include "DMABufBuffer.h"
@@ -117,6 +122,11 @@ public:
 
     bool isEncoded() const final;
     bool hasSameEncodedFormat(const VideoFrame&) const final;
+#if OS(DARWIN)
+    // The frame's pixels as a CVPixelBuffer in a format WebGPU's Metal backend accepts, converting
+    // the GStreamer buffer if it is in any other. Null when the pixels cannot be expressed as one.
+    CVPixelBufferRef pixelBuffer() const final;
+#endif
 
     GRefPtr<GstSample> convert(GstVideoFormat, const IntSize&, std::optional<PlatformVideoColorSpace> = std::nullopt);
 
@@ -133,6 +143,12 @@ private:
     Info m_info;
     IntSize m_presentationSize;
     MemoryType m_memoryType;
+#if OS(DARWIN)
+    // Built on the first request and kept, so that a frame is converted once however many times
+    // WebGPU imports or copies it. Mutable because pixelBuffer() is const.
+    mutable Lock m_pixelBufferLock;
+    mutable RetainPtr<CVPixelBufferRef> m_pixelBuffer;
+#endif
 };
 
 } // namespace WebCore

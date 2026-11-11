@@ -2,6 +2,24 @@ if (is_apple)
     # On an Apple OS ANGLE is the EGL itself, drawing with Metal as it does
     # for the Cocoa port; none of the system-EGL sources below apply.
     include(PlatformCocoa.cmake)
+    # Unlike the Cocoa port, WPE uses one share group from several threads at
+    # once: Skia's painting workers, the compositor and the main thread, and
+    # every WebGL context hands its drawing buffer's texture to the
+    # compositor through it. Shared objects and their name tables are only
+    # synchronized with the share-context lock, here one mutex per share
+    # group as in ANGLE's own build (BUILD.gn).
+    list(APPEND ANGLE_DEFINITIONS
+        ANGLE_ENABLE_SHARE_CONTEXT_LOCK=1
+        ANGLE_ENABLE_CONTEXT_MUTEX=1
+    )
+    # The Cocoa port links the Quartz umbrella framework on a Mac. Its PDF and Quick Look parts load
+    # the system's WebKit into every process, which then holds two copies of the WebRTC classes.
+    # QuartzCore is the part ANGLE uses.
+    if (QUARTZ_LIBRARY MATCHES "Quartz\\.framework")
+        find_library(QUARTZCORE_LIBRARY QuartzCore)
+        list(REMOVE_ITEM ANGLEGLESv2_LIBRARIES ${QUARTZ_LIBRARY})
+        list(APPEND ANGLEGLESv2_LIBRARIES ${QUARTZCORE_LIBRARY})
+    endif ()
     return ()
 endif ()
 

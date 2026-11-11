@@ -64,6 +64,11 @@ static SpeechRecognitionPermissionManager::CheckResult computeSpeechRecognitionS
         return SpeechRecognitionPermissionManager::CheckResult::Denied;
 
     return SpeechRecognitionPermissionManager::CheckResult::Unknown;
+#elif PLATFORM(WPE) && OS(DARWIN)
+    // The recognizer behind the API is the Cocoa ports' (SpeechRecognizerCocoa.mm), which this port
+    // does not have, so a request is answered the way Safari answers one on a Mac that has not
+    // granted the service: with service-not-allowed, rather than being left unanswered.
+    return SpeechRecognitionPermissionManager::CheckResult::Denied;
 #else
     return SpeechRecognitionPermissionManager::CheckResult::Granted;
 #endif

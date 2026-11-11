@@ -297,7 +297,7 @@ Device::Device(id<MTLDevice> device, id<MTLCommandQueue> defaultQueue, HardwareC
     , m_appleGPUFamily(computeAppleGPUFamily(device))
     , m_maxVerticesPerDrawCall(computeMaxCountForDevice(device))
 {
-#if PLATFORM(MAC)
+#if OS(MACOS)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     auto devices = MTLCopyAllDevicesWithObserver(&m_deviceObserver, [weakThis = ThreadSafeWeakPtr { *this }](id<MTLDevice> device, MTLDeviceNotificationName) {
         RefPtr<Device> protectedThis = weakThis.get();
@@ -343,7 +343,7 @@ Device::Device(id<MTLDevice> device, id<MTLCommandQueue> defaultQueue, HardwareC
     desc.mipmapLevelCount = 1;
     desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
     desc.textureType = MTLTextureType2D;
-#if PLATFORM(MAC)
+#if OS(MACOS)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     desc.storageMode = hasUnifiedMemory() ? MTLStorageModeShared : MTLStorageModeManaged;
     ALLOW_DEPRECATED_DECLARATIONS_END
@@ -372,7 +372,7 @@ Device::Device(Adapter& adapter)
 
 Device::~Device()
 {
-#if PLATFORM(MAC)
+#if OS(MACOS)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     MTLRemoveDeviceObserver(m_deviceObserver);
     ALLOW_DEPRECATED_DECLARATIONS_END
@@ -418,7 +418,11 @@ void Device::loseTheDevice(WebGPU::DeviceLostReason reason)
     m_adapter->makeInvalid();
 
     if (m_deviceLostCallback)
+#if USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
+        m_deviceLostCallback(reason, ""_s);
+#else
         m_deviceLostCallback(reason, "Device lost."_s);
+#endif
 
     protect(m_defaultQueue)->makeInvalid();
     m_isLost = true;

@@ -31,6 +31,10 @@
 #include "PixelBuffer.h"
 #include "SkiaSpanExtras.h"
 
+#if OS(DARWIN)
+#include <Accelerate/Accelerate.h>
+#endif
+
 namespace WebCore {
 
 IntSize ImageBufferSkiaSurfaceBackend::calculateSafeBackendSize(const ImageBufferParameters& parameters)
@@ -103,6 +107,21 @@ void ImageBufferSkiaSurfaceBackend::getPixelBuffer(const IntRect& srcRect, Pixel
     SkPixmap dstPixmap;
     if (!pixmap.extractSubset(&dstPixmap, destinationRect)) [[unlikely]]
         return;
+
+#if OS(DARWIN)
+    // Safari takes the alpha out of a canvas's pixels with vImage, whose rounding is not Skia's: the
+    // pixels are read as the surface has them and converted here, so that getImageData() gives the
+    // values Safari gives.
+    const auto& surfaceInfo = m_surface->imageInfo();
+    if (destinationAlphaType == SkAlphaType::kUnpremul_SkAlphaType && surfaceInfo.alphaType() == SkAlphaType::kPremul_SkAlphaType
+        && SkColorSpace::Equals(surfaceInfo.colorSpace(), destinationInfo.colorSpace())) {
+        if (!m_surface->readPixels(dstPixmap.info().makeAlphaType(SkAlphaType::kPremul_SkAlphaType), dstPixmap.writable_addr(), dstPixmap.rowBytes(), sourceRectClipped.x(), sourceRectClipped.y()))
+            return;
+        vImage_Buffer buffer { dstPixmap.writable_addr(), static_cast<vImagePixelCount>(dstPixmap.height()), static_cast<vImagePixelCount>(dstPixmap.width()), dstPixmap.rowBytes() };
+        vImageUnpremultiplyData_RGBA8888(&buffer, &buffer, kvImageNoFlags);
+        return;
+    }
+#endif
 
     m_surface->readPixels(dstPixmap, sourceRectClipped.x(), sourceRectClipped.y());
 }

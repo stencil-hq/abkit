@@ -35,6 +35,12 @@
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/text/CString.h>
 
+typedef struct _SoupSession SoupSession;
+
+namespace WebCore {
+class SoupNetworkSession;
+}
+
 namespace WebKit {
 
 class NetworkDataTaskSoup final : public NetworkDataTask {
@@ -88,6 +94,9 @@ private:
     void didSniffContent(UTF8CString&&);
 
     bool persistentCredentialStorageEnabled() const;
+    // The soup session this task must run on, chosen from its stored-credentials policy.
+    SoupSession* soupSession() const;
+    WebCore::SoupNetworkSession& soupNetworkSession() const;
     void applyAuthenticationToRequest(WebCore::ResourceRequest&);
     static gboolean authenticateCallback(SoupMessage*, SoupAuth*, gboolean retrying, NetworkDataTaskSoup*);
     void authenticate(WebCore::AuthenticationChallenge&&);

@@ -33,7 +33,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(GPUCanvasContext);
 
-#if !PLATFORM(COCOA)
+#if !HAVE(WEBGPU_IMPLEMENTATION)
 std::unique_ptr<GPUCanvasContext> GPUCanvasContext::create(CanvasBase&, GPU&, Document*)
 {
     return nullptr;

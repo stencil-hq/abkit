@@ -2346,7 +2346,12 @@ WebGLAny WebGLRenderingContextBase::getParameter(GCGLenum pname)
             GCGLint value = GraphicsContextGL::NONE;
             if (m_framebufferBinding)
                 value = protect(m_framebufferBinding)->getDrawBuffer(pname);
+#if OS(MACOS)
+            // Safari on a Mac reports the back buffer's setting for every draw buffer of the default framebuffer.
+            else if (!m_defaultFramebuffer->drawBufferIsNone())
+#else
             else if (pname == GraphicsContextGL::DRAW_BUFFER0_EXT && !m_defaultFramebuffer->drawBufferIsNone())
+#endif
                 value = GraphicsContextGL::BACK;
             return value;
         }

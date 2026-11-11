@@ -133,9 +133,19 @@ static inline void appendAdditionalSupportedImageMIMETypes(StringBuilder& accept
     }
 }
 
+// Safari on a Mac asks for HEIC and for video in its image requests, and a server sees the list as part
+// of what makes a request Safari's. The WPE port there sends the same list whatever the build decodes:
+// video in an image needs the media stack, and a server that answers with a type the build lacks gets
+// an image that does not show.
+#if PLATFORM(WPE) && OS(MACOS)
+#define ACCEPTS_IMAGE_TYPES_OF_SAFARI_ON_MAC 1
+#else
+#define ACCEPTS_IMAGE_TYPES_OF_SAFARI_ON_MAC 0
+#endif
+
 static inline void appendVideoImageResource(StringBuilder& acceptHeader)
 {
-    if (ImageDecoder::supportsMediaType(ImageDecoder::MediaType::Video))
+    if (ACCEPTS_IMAGE_TYPES_OF_SAFARI_ON_MAC || ImageDecoder::supportsMediaType(ImageDecoder::MediaType::Video))
         acceptHeader.append("video/*;q=0.8,"_s);
 }
 
@@ -150,7 +160,7 @@ static String acceptHeaderValueForImageResource(bool usingSecureProtocol)
 #if HAVE(JPEGXL) || USE(JPEGXL)
         builder.append("image/jxl,"_s);
 #endif
-#if HAVE(HEIC)
+#if HAVE(HEIC) || ACCEPTS_IMAGE_TYPES_OF_SAFARI_ON_MAC
         builder.append("image/heic,image/heic-sequence,"_s);
 #endif
         return builder.toString();
