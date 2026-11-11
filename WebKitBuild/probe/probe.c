@@ -302,7 +302,7 @@ static double milliseconds_since(LARGE_INTEGER start)
    of it may wait for that process. */
 static void suspended_window_operations(void)
 {
-    suspend_children("WPEWebProcess.exe", TRUE);
+    suspend_children("ABWebProcess.exe", TRUE);
     RECT rect;
     GetWindowRect(topWindow, &rect);
     TIMED("SetWindowPos (resize) of the top-level window", SetWindowPos(topWindow, NULL, 0, 0, rect.right - rect.left + 40, rect.bottom - rect.top + 30, SWP_NOMOVE | SWP_NOZORDER));
@@ -314,7 +314,7 @@ static void suspended_window_operations(void)
     pump_messages(NULL);
     TIMED("DestroyWindow of the top-level window", DestroyWindow(topWindow));
     topWindow = pageWindow = NULL;
-    suspend_children("WPEWebProcess.exe", FALSE);
+    suspend_children("ABWebProcess.exe", FALSE);
 }
 
 static gboolean pump_messages(gpointer data)

@@ -23,9 +23,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// WPEAgentView puts a WPEAgentHost's blocks in windows (macOS). The host has no window of its own:
+// ABView puts an ABHost's blocks in windows (macOS). The host has no window of its own:
 // a client that wants its pages on screen starts this program beside the host and presents blocks
-// to it (Protocol.md, "Presentation" and "The viewer"). It is a presentation client like any other:
+// to it (docs/presentation.md and docs/viewer.md). It is a presentation client like any other:
 // it checks in a Mach service, takes the frames the host sends there and shows each block's in a
 // window of its own. What the user does in a window is written to standard output as the host's
 // `input` steps, for the client to send on; the viewer never talks to the host's standard streams.
@@ -40,7 +40,7 @@
 #import <mach/mach.h>
 #import <servers/bootstrap.h>
 
-// Message kinds of the Mach channel (Protocol.md).
+// Message kinds of the Mach channel (docs/presentation.md).
 enum {
     MessageHello = 1,
     MessageBuffer = 2,
@@ -658,10 +658,10 @@ static NSString *modifierKey(unsigned short keyCode, NSEventModifierFlags *flag)
     self.pages = [NSMutableDictionary dictionary];
     self.pending = [NSMutableData data];
 
-    NSString *name = [NSString stringWithFormat:@"org.webkit.WPEAgentView.%d", getpid()];
+    NSString *name = [NSString stringWithFormat:@"so.stencil.ABView.%d", getpid()];
     kern_return_t result = bootstrap_check_in(bootstrap_port, name.UTF8String, &servicePort);
     if (result != KERN_SUCCESS) {
-        fprintf(stderr, "WPEAgentView: the Mach service %s cannot be checked in (%d)\n", name.UTF8String, result);
+        fprintf(stderr, "ABView: the Mach service %s cannot be checked in (%d)\n", name.UTF8String, result);
         exit(1);
     }
     // The host sends with a timeout: a full queue would end the presentations.

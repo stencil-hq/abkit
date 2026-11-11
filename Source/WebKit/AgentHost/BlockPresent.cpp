@@ -94,7 +94,12 @@ bool Block::presentFrame(WPEBuffer* buffer)
 {
     auto& presentation = *m_presentation;
     auto& client = *presentation.client;
+#if defined(__APPLE__)
     if (!WPE_IS_BUFFER_IOSURFACE(buffer)) {
+#else
+    // Only IOSurfaces are presented, and other systems have none (nor a presentation to start).
+    {
+#endif
         g_warning("block %" G_GUINT64_FORMAT ": a frame in %s cannot be presented without copies, and is not", m_identifier, G_OBJECT_TYPE_NAME(buffer));
         return false;
     }

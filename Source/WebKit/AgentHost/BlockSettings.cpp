@@ -225,6 +225,20 @@ void Block::setInsecure(const Json& operation, const Reply& reply)
     reply->ok();
 }
 
+// What Chromium's --allow-file-access-from-files allows: a file: document reads other files (fetch, XHR, frames,
+// canvas pixels) as if they shared its origin. Documents loaded afterwards see the change.
+void Block::setFileAccess(const Json& operation, const Reply& reply)
+{
+    auto value = operation.booleanMember("value");
+    if (!value) {
+        reply->invalid("`value` must be true or false");
+        return;
+    }
+    webkit_settings_set_allow_file_access_from_file_urls(m_settings.get(), *value);
+    webkit_settings_set_allow_universal_access_from_file_urls(m_settings.get(), *value);
+    reply->ok();
+}
+
 void Block::setCredentials(const Json& operation, const Reply& reply)
 {
     auto username = operation.get("username");

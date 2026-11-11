@@ -28,7 +28,7 @@
 #include <cstdio>
 #include <cstring>
 
-// WPEAgentHost [--data-dir DIR] [--inspector HOST:PORT]
+// ABHost [--data-dir DIR] [--inspector HOST:PORT]
 //
 // Runs headless web views and is driven over its standard streams: requests
 // on standard input, answers on standard output, both as frames of a 4-byte
@@ -74,7 +74,12 @@ int main(int argc, char** argv)
         return 1;
     }
     // What still goes to standard output is diagnostics now: seen as soon as written, as on standard error.
+#if defined(_WIN32)
+    // Windows' C runtime has no line buffering (_IOLBF is full buffering there, which needs a size).
+    setvbuf(stdout, nullptr, _IONBF, 0);
+#else
     setvbuf(stdout, nullptr, _IOLBF, 0);
+#endif
     g_log_writer_default_set_use_stderr(TRUE);
 
     GMainLoop* loop = g_main_loop_new(nullptr, FALSE);

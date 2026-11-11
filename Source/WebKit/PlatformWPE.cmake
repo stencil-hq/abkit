@@ -13,9 +13,9 @@ if (ENABLE_PDFJS)
 endif ()
 
 set(WebKit_OUTPUT_NAME WPEWebKit-${WPE_API_VERSION})
-set(WebProcess_OUTPUT_NAME WPEWebProcess)
-set(NetworkProcess_OUTPUT_NAME WPENetworkProcess)
-set(GPUProcess_OUTPUT_NAME WPEGPUProcess)
+set(WebProcess_OUTPUT_NAME ABWebProcess)
+set(NetworkProcess_OUTPUT_NAME ABNetworkProcess)
+set(GPUProcess_OUTPUT_NAME ABGPUProcess)
 
 file(MAKE_DIRECTORY ${DERIVED_SOURCES_WPE_API_DIR})
 file(MAKE_DIRECTORY ${FORWARDING_HEADERS_WPE_DIR})
@@ -635,7 +635,7 @@ target_include_directories(WPEInjectedBundle SYSTEM PRIVATE
     ${WebKit_SYSTEM_INCLUDE_DIRECTORIES}
 )
 
-if (ENABLE_WPE_PLATFORM AND NOT WIN32)
+if (ENABLE_WPE_PLATFORM)
     add_subdirectory(${WEBKIT_DIR}/AgentHost)
 endif ()
 
