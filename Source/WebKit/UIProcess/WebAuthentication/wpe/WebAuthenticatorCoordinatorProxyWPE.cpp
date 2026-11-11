@@ -81,7 +81,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
     }
 
     auto relyingPartyIdentifier = relyingPartyIdentifierForRequest(requestData);
-    auto callerOrigin = requestData.frameInfo->securityOrigin;
+    auto callerOrigin = requestData.callerOrigin();
 
     std::optional<SecurityOriginData> fallbackOrigin;
     if (auto* requestOptions = std::get_if<PublicKeyCredentialRequestOptions>(&requestData.options)) {
@@ -140,7 +140,7 @@ void WebAuthenticatorCoordinatorProxy::performRequestWithValidatedRelyingPartyId
 
     auto scope = requestData.parentOrigin ? WebAuthn::Scope::CrossOrigin : WebAuthn::Scope::SameOrigin;
     auto topOrigin = requestData.parentOrigin ? requestData.parentOrigin->toString() : nullString();
-    Ref callerOrigin = requestData.frameInfo->securityOrigin.securityOrigin();
+    Ref callerOrigin = requestData.callerOrigin().securityOrigin();
     auto clientDataJSON = WTF::switchOn(requestData.options, [&](const PublicKeyCredentialCreationOptions& options) {
         return buildClientDataJson(ClientDataType::Create, options.challenge, callerOrigin, scope, topOrigin);
     }, [&](const PublicKeyCredentialRequestOptions& options) {
