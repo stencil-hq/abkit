@@ -23,7 +23,6 @@
 #include "CommonAtomStrings.h"
 #include "Path.h"
 #include "SVGNames.h"
-#include "SVGPath.h"
 #include "SVGPathByteStream.h"
 #include "SVGTextContentElement.h"
 #include "SVGURIReference.h"
