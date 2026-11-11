@@ -5,8 +5,8 @@
 # into OUT_DIR.
 # Usage: build-engine.sh TARGET OUT_DIR   (TARGET: darwin-arm64 or darwin-x64)
 #
-# Runners: darwin-arm64 on macos-26 (Apple silicon), darwin-x64 on
-# macos-15-intel; a developer Mac of either kind works the same. Needs Xcode or
+# Runners: darwin-arm64 on Blacksmith's macos-26 (Apple silicon), darwin-x64
+# on GitHub's macos-15-intel; a developer Mac of either kind works the same. Needs Xcode or
 # its command line tools and Homebrew. The engine bundles Homebrew's libraries,
 # so it runs on the macOS version it was built on and later.
 # With CCACHE_DIR set, compiles go through ccache (WebKitCCache.cmake picks up
