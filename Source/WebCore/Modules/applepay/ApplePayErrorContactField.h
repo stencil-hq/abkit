@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(APPLE_PAY)
+#if ENABLE(APPLE_PAY) || ENABLE(APPLE_PAY_ERROR)
 
 #include <wtf/Forward.h>
 
@@ -49,4 +49,4 @@ enum class ApplePayErrorContactField : uint8_t {
 
 } // namespace WebCore
 
-#endif // ENABLE(APPLE_PAY)
+#endif // ENABLE(APPLE_PAY) || ENABLE(APPLE_PAY_ERROR)

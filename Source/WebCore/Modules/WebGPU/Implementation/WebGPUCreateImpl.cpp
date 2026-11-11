@@ -30,6 +30,7 @@
 
 #include "ProcessIdentity.h"
 #include "WebGPUImpl.h"
+#include "WebGPUWorkQueue.h"
 #include <WebCore/WebGPUCppAPI.h>
 
 #if PLATFORM(COCOA)
@@ -51,7 +52,7 @@ RefPtr<WebGPUIntegration> createWebGPUIntegration(WebGPUScheduleWorkFunction&& s
         .scheduleWork = WTF::move(scheduleWorkFunction),
 #if HAVE(TASK_IDENTITY_TOKEN)
         .webProcessResourceOwner = webProcessIdentity ? std::optional { webProcessIdentity->taskId() } : std::nullopt,
-#elif PLATFORM(COCOA)
+#else
         .webProcessResourceOwner = std::nullopt,
 #endif
     };
@@ -62,6 +63,21 @@ RefPtr<WebGPUIntegration> createWebGPUIntegration(WebGPUScheduleWorkFunction&& s
     if (!instance)
         return nullptr;
     return WebGPUIntegrationImpl::create(instance.releaseNonNull());
+}
+
+RefPtr<WebGPUIntegration> createInProcessWebGPUIntegration(WebGPUScheduleWorkFunction&& scheduleWorkFunction)
+{
+    Ref workQueue = WebGPUWorkQueue::create(WTF::move(scheduleWorkFunction));
+    ::WebGPU::InstanceDescriptor descriptor {
+        .scheduleWork = [workQueue](Function<void()>&& workItem) {
+            workQueue->append(WTF::move(workItem));
+        },
+        .webProcessResourceOwner = std::nullopt,
+    };
+    RefPtr instance = ::WebGPU::createInstance(WTF::move(descriptor));
+    if (!instance)
+        return nullptr;
+    return WebGPUIntegrationImpl::create(instance.releaseNonNull(), WTF::move(workQueue));
 }
 
 } // namespace WebCore

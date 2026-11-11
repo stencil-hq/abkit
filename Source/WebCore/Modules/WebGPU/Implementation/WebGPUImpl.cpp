@@ -33,9 +33,12 @@
 #include "WebGPUImageCopyExternalImage.h"
 #include "WebGPUImageCopyTextureTagged.h"
 #include "WebGPUPresentationContextDescriptor.h"
+#include "WebGPUWorkQueue.h"
 #include <WebCore/ColorSpace.h>
 #include <WebCore/GraphicsContext.h>
+#if HAVE(IOSURFACE)
 #include <WebCore/IOSurface.h>
+#endif
 #include <WebCore/ImageBuffer.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/NativeImage.h>
@@ -47,8 +50,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebGPUIntegrationImpl);
 
-WebGPUIntegrationImpl::WebGPUIntegrationImpl(Ref<::WebGPU::Instance>&& instance)
+WebGPUIntegrationImpl::WebGPUIntegrationImpl(Ref<::WebGPU::Instance>&& instance, RefPtr<WebGPUWorkQueue>&& workQueue)
     : m_backing(WTF::move(instance))
+    , m_workQueue(WTF::move(workQueue))
 {
 }
 
@@ -80,10 +84,10 @@ RefPtr<WebGPU::PresentationContext> WebGPUIntegrationImpl::createPresentationCon
 
 RefPtr<WebGPUCompositorIntegration> WebGPUIntegrationImpl::createCompositorIntegration()
 {
-    return WebGPUCompositorIntegrationImpl::create();
+    return WebGPUCompositorIntegrationImpl::create(m_workQueue.get());
 }
 
-#if ENABLE(VIDEO)
+#if ENABLE(VIDEO) && PLATFORM(COCOA)
 NODELETE static ::WebGPU::VideoFrameRotation convertToAPI(VideoFrameRotation rotation)
 {
     switch (rotation) {
@@ -157,17 +161,26 @@ void WebGPUIntegrationImpl::copyExternalImageToTexture(WebGPU::Queue& queue, con
     // the caller has to say; a buffer a 2D context composited is premultiplied.
     backingSource.premultipliedAlpha = source.premultipliedAlpha;
 
-#if ENABLE(VIDEO)
+#if ENABLE(VIDEO) && (PLATFORM(COCOA) || OS(DARWIN))
     if (source.videoSource) {
         // The decoded frame the GPU process resolved for us. Its extent, its crop and its primaries
         // all travel with the frame, so the backing queue reads them off it rather than being told
         // here; and a decoded frame is opaque, so its alpha is replaced with 1 the way an external
         // texture's is.
-        auto* pixelBuffer = std::get_if<RetainPtr<CVPixelBufferRef>>(&*source.videoSource);
-        if (!pixelBuffer || !*pixelBuffer)
+        RetainPtr<CVPixelBufferRef> pixelBuffer;
+#if PLATFORM(COCOA)
+        if (auto* stored = std::get_if<RetainPtr<CVPixelBufferRef>>(&*source.videoSource))
+            pixelBuffer = *stored;
+#else
+        // There is no GPU process: the frame is here, wrapped as this port's GStreamer frame, and
+        // the backend reads the pixel buffer the frame makes of itself.
+        if (auto* frame = std::get_if<RefPtr<VideoFrame>>(&*source.videoSource); frame && *frame)
+            pixelBuffer = (*frame)->pixelBuffer();
+#endif
+        if (!pixelBuffer)
             return;
 
-        backingSource.pixelBuffer = *pixelBuffer;
+        backingSource.pixelBuffer = WTF::move(pixelBuffer);
         // The display transform is the one thing about the frame its pixel buffer does not carry.
         backingSource.pixelBufferRotation = convertToAPI(source.videoSourceRotation);
         backingSource.pixelBufferIsMirrored = source.videoSourceIsMirrored;
@@ -175,6 +188,7 @@ void WebGPUIntegrationImpl::copyExternalImageToTexture(WebGPU::Queue& queue, con
     } else
 #endif
     {
+#if HAVE(IOSURFACE)
         RefPtr sourceImageBuffer = source.imageBuffer;
         if (!sourceImageBuffer)
             return;
@@ -198,6 +212,10 @@ void WebGPUIntegrationImpl::copyExternalImageToTexture(WebGPU::Queue& queue, con
         backingSource.sourceSize = { static_cast<uint32_t>(sourceSize.width()), static_cast<uint32_t>(sourceSize.height()) };
         backingSource.hasAlpha = sourceFormat->hasAlpha;
         backingSource.colorSpace = sourceImageBuffer->colorSpace() == ColorSpace::DisplayP3() ? ::WebGPU::PredefinedColorSpace::DisplayP3 : ::WebGPU::PredefinedColorSpace::SRGB;
+#else
+        // Without IOSurface-backed image buffers, GPUQueue copies every image source through the CPU.
+        return;
+#endif
     }
 
     queue.copyExternalImageToTexture(backingSource, {
@@ -218,10 +236,24 @@ RefPtr<WebCore::NativeImage> WebGPUIntegrationImpl::nativeImage(WebGPU::Queue&, 
 
 RefPtr<WebGPU::ExternalTexture> WebGPUIntegrationImpl::importExternalTexture(WebGPU::Device& device, const WebGPUExternalTextureDescriptor& descriptor)
 {
-    auto* pixelBuffer = std::get_if<RetainPtr<CVPixelBufferRef>>(&descriptor.videoBacking);
+#if ENABLE(VIDEO) && (PLATFORM(COCOA) || OS(DARWIN))
+    RetainPtr<CVPixelBufferRef> pixelBuffer;
+#if PLATFORM(COCOA)
+    if (auto* stored = std::get_if<RetainPtr<CVPixelBufferRef>>(&descriptor.videoBacking))
+        pixelBuffer = *stored;
+#else
+    // A video element's or a WebCodecs frame's current frame lives in this process as a GStreamer
+    // frame on this port; the pixel buffer the backend reads is the one the frame makes of it.
+    if (auto* frame = std::get_if<RefPtr<VideoFrame>>(&descriptor.videoBacking); frame && *frame)
+        pixelBuffer = (*frame)->pixelBuffer();
+#endif
+#else
+    // Only the Darwin ports' video sources are pixel buffers.
+    RetainPtr<CVPixelBufferRef> pixelBuffer;
+#endif
     return device.importExternalTexture({
         .label = descriptor.label,
-        .pixelBuffer = pixelBuffer ? *pixelBuffer : nullptr,
+        .pixelBuffer = WTF::move(pixelBuffer),
         .colorSpace = convertToWebGPU(descriptor.colorSpace),
         .visibleSize = {
             .width = static_cast<uint32_t>(std::max(0, descriptor.visibleSize.width())),

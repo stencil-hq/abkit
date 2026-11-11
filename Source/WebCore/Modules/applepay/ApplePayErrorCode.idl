@@ -24,7 +24,7 @@
  */
 
 [
-    Conditional=APPLE_PAY,
+    Conditional=APPLE_PAY|APPLE_PAY_ERROR,
     ExportMacro=WEBCORE_EXPORT,
 ] enum ApplePayErrorCode {
     "unknown",

@@ -89,6 +89,7 @@ private:
     void didFinishSpeaking(PlatformSpeechSynthesisUtterance&) override;
     void speakingErrorOccurred(PlatformSpeechSynthesisUtterance&) override;
     void boundaryEventOccurred(PlatformSpeechSynthesisUtterance&, SpeechBoundary, unsigned charIndex, unsigned charLength) override;
+    bool isAudioOutputEnabled() const final;
 
     // SpeechSynthesisClientObserver
     void didStartSpeaking() override;

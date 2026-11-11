@@ -25,7 +25,7 @@
 
 // Experimental but standards tracked
 [
-    Conditional=DECLARATIVE_WEB_PUSH,
+    Conditional=DECLARATIVE_WEB_PUSH|WINDOW_PUSH_MANAGER,
     EnabledBySetting=DeclarativeWebPush,
     SecureContext,
 ] interface mixin WindowPush {

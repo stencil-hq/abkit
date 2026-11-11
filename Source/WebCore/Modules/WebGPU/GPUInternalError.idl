@@ -30,5 +30,7 @@
 ]
 interface GPUInternalError : GPUError {
     constructor(DOMString message);
+    // The WPE port on a Mac presents itself as the system's WebKit, where each error has message itself.
+    [Conditional=WPE_PLATFORM&WEBGPU_BY_DEFAULT] readonly attribute DOMString message;
     readonly attribute DOMString stack;
 };

@@ -30,14 +30,18 @@
 #include "WebGPUCompositorIntegration.h"
 #include "WebGPUDevice.h"
 
+#if HAVE(IOSURFACE)
 #include <WebCore/IOSurface.h>
+#else
+#include <WebCore/ColorSpace.h>
+#endif
 #include <WebCore/WebGPUCppAPI.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Function.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
-#if PLATFORM(COCOA)
+#if OS(DARWIN)
 #include <wtf/MachSendRight.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/spi/cocoa/IOSurfaceSPI.h>
@@ -45,6 +49,7 @@
 
 namespace WebCore {
 class NativeImage;
+class WebGPUWorkQueue;
 }
 
 namespace WebCore {
@@ -53,9 +58,10 @@ namespace WebCore {
 class WebGPUCompositorIntegrationImpl final : public WebGPUCompositorIntegration {
     WTF_MAKE_TZONE_ALLOCATED(WebGPUCompositorIntegrationImpl);
 public:
-    static Ref<WebGPUCompositorIntegrationImpl> create()
+    // The work queue is that of an instance used in the process of its caller.
+    static Ref<WebGPUCompositorIntegrationImpl> create(WebGPUWorkQueue* workQueue = nullptr)
     {
-        return adoptRef(*new WebGPUCompositorIntegrationImpl());
+        return adoptRef(*new WebGPUCompositorIntegrationImpl(workQueue));
     }
 
     virtual ~WebGPUCompositorIntegrationImpl();
@@ -74,11 +80,11 @@ public:
     }
 
     void withDisplayBufferAsNativeImage(uint32_t bufferIndex, Function<void(WebCore::NativeImage*)>) final;
-    NODELETE void paintCompositedResultsToCanvas(WebCore::ImageBuffer&, uint32_t) final;
+    void paintCompositedResultsToCanvas(WebCore::ImageBuffer&, uint32_t) final;
 
 private:
 
-    WebGPUCompositorIntegrationImpl();
+    explicit WebGPUCompositorIntegrationImpl(WebGPUWorkQueue*);
 
     WebGPUCompositorIntegrationImpl(const WebGPUCompositorIntegrationImpl&) = delete;
     WebGPUCompositorIntegrationImpl(WebGPUCompositorIntegrationImpl&&) = delete;
@@ -93,16 +99,23 @@ private:
     Seconds lastFrameGPUCost() const override;
     Seconds lastFramePresentStall() const override;
 
-#if PLATFORM(COCOA)
+#if OS(DARWIN)
     Vector<MachSendRight> recreateRenderBuffers(int width, int height, WebCore::ColorSpace&&, WebCore::AlphaPremultiplication, ::WebGPU::TextureFormat, unsigned bufferCount, ::WebGPU::Device&) override;
 
+#if HAVE(IOSURFACE)
     Vector<UniqueRef<WebCore::IOSurface>> m_renderBuffers;
+#else
+    // Without WebCore::IOSurface, which draws with CoreGraphics: the surfaces themselves.
+    Vector<RetainPtr<IOSurfaceRef>> m_renderBuffers;
+    std::optional<WebCore::ColorSpace> m_colorSpace;
+#endif
     WebCore::AlphaPremultiplication m_alphaMode { WebCore::AlphaPremultiplication::Premultiplied };
     WTF::Function<void(std::span<const IOSurfaceRef>)> m_renderBuffersWereRecreatedCallback;
 #endif
 
     WTF::Function<void(CompletionHandler<void()>&&)> m_onSubmittedWorkScheduledCallback;
 
+    const RefPtr<WebGPUWorkQueue> m_workQueue;
     const RefPtr<::WebGPU::PresentationContext> m_presentationContext;
     ThreadSafeWeakPtr<::WebGPU::Device> m_device;
 };

@@ -28,7 +28,7 @@
 
 namespace WebCore {
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
 Vector<MachSendRight> GPUCompositorIntegration::recreateRenderBuffers(int width, int height, WebCore::ColorSpace&& destinationColorSpace, WebCore::AlphaPremultiplication alphaMode, WebGPU::TextureFormat textureFormat, unsigned bufferCount, WebGPU::Device& device) const
 {
     return m_backing->recreateRenderBuffers(width, height, WTF::move(destinationColorSpace), alphaMode, textureFormat, bufferCount, device);

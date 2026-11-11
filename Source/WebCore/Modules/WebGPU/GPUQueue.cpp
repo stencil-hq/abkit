@@ -705,6 +705,24 @@ static void imageBytesForSource(WebGPUIntegration& gpu, WebGPU::Queue& backing, 
                 }
             }
             callback(tempBuffer.span(), orientedWidth, orientedHeight);
+#elif USE(SKIA)
+            // Skia decodes into its own formats, so the image is drawn upright and read back as an
+            // image buffer is. An image without a size of its own takes the destination's.
+            RefPtr cachedImage = imageElement->cachedImage();
+            RefPtr image = cachedImage ? cachedImage->image() : nullptr;
+            if (!image)
+                return callback({ }, 0, 0);
+            IntSize size(destination.texture->width(), destination.texture->height());
+            if (RefPtr bitmapImage = dynamicDowncast<BitmapImage>(*image))
+                size = expandedIntSize(bitmapImage->size(ImageOrientation::Orientation::FromImage));
+            if (size.isEmpty())
+                return callback({ }, 0, 0);
+            RefPtr imageBuffer = ImageBuffer::create(size, RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, ColorSpace::SRGB(), PixelFormat::BGRA8);
+            if (!imageBuffer)
+                return callback({ }, 0, 0);
+            FloatRect destinationRect { { }, size };
+            image->draw(imageBuffer->context(), ImageDrawDescriptor { ConcreteObjectSize::fixed(destinationRect.size()), ImageOrientation::Orientation::FromImage }, destinationRect);
+            return getImageBytesFromImageBuffer(imageBuffer, needsPremultipliedAlpha, callback);
 #else
             return callback({ }, 0, 0);
 #endif
@@ -1438,6 +1456,33 @@ static MallocSpan<uint8_t> copyToDestinationFormat(std::span<const uint8_t> rgba
 #endif
 }
 
+#if ENABLE(VIDEO) && ENABLE(WEB_CODECS) && PLATFORM(WPE) && OS(DARWIN)
+// The frame a video element is showing, or a WebCodecs frame, named the way the backing descriptor
+// names one. On this port it is decoded here rather than in a GPU process, so the WebGPU backend is
+// handed the CVPixelBuffer the frame makes of itself. The canvas, ImageBitmap and ImageData sources
+// keep the CPU readback path below.
+NODELETE static std::optional<WebGPUVideoSourceIdentifier> videoSourceForImageCopy(const GPUImageCopyExternalImage::SourceType& source)
+{
+    WebGPUVideoSourceIdentifier videoSource;
+    if (auto* videoElement = std::get_if<Ref<HTMLVideoElement>>(&source)) {
+        // A media element which is not backed by a player, or has not decoded a frame yet, names
+        // nothing, and there is nothing for the copy to read.
+        if (!(*videoElement)->player())
+            return std::nullopt;
+        videoSource = GPUExternalTextureDescriptor::mediaIdentifierForSource(*videoElement);
+    } else if (auto* videoFrame = std::get_if<Ref<WebCodecsVideoFrame>>(&source))
+        videoSource = GPUExternalTextureDescriptor::mediaIdentifierForSource(*videoFrame);
+    else
+        return std::nullopt;
+
+    if (auto* mediaIdentifier = std::get_if<std::optional<MediaPlayerIdentifier>>(&videoSource); mediaIdentifier && !*mediaIdentifier)
+        return std::nullopt;
+    if (auto* frame = std::get_if<RefPtr<VideoFrame>>(&videoSource); frame && !*frame)
+        return std::nullopt;
+    return videoSource;
+}
+#endif
+
 ExceptionOr<void> GPUQueue::copyExternalImageToTexture(ScriptExecutionContext& context, const GPUImageCopyExternalImage& source, const GPUImageCopyTextureTagged& destination, const GPUExtent3D& copySize)
 {
     ExceptionCode outErrorCode;
@@ -1448,6 +1493,16 @@ ExceptionOr<void> GPUQueue::copyExternalImageToTexture(ScriptExecutionContext& c
         return Exception { ExceptionCode::SecurityError, "GPUQueue.copyExternalImageToTexture: Cross origin external images are not allowed in WebGPU"_s };
 
     auto backingCopySize = convertToBacking(copySize);
+
+#if ENABLE(VIDEO) && ENABLE(WEB_CODECS) && PLATFORM(WPE) && OS(DARWIN)
+    // A video frame is not an ImageBuffer, so it does not go through the GPU-resident path below.
+    // On this port it is here rather than in a GPU process, so the backing queue is given its pixel
+    // buffer instead of its pixels being read back.
+    if (auto videoSource = videoSourceForImageCopy(source.source)) {
+        m_gpu->copyExternalImageToTexture(m_backing, source.convertToBacking(nullptr, true, WTF::move(videoSource)), destination.convertToBacking(), backingCopySize);
+        return { };
+    }
+#endif
 
     // When the source is already GPU-resident, hand it to the backing queue: the copy is performed by
     // wrapping the source's IOSurface, or the planes of a decoded video frame, in MTLTextures and

@@ -343,7 +343,7 @@ RTCStatsReport::IceCandidateStats RTCStatsReport::IceCandidateStats::convert(con
     };
 
     if (result.candidateType == RTCIceCandidateType::Prflx || result.candidateType == RTCIceCandidateType::Host)
-        result.address = String { };
+        result.address = std::nullopt;
 
     return result;
 }

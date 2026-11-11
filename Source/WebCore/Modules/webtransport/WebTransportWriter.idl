@@ -24,7 +24,7 @@
  */
 
 [
-    EnabledBySetting=WebTransportEnabled,
+    EnabledBySetting=WebTransportEnabled&WebTransportWriterEnabled,
     Exposed=(Window,Worker),
     SecureContext
 ] interface WebTransportWriter : WritableStreamDefaultWriter {

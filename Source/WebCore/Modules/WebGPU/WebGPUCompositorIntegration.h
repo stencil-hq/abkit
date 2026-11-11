@@ -39,7 +39,7 @@
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
 #include <wtf/MachSendRight.h>
 #include <wtf/Vector.h>
 #endif
@@ -55,7 +55,7 @@ class WebGPUCompositorIntegration : public RefCountedAndCanMakeWeakPtr<WebGPUCom
 public:
     virtual ~WebGPUCompositorIntegration() = default;
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     virtual Vector<MachSendRight> recreateRenderBuffers(int width, int height, ColorSpace&&, AlphaPremultiplication, ::WebGPU::TextureFormat, unsigned bufferCount, ::WebGPU::Device&) = 0;
 #endif
 

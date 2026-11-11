@@ -27,10 +27,10 @@
 
 [
     CustomToJSObject,
-    EnabledBySetting=WebGPUEnabled,
+    EnabledBySetting=WebGPUEnabled&WebGPUNewerAPIEnabled,
     Exposed=(Window,Worker),
     SecureContext
 ]
 interface GPUError {
-    readonly attribute DOMString message;
+    [EnabledBySetting=WebGPUNewerAPIEnabled] readonly attribute DOMString message;
 };

@@ -912,7 +912,7 @@ void GPUDevice::popErrorScope(ErrorScopePromise&& errorScopePromise)
 bool GPUDevice::addEventListener(const AtomString& eventType, Ref<EventListener>&& eventListener, const AddEventListenerOptions& options)
 {
     auto result = EventTarget::addEventListener(eventType, WTF::move(eventListener), options);
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     if (eventType == WebCore::eventNames().uncapturederrorEvent)
         listenForUncapturedErrors();
 #endif
@@ -923,7 +923,7 @@ void GPUDevice::listenForUncapturedErrors()
 {
     if (m_listeningForUncapturedErrors)
         return;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     m_listeningForUncapturedErrors = true;
     m_backing->resolveUncapturedErrorEvent([weakThis = WeakPtr { *this }](bool hasUncapturedError, std::optional<::WebGPU::Error>&& error) {
         RefPtr protectedThis { weakThis };

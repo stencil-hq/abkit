@@ -29,19 +29,26 @@
 #if HAVE(WEBGPU_IMPLEMENTATION)
 
 #include "WebGPUDevice.h"
+#include "WebGPUWorkQueue.h"
 #include <CoreFoundation/CoreFoundation.h>
-#include <WebCore/IOSurface.h>
+#include <WebCore/GraphicsContext.h>
+#include <WebCore/ImageBuffer.h>
 #include <WebCore/NativeImage.h>
 #include <WebCore/WebGPUCppAPI.h>
-#include <pal/spi/cg/CoreGraphicsSPI.h>
+#include <wtf/Box.h>
 #include <wtf/TZoneMallocInlines.h>
+#if HAVE(IOSURFACE)
+#include <WebCore/IOSurface.h>
+#include <pal/spi/cg/CoreGraphicsSPI.h>
+#endif
 #include <wtf/spi/cocoa/IOSurfaceSPI.h>
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebGPUCompositorIntegrationImpl);
 
-WebGPUCompositorIntegrationImpl::WebGPUCompositorIntegrationImpl()
+WebGPUCompositorIntegrationImpl::WebGPUCompositorIntegrationImpl(WebGPUWorkQueue* workQueue)
+    : m_workQueue(workQueue)
 {
 }
 
@@ -52,7 +59,23 @@ void WebGPUCompositorIntegrationImpl::prepareForDisplay(uint32_t frameIndex, Com
     if (RefPtr presentationContext = m_presentationContext)
         presentationContext->present(frameIndex);
 
-    m_onSubmittedWorkScheduledCallback(WTF::move(completionHandler));
+    RefPtr workQueue = m_workQueue;
+    if (!workQueue) {
+        m_onSubmittedWorkScheduledCallback(WTF::move(completionHandler));
+        return;
+    }
+
+    // The caller shows or reads the frame when this returns, as it does after the reply of the GPU
+    // process, so the instance's work runs here until it has scheduled the frame's commands.
+    static constexpr auto timeout = 3_s;
+    auto isScheduled = Box<bool>::create(false);
+    m_onSubmittedWorkScheduledCallback([isScheduled, completionHandler = WTF::move(completionHandler)] mutable {
+        completionHandler();
+        *isScheduled = true;
+    });
+    workQueue->runWorkUntil([&] {
+        return *isScheduled;
+    }, timeout);
 }
 
 Seconds WebGPUCompositorIntegrationImpl::lastFrameGPUCost() const
@@ -79,7 +102,7 @@ void WebGPUCompositorIntegrationImpl::updateContentsHeadroom(float headroom)
 #endif
 }
 
-#if PLATFORM(COCOA)
+#if HAVE(IOSURFACE)
 Vector<MachSendRight> WebGPUCompositorIntegrationImpl::recreateRenderBuffers(int width, int height, WebCore::ColorSpace&& colorSpace, WebCore::AlphaPremultiplication alphaMode, WebGPU::TextureFormat textureFormat, unsigned bufferCount, WebGPU::Device& device)
 {
     m_renderBuffers.clear();
@@ -123,7 +146,6 @@ Vector<MachSendRight> WebGPUCompositorIntegrationImpl::recreateRenderBuffers(int
         return renderBuffer->createSendRight();
     });
 }
-#endif
 
 void WebGPUCompositorIntegrationImpl::withDisplayBufferAsNativeImage(uint32_t bufferIndex, Function<void(WebCore::NativeImage*)> completion)
 {
@@ -154,9 +176,19 @@ void WebGPUCompositorIntegrationImpl::withDisplayBufferAsNativeImage(uint32_t bu
     });
 }
 
-void WebGPUCompositorIntegrationImpl::paintCompositedResultsToCanvas(WebCore::ImageBuffer&, uint32_t)
+#endif // HAVE(IOSURFACE)
+
+void WebGPUCompositorIntegrationImpl::paintCompositedResultsToCanvas(WebCore::ImageBuffer& imageBuffer, uint32_t bufferIndex)
 {
-    ASSERT_NOT_REACHED();
+    // What the GPU process does for RemoteCompositorIntegrationProxy, for a canvas in the instance's process.
+    withDisplayBufferAsNativeImage(bufferIndex, [&](WebCore::NativeImage* image) {
+        if (!image)
+            return;
+        auto& context = imageBuffer.context();
+        GraphicsContextStateSaver stateSaver(context);
+        context.setImageInterpolationQuality(InterpolationQuality::DoNotInterpolate);
+        context.drawNativeImage(*image, FloatRect({ }, imageBuffer.backendSize()), FloatRect({ }, image->size()), { CompositeOperator::Copy });
+    });
 }
 
 } // namespace WebCore

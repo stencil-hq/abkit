@@ -44,15 +44,18 @@ class NativeImage;
 namespace WebCore {
 
 
+class WebGPUWorkQueue;
+
 class WebGPUIntegrationImpl final : public WebGPUIntegration, public RefCounted<WebGPUIntegrationImpl> {
     WTF_MAKE_TZONE_ALLOCATED(WebGPUIntegrationImpl);
 public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    static Ref<WebGPUIntegrationImpl> create(Ref<::WebGPU::Instance>&& instance)
+    // The work queue is that of an instance used in the process of its caller.
+    static Ref<WebGPUIntegrationImpl> create(Ref<::WebGPU::Instance>&& instance, RefPtr<WebGPUWorkQueue>&& workQueue = nullptr)
     {
-        return adoptRef(*new WebGPUIntegrationImpl(WTF::move(instance)));
+        return adoptRef(*new WebGPUIntegrationImpl(WTF::move(instance), WTF::move(workQueue)));
     }
 
     virtual ~WebGPUIntegrationImpl();
@@ -67,7 +70,7 @@ public:
 
 private:
 
-    explicit WebGPUIntegrationImpl(Ref<::WebGPU::Instance>&&);
+    WebGPUIntegrationImpl(Ref<::WebGPU::Instance>&&, RefPtr<WebGPUWorkQueue>&&);
 
     WebGPUIntegrationImpl(const WebGPUIntegrationImpl&) = delete;
     WebGPUIntegrationImpl(WebGPUIntegrationImpl&&) = delete;
@@ -110,6 +113,7 @@ private:
     bool isValid(const ::WebGPU::XRView&) const final;
 
     const Ref<::WebGPU::Instance> m_backing;
+    const RefPtr<WebGPUWorkQueue> m_workQueue;
 };
 
 } // namespace WebCore

@@ -38,7 +38,6 @@ class Report;
 class ReportingObserverCallback;
 class ReportingScope;
 class ScriptExecutionContext;
-struct ReportDictionary;
 
 class ReportingObserver final : public RefCounted<ReportingObserver>, public ActiveDOMObject  {
     WTF_MAKE_TZONE_ALLOCATED(ReportingObserver);
@@ -57,7 +56,7 @@ public:
 
     void observe();
     void disconnect();
-    Vector<ReportDictionary> takeRecords();
+    Vector<Ref<Report>> takeRecords();
 
     void appendQueuedReportIfCorrectType(const Ref<Report>&);
 
