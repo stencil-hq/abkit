@@ -56,7 +56,7 @@ jobs:
          fail-fast: false
          matrix:
             include:
-               - { target: darwin-arm64, os: macos-14, script: darwin, platform: macos, arch: arm64 }
+               - { target: darwin-arm64, os: macos-26, script: darwin, platform: macos, arch: arm64 }
                - { target: darwin-x64, os: macos-15-intel, script: darwin, platform: macos, arch: x86_64 }
                - { target: linux-x64, os: ubuntu-24.04, script: linux, platform: linux, arch: x86_64 }
                - { target: linux-arm64, os: ubuntu-24.04-arm, script: linux, platform: linux, arch: arm64 }
