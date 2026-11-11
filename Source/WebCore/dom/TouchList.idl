@@ -27,6 +27,7 @@
 
 [
     Conditional=TOUCH_EVENTS,
+    EnabledBySetting=TouchEventDOMAttributesEnabled,
     Exposed=Window
 ] interface TouchList {
     readonly attribute unsigned long length;

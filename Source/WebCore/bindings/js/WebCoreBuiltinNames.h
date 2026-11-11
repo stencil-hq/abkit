@@ -457,6 +457,9 @@ namespace WebCore {
     macro(TextTrackCue) \
     macro(TextTrackCueGeneric) \
     macro(ToggleEvent) \
+    macro(Touch) \
+    macro(TouchEvent) \
+    macro(TouchList) \
     macro(TransformStream) \
     macro(TransformStreamDefaultController) \
     macro(TrustedHTML) \

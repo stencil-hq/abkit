@@ -44,6 +44,7 @@
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
+#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WebKit {
@@ -61,6 +62,15 @@ static UTF8CString buildAcceptLanguages(const Vector<String>& languages)
     // Fallback to "en" if the list is empty.
     if (!languagesCount)
         return "en"_s;
+
+#if OS(MACOS)
+    // What Safari sends: the first language alone, then that language without its region.
+    auto& first = languages[!cLocalePosition ? 1 : 0];
+    auto region = first.find('-');
+    if (region == notFound)
+        return first.utf8();
+    return makeString(first, ',', StringView { first }.left(region), ";q=0.9"_s).utf8();
+#else
 
     // Calculate deltas for the quality values.
     int delta;
@@ -91,6 +101,7 @@ static UTF8CString buildAcceptLanguages(const Vector<String>& languages)
     }
 
     return builder.toString().utf8();
+#endif
 }
 
 HashSet<String> NetworkProcess::hostNamesWithHSTSCache(PAL::SessionID sessionID) const
