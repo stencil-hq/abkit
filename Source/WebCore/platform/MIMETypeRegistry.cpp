@@ -102,7 +102,7 @@ constexpr SortedArraySet supportedImageMIMETypeSet { WTF::toArray<ComparableCase
     "image/gi_"_s,
 #endif
     "image/gif"_s,
-#if HAVE(HEIC)
+#if HAVE(HEIC) || (USE(SKIA) && OS(DARWIN))
     "image/heic"_s,
     "image/heic-sequence"_s,
     "image/heif"_s,
@@ -491,6 +491,17 @@ std::unique_ptr<MIMETypeRegistryThreadGlobalData> MIMETypeRegistry::createMIMETy
         "image/gif"_s,
 #elif USE(CAIRO)
         "image/png"_s,
+#elif USE(SKIA) && OS(DARWIN)
+        // The types Safari on a Mac encodes canvases to (ImageUtilitiesSkiaDarwin.cpp).
+        "image/png"_s,
+        "image/jpeg"_s,
+        "image/gif"_s,
+        "image/tiff"_s,
+        "image/bmp"_s,
+        "image/vnd.microsoft.icon"_s,
+        "image/avif"_s,
+        "image/heic"_s,
+        "image/heic-sequence"_s,
 #elif USE(SKIA)
         "image/png"_s,
         "image/jpeg"_s,

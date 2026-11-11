@@ -403,6 +403,17 @@
 #define ENABLE_MODEL_ELEMENT 0
 #endif
 
+// No model player is linked into this port, so a <model> exposes the interface
+// Safari's does and a model that cannot be rendered ends the way it does when
+// no player supports the resource.
+#if PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_MODEL_ELEMENT_ANIMATIONS_CONTROL ENABLE_MODEL_ELEMENT
+#define ENABLE_MODEL_ELEMENT_BOUNDING_BOX ENABLE_MODEL_ELEMENT
+#define ENABLE_MODEL_ELEMENT_ENTITY_TRANSFORM ENABLE_MODEL_ELEMENT
+#define ENABLE_MODEL_ELEMENT_ENVIRONMENT_MAP ENABLE_MODEL_ELEMENT
+#define ENABLE_MODEL_ELEMENT_STAGE_MODE ENABLE_MODEL_ELEMENT
+#endif
+
 #if !defined(ENABLE_MODEL_ELEMENT_ACCESSIBILITY)
 #define ENABLE_MODEL_ELEMENT_ACCESSIBILITY 0
 #endif

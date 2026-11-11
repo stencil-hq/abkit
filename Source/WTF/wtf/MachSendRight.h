@@ -30,7 +30,7 @@
 #include <wtf/Forward.h>
 #include <wtf/Platform.h>
 
-#if PLATFORM(COCOA)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <mach/mach_port.h>
 

@@ -21,7 +21,7 @@
 
 #include <wtf/Platform.h>
 
-#if USE(CF) || defined(__OBJC__)
+#if USE(DARWIN_SYSTEM_TYPES) || defined(__OBJC__)
 
 #include <algorithm>
 #include <cstddef>
@@ -29,7 +29,7 @@
 #include <wtf/HashTraits.h>
 #include <wtf/cocoa/NSTypeTraits.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 #include <CoreFoundation/CoreFoundation.h>
 #include <wtf/cf/CFTypeTraits.h>
 #endif

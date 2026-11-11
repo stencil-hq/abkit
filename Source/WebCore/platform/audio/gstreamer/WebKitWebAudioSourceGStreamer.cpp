@@ -42,7 +42,12 @@ using namespace WebCore;
 
 // Number of WebAudio render quanta packed in each GstBuffer pushed downstream.
 // A WebAudio render quantum is `AudioUtilities::renderQuantumSize` frames.
+#if OS(DARWIN)
+// One, as Core Audio's clients render: a page reads the buffer size in AudioContext.baseLatency.
+static constexpr size_t renderQuantaPerBuffer = 1;
+#else
 static constexpr size_t renderQuantaPerBuffer = 4;
+#endif
 
 // Maximum number of buffers queued in the appsrc before the rendering task
 // blocks. It defines how far ahead of the playback WebAudio renders its audio

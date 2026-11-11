@@ -31,9 +31,9 @@
 
 #include "AudioArray.h"
 
-#if USE(GSTREAMER)
+#if USE(GSTREAMER) && !USE(ACCELERATE)
 #include "GUniquePtrGStreamer.h"
-#endif // USE(GSTREAMER)
+#endif
 
 #if USE(ACCELERATE)
 #include <Accelerate/Accelerate.h>
@@ -105,11 +105,11 @@ private:
     DSPSplitComplex m_frame;
 #endif
 
-#if USE(GSTREAMER)
+#if USE(GSTREAMER) && !USE(ACCELERATE)
     GUniquePtr<GstFFTF32> m_fft;
     GUniquePtr<GstFFTF32> m_inverseFft;
     Vector<GstFFTF32Complex> m_complexData;
-#endif // USE(GSTREAMER)
+#endif
 
     AudioFloatArray m_realData;
     AudioFloatArray m_imagData;

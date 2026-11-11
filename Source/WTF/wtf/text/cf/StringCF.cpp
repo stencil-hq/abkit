@@ -21,7 +21,7 @@
 #include "config.h"
 #include <wtf/text/WTFString.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <wtf/RetainPtr.h>
 #include <wtf/cf/VectorCF.h>

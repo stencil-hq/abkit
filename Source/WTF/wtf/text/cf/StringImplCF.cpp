@@ -21,7 +21,7 @@
 #include "config.h"
 #include <wtf/text/StringImpl.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <wtf/DebugHeap.h>
 #include <wtf/MainThread.h>

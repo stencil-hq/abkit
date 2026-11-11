@@ -254,12 +254,12 @@ public:
     operator UnspecifiedBoolTypeA() const;
     operator UnspecifiedBoolTypeB() const;
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
     WTF_EXPORT_PRIVATE String(CFStringRef);
     WTF_EXPORT_PRIVATE RetainPtr<CFStringRef> createCFString() const;
 #endif
 
-#if USE(FOUNDATION) && defined(__OBJC__)
+#if USE(DARWIN_SYSTEM_TYPES) && defined(__OBJC__)
     String(NSString *string)
         : String((__bridge CFStringRef)string) { }
 
@@ -409,7 +409,7 @@ WTF_EXPORT_PRIVATE RetainPtr<id> makeNSArrayElement(const String&);
 WTF_EXPORT_PRIVATE std::optional<String> makeVectorElement(const String*, id);
 #endif
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 WTF_EXPORT_PRIVATE RetainPtr<CFStringRef> makeCFArrayElement(const String&);
 WTF_EXPORT_PRIVATE std::optional<String> makeVectorElement(const String*, CFStringRef);
 #endif
@@ -533,7 +533,7 @@ inline std::expected<std::invoke_result_t<Func, std::span<const char8_t>>, UTF8C
     SUPPRESS_UNCOUNTED_ARG return m_impl->tryGetUTF8(function, mode);
 }
 
-#if USE(FOUNDATION) && defined(__OBJC__)
+#if USE(DARWIN_SYSTEM_TYPES) && defined(__OBJC__)
 
 inline RetainPtr<NSString> String::createNSString() const
 {

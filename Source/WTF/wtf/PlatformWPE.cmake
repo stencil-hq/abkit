@@ -118,6 +118,26 @@ elseif (APPLE)
         ${WTF_DERIVED_SOURCES_DIR}/mach_excUser.c
     )
     set_source_files_properties(darwin/OSLogPrintStream.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+    # USE(DARWIN_SYSTEM_TYPES): what the Cocoa ports' source list has of it.
+    list(APPEND WTF_SOURCES
+        cocoa/MachSendRight.cpp
+
+        text/cf/StringCF.cpp
+        text/cf/StringImplCF.cpp
+
+        text/cocoa/StringCocoa.mm
+        text/cocoa/StringImplCocoa.mm
+    )
+    set_source_files_properties(
+        text/cocoa/StringCocoa.mm
+        text/cocoa/StringImplCocoa.mm
+        PROPERTIES COMPILE_OPTIONS -fobjc-arc
+    )
+    list(APPEND WTF_PUBLIC_HEADERS
+        cf/CFTypeTraits.h
+
+        cocoa/NSTypeTraits.h
+    )
     # GLib's translation macros call libintl, which is no part of the C
     # library there.
     find_package(Intl REQUIRED)

@@ -33,6 +33,7 @@ platform/audio/gstreamer/PlatformRawAudioDataGStreamer.cpp
 platform/audio/gstreamer/WebKitWebAudioSourceGStreamer.cpp
 
 platform/graphics/gstreamer/AudioTrackPrivateGStreamer.cpp
+platform/graphics/gstreamer/CafDemuxGStreamer.cpp
 platform/graphics/gstreamer/GLVideoSinkGStreamer.cpp
 platform/graphics/gstreamer/GRefPtrGStreamer.cpp
 platform/graphics/gstreamer/GStreamerAudioMixer.cpp
@@ -63,9 +64,11 @@ platform/graphics/gstreamer/WebKitAudioSinkGStreamer.cpp
 platform/graphics/gstreamer/WebKitWebSourceGStreamer.cpp
 
 platform/graphics/gstreamer/eme/CDMFactoryGStreamer.cpp
+platform/graphics/gstreamer/eme/CDMProxyClearKey.cpp
 platform/graphics/gstreamer/eme/CDMProxyThunder.cpp
 platform/graphics/gstreamer/eme/CDMThunder.cpp
 platform/graphics/gstreamer/eme/GStreamerEMEUtilities.cpp
+platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp
 platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
 platform/graphics/gstreamer/eme/WebKitThunderDecryptorGStreamer.cpp
 platform/graphics/gstreamer/eme/WebKitThunderParser.cpp
@@ -120,6 +123,7 @@ platform/mediastream/gstreamer/GStreamerDisplayCaptureDeviceManager.cpp
 platform/mediastream/gstreamer/GStreamerMediaStreamSource.cpp
 platform/mediastream/gstreamer/GStreamerMockDevice.cpp
 platform/mediastream/gstreamer/GStreamerMockDeviceProvider.cpp
+platform/mediastream/gstreamer/GStreamerScreenDeviceDarwin.cpp
 platform/mediastream/gstreamer/GStreamerVideoCaptureSource.cpp
 platform/mediastream/gstreamer/GStreamerVideoCapturer.cpp
 platform/mediastream/gstreamer/PipeWireCaptureDeviceManager.cpp

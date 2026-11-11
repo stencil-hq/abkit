@@ -36,7 +36,7 @@
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))
 #include <wtf/RetainPtr.h>
 OBJC_CLASS NSArray;
 OBJC_CLASS WebSpeechSynthesisWrapper;
@@ -67,6 +67,8 @@ public:
     virtual void speakingErrorOccurred(PlatformSpeechSynthesisUtterance&) = 0;
     virtual void boundaryEventOccurred(PlatformSpeechSynthesisUtterance&, SpeechBoundary, unsigned charIndex, unsigned charLength) = 0;
     virtual void voicesDidChange() = 0;
+    // Whether sound may leave the machine; when false a synthesizer still speaks, at the same pace, into a sink that drops the samples.
+    virtual bool isAudioOutputEnabled() const { return true; }
 protected:
     virtual ~PlatformSpeechSynthesizerClient() = default;
 };
@@ -98,14 +100,14 @@ private:
     virtual void initializeVoiceList();
     virtual void resetVoiceList();
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))
     void appendVoices(NSArray *);
 #endif
 
     bool m_voiceListIsInitialized { false };
     WeakPtr<PlatformSpeechSynthesizerClient> m_speechSynthesizerClient;
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))
     const RetainPtr<WebSpeechSynthesisWrapper> m_platformSpeechWrapper;
 #elif USE(FLITE) && USE(GSTREAMER)
     const std::unique_ptr<GstSpeechSynthesisWrapper> m_platformSpeechWrapper;

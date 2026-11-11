@@ -99,6 +99,14 @@
 #define USE_FOUNDATION 1
 #endif
 
+/* The types that hold the objects of Darwin's frameworks (RetainPtr, BlockPtr, MachSendRight,
+   WeakObjCPtr) and the conversions of strings to CFString and NSString. The WPE port has them on
+   Darwin for its Metal code, without USE(CF) and USE(FOUNDATION), which also choose the Cocoa ports'
+   run loop, networking and file system. */
+#if PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))
+#define USE_DARWIN_SYSTEM_TYPES 1
+#endif
+
 #if PLATFORM(MAC)
 #define USE_APPKIT 1
 #endif
@@ -202,6 +210,11 @@
 #endif
 
 #if PLATFORM(COCOA)
+#define USE_AUDIO_SESSION 1
+#endif
+
+/* The WPE port on a Darwin host answers navigator.audioSession like the Cocoa ports do. */
+#if PLATFORM(WPE) && OS(DARWIN)
 #define USE_AUDIO_SESSION 1
 #endif
 

@@ -710,6 +710,7 @@ if (WIN32)
     )
 elseif (APPLE)
     list(APPEND WTF_SOURCES
+        darwin/EngineLibrary.cpp
         darwin/OSLogPrintStream.mm
     )
 
@@ -734,6 +735,7 @@ elseif (APPLE)
         darwin/DarwinExtras.h
         darwin/DispatchExtras.h
         darwin/DispatchOSObject.h
+        darwin/EngineLibrary.h
         darwin/LibraryPathDiagnostics.h
         darwin/NetworkOSObject.h
         darwin/OSLogPrintStream.h

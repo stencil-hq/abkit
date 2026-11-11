@@ -219,6 +219,14 @@ set(bmalloc_LIBRARY_TYPE OBJECT)
 set(WTF_LIBRARY_TYPE OBJECT)
 set(JavaScriptCore_LIBRARY_TYPE OBJECT)
 set(WebCore_LIBRARY_TYPE OBJECT)
+if (APPLE AND ENABLE_WEBGPU)
+    # WebGPU's only implementation is the Metal one, which an Apple OS can
+    # build whatever the port. It runs in the web process and is part of the
+    # WebKit library like the rest of WebCore's dependencies.
+    set(WebGPU_LIBRARY_TYPE STATIC)
+    SET_AND_EXPOSE_TO_BUILD(HAVE_WEBGPU_IMPLEMENTATION ON)
+    SET_AND_EXPOSE_TO_BUILD(ENABLE_WEBGPU_BY_DEFAULT ON)
+endif ()
 
 # These are shared variables, but we special case their definition so that we can use the
 # CMAKE_INSTALL_* variables that are populated by the GNUInstallDirs macro.
@@ -238,7 +246,11 @@ if (USE_ATK)
 endif ()
 
 if (ENABLE_SPEECH_SYNTHESIS)
-    if (USE_SPIEL)
+    if (APPLE)
+        # On a Mac the speech is the system's, as it is for Safari (PlatformSpeechSynthesizerDarwin.mm).
+        SET_AND_EXPOSE_TO_BUILD(USE_SPIEL OFF)
+        SET_AND_EXPOSE_TO_BUILD(USE_FLITE OFF)
+    elseif (USE_SPIEL)
         find_package(LibSpiel)
         if (NOT LibSpiel_FOUND)
             message(FATAL_ERROR "LibSpiel is needed for ENABLE_SPEECH_SYNTHESIS")

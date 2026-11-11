@@ -77,6 +77,9 @@ SUPPRESS_NODELETE bool isDeprecatedSystemColorKeyword(CSSValueID id)
     if (id == CSSValueID::Text)
 #if PLATFORM(COCOA)
         return !linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::NoTextValueForCSSColor);
+#elif PLATFORM(WPE) && OS(DARWIN)
+        // Safari on a Mac resolves 'text' to the canvas text colour.
+        return true;
 #else
         return false;
 #endif

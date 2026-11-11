@@ -77,6 +77,24 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
 
 set(WebCore_USER_AGENT_SCRIPTS_DEPENDENCIES ${WEBCORE_DIR}/platform/wpe/RenderThemeWPE.cpp)
 
+if (APPLE)
+    # On a Mac this port is a Mac as far as a page is concerned: the CSS value keyword
+    # generator gets the keywords Safari's DOM has there but this port does not name otherwise.
+    set(CSS_VALUE_PLATFORM_DEFINES "WTF_PLATFORM_WPE_DARWIN")
+endif ()
+
+if (APPLE)
+    # Safari's WebKit has Apple Pay built in, and only its session interfaces are gated by the
+    # ApplePayEnabled setting, so window.ApplePayError is visible while no payment can be made.
+    # There is no Apple Pay implementation here, so the port generates the bindings of that
+    # plain data type alone. The IDL list here is the port's, not the Cocoa list's copy of it.
+    list(APPEND WebCore_IDL_FILES
+        Modules/applepay/ApplePayError.idl
+        Modules/applepay/ApplePayErrorCode.idl
+        Modules/applepay/ApplePayErrorContactField.idl
+    )
+endif ()
+
 list(APPEND WebCore_LIBRARIES
     GLib::Module
     ${UPOWERGLIB_LIBRARIES}
@@ -89,6 +107,14 @@ endif ()
 if (APPLE)
     # The software filters use vImage wherever the OS is Darwin (USE(ACCELERATE)).
     list(APPEND WebCore_LIBRARIES "-framework Accelerate")
+    # Canvases are encoded by ImageIO, as Safari's are (ImageUtilitiesSkiaDarwin.cpp).
+    list(APPEND WebCore_LIBRARIES
+        "-framework CoreGraphics"
+        "-framework IOSurface"
+        "-framework ImageIO"
+    )
+    # Canvas text is rasterised by Core Text (FontRasterizationSkiaDarwin.cpp).
+    list(APPEND WebCore_LIBRARIES "-framework CoreText")
 elseif (WIN32)
     # The processes share memory as the Win port's do, and file types come
     # from the registry.
@@ -178,6 +204,22 @@ if (ENABLE_GAMEPAD)
     )
 endif ()
 
+if (ENABLE_WEB_AUTHN)
+    # The U2F response converter walks DER with helpers that live beside the Cocoa crypto code but
+    # depend on nothing from it.
+    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBCORE_DIR}/Modules/webauthn/apdu"
+        "${WEBCORE_DIR}/crypto/cocoa"
+    )
+
+    list(APPEND WebCore_SOURCES
+        Modules/webauthn/AuthenticationExtensionsClientInputs.cpp
+        Modules/webauthn/AuthenticationExtensionsClientOutputs.cpp
+
+        crypto/cocoa/CommonCryptoDERUtilities.cpp
+    )
+endif ()
+
 if (USE_VULKAN)
     list(APPEND WebCore_PRIVATE_LIBRARIES volk::volk)
     list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
@@ -189,6 +231,30 @@ if (USE_VULKAN)
         platform/graphics/vulkan/VulkanTypes.h
         platform/graphics/vulkan/VulkanUtilities.h
         platform/graphics/vulkan/VulkanVolk.h
+    )
+endif ()
+
+if (APPLE AND ENABLE_WEBGPU)
+    # WebGPU's Metal backend, used in the web process. The canvas context is
+    # the Cocoa ports', with the compositor's layer buffers in the place of
+    # Core Animation's.
+    list(APPEND WebCore_FRAMEWORKS WebGPU)
+    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES ${WebGPU_PRIVATE_FRAMEWORK_HEADERS_DIR})
+    list(APPEND WebCore_INTERFACE_INCLUDE_DIRECTORIES ${WebGPU_PRIVATE_FRAMEWORK_HEADERS_DIR})
+    list(APPEND WebCore_DEPENDENCIES WebGPU_CopyPrivateHeaders)
+    list(APPEND WebCore_INTERFACE_DEPENDENCIES WebGPU_CopyPrivateHeaders)
+    list(APPEND WebCore_SOURCES
+        Modules/WebGPU/Implementation/WebGPUCompositorIntegrationImplSkia.cpp
+        Modules/WebGPU/Implementation/WebGPUIOSurfaceImageSkia.cpp
+
+        html/canvas/GPUCanvasContextCocoa.mm
+        html/canvas/GPUDisplayBufferDisplayDelegateCoordinated.cpp
+    )
+    # The canvas context has no Objective-C in it, and WebCore no Objective-C++
+    # prefix header on this port.
+    set_source_files_properties(html/canvas/GPUCanvasContextCocoa.mm PROPERTIES
+        LANGUAGE CXX
+        COMPILE_OPTIONS "-xc++"
     )
 endif ()
 

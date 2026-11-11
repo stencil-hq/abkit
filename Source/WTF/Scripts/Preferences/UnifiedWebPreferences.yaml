@@ -350,6 +350,7 @@ AllowWebGLInWorkers:
   condition: ENABLE(WEBGL)
   defaultValue:
     "ENABLE(WEBGL_IN_WORKERS)": true
+    "PLATFORM(WPE) && OS(DARWIN)": true
     default: false
 
 AllowsAirPlayForMediaPlayback:
@@ -635,7 +636,7 @@ AudioContextSetSinkIdEnabled:
   defaultValue:
     default: false
     WebKit:
-      "USE(GSTREAMER)": true
+      "USE(GSTREAMER) && !OS(DARWIN)": true
       default: false
 
 AudioControlsScaleWithPageZoom:
@@ -656,6 +657,17 @@ AudioDescriptionsEnabled:
   humanReadableDescription: "Enable standard audio descriptions for video"
   excludeFrom: [ WebKitLegacy ]
   defaultValue: true
+
+AudioOutputEnabled:
+  comment: When enabled, media elements and Web Audio play to the audio output device.
+    Otherwise they play, at the same pace, into a sink that drops the samples, so that
+    a page behaves as it does with sound and nothing is heard.
+  type: bool
+  status: embedder
+  humanReadableName: "Audio output"
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 AuthorAndUserStylesEnabled:
   type: bool
@@ -1001,7 +1013,9 @@ CSSFunctionAtRuleEnabled:
   category: css
   humanReadableName: "CSS @function"
   humanReadableDescription: "Enable CSS @function rule"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 CSSIdentFunctionEnabled:
   type: bool
@@ -1385,7 +1399,9 @@ CSSUserSelectEnabled:
   category: css
   humanReadableName: "CSS Unprefixed User Select"
   humanReadableDescription: "Enable the unprefixed user-select CSS property"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 CSSWhiteSpaceTrimEnabled:
   type: bool
@@ -1577,7 +1593,9 @@ CloseWatcherEnabled:
   category: html
   humanReadableName: "Close Watcher API"
   humanReadableDescription: "Enable Close Watcher API including dialog closedby attribute"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 ColorFilterEnabled:
   type: bool
@@ -2156,7 +2174,7 @@ EnableElementCurrentCSSZoom:
   humanReadableName: "Enable Element.currentCSSZoom"
   humanReadableDescription: "Enable Element.currentCSSZoom"
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
 
 EnableInheritURIQueryComponent:
@@ -2181,6 +2199,7 @@ EncryptedMediaAPIEnabled:
   defaultValue:
     default: false
     WebKit:
+      "PLATFORM(WPE) && OS(DARWIN)": true
       "PLATFORM(GTK) || PLATFORM(WPE)": false
       default: true
   sharedPreferenceForWebProcess: true
@@ -2249,7 +2268,7 @@ EnterKeyHintEnabled:
   defaultValue:
     default: false
     WebKit:
-      "PLATFORM(COCOA)": true
+      "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
       default: false
 
 EnumeratedARIAAttributeReflectionEnabled:
@@ -2323,7 +2342,9 @@ ExplicitResourceManagementEnabled:
   jscOptionName: useExplicitResourceManagement
   sharedPreferenceForWebProcess: true
   excludeFrom: [ WebKitLegacy, WebCore ]
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 ExposeCaptureDevicesAfterCaptureEnabled:
   type: bool
@@ -2365,7 +2386,7 @@ ExposeSpeakersEnabled:
   condition: ENABLE(MEDIA_STREAM)
   excludeFrom: [ WebKitLegacy ]
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
     WebCore: false
 
@@ -2378,7 +2399,7 @@ ExposeSpeakersWithoutMicrophoneEnabled:
   condition: ENABLE(MEDIA_STREAM)
   excludeFrom: [ WebKitLegacy ]
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
     WebCore: false
 
@@ -2880,7 +2901,9 @@ HeadingOffsetEnabled:
   category: html
   humanReadableName: "HTML headingoffset & headingreset attributes"
   humanReadableDescription: "Enable HTML headingoffset & headingreset attribute support"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 HiddenPageCSSAnimationSuspensionEnabled:
   type: bool
@@ -3061,7 +3084,7 @@ ImageCaptureEnabled:
   condition: ENABLE(MEDIA_STREAM)
   excludeFrom: [ WebKitLegacy ]
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
 
 ImageControlsEnabled:
@@ -3164,7 +3187,9 @@ IndexedDBGetAllRecordsAndGetAllOptionsEnabled:
   status: stable
   humanReadableName: "IndexedDB getAllRecords() API and IDBGetAllOptions"
   humanReadableDescription: "Enable the getAllRecords() API on IDBObjectStore/IDBIndex and enable getAll()/getAllKeys() to accept IDBGetAllOptions and support direction"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 IndexedDBSQLiteMemoryBackingStoreEnabled:
   type: bool
@@ -3241,7 +3266,7 @@ InputTypeMonthEnabled:
   humanReadableDescription: "Enable input elements of type month"
   inspectorOverride: true
   defaultValue:
-    "PLATFORM(IOS_FAMILY) || PLATFORM(GTK) || PLATFORM(WPE)": true
+    "PLATFORM(IOS_FAMILY) || PLATFORM(GTK) || (PLATFORM(WPE) && !OS(DARWIN))": true
     default: false
     WebKitLegacy:
       "PLATFORM(IOS_FAMILY)": true
@@ -3390,7 +3415,7 @@ IsARIANotifyEnabled:
   humanReadableName: "ariaNotify()"
   humanReadableDescription: "Enable ariaNotify support"
   defaultValue:
-    "ENABLE(ARIA_NOTIFY)": true
+    "ENABLE(ARIA_NOTIFY) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
 
 IsAccessibilityIsolatedTreeEnabled:
@@ -3720,7 +3745,7 @@ LegacyWebRTCOfferOptionsEnabled:
   defaultValue:
     default: false
     WebKit:
-      "PLATFORM(GTK) || PLATFORM(WPE)": true
+      "PLATFORM(GTK) || (PLATFORM(WPE) && !OS(DARWIN))": true
       default: false
 
 LimitedMatroskaSupportEnabled:
@@ -4215,7 +4240,7 @@ MediaSessionCaptureToggleAPIEnabled:
   defaultValue:
     default: false
     WebKit:
-      "PLATFORM(COCOA)": true
+      "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
       default: false
 
 MediaSessionCoordinatorEnabled:
@@ -4430,6 +4455,7 @@ ModelElementEnabled:
   condition: ENABLE(MODEL_ELEMENT)
   defaultValue:
     "(PLATFORM(VISION) || ENABLE(GPU_PROCESS_MODEL)) && ENABLE(MODEL_ELEMENT)": true
+    "PLATFORM(WPE) && OS(DARWIN)": true
     default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
@@ -4550,6 +4576,7 @@ NavigationAPIPrecommitHandlerEnabled:
   humanReadableName: "Navigation API Precommit Handler"
   humanReadableDescription: "Enable Navigation API Precommit Handler"
   defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
     "PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)": true
     default: false
     WebKitLegacy: false
@@ -4748,7 +4775,9 @@ OriginAgentClusterEnabled:
   category: security
   humanReadableName: "Origin-Agent-Cluster header"
   humanReadableDescription: "Support for the Origin-Agent-Cluster HTTP response header and window.originAgentCluster getter"
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 OverlayRegionsEnabled:
   type: bool
@@ -4864,6 +4893,20 @@ PasswordEchoEnabled:
       "PLATFORM(IOS_FAMILY)": true
       default: false
     WebCore: false
+
+PathSegAPIEnabled:
+  comment: The SVG 1.1 SVGPathSeg API (the SVGPathSeg, SVGPathSegList interfaces and
+    SVGPathElement's pathSegList, animatedPathSegList and createSVGPathSeg* members),
+    which the system's WebKit on a Mac still exposes. Off where the port does not
+    present itself as that WebKit.
+  type: bool
+  status: stable
+  category: dom
+  humanReadableName: "SVGPathSeg API"
+  humanReadableDescription: "Expose the SVG 1.1 SVGPathSeg interfaces and SVGPathElement's path segment members"
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": true
+    default: false
 
 PeerConnectionEnabled:
   type: bool
@@ -5153,6 +5196,18 @@ PushAPIEnabled:
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
   richJavaScript: true
+
+# System WebKit on macOS exposes "QuotaExceededError" only as the name of a plain
+# DOMException; it has no distinct interface and no quota/requested attributes.
+QuotaExceededErrorEnabled:
+  type: bool
+  status: stable
+  category: dom
+  humanReadableName: "QuotaExceededError interface"
+  humanReadableDescription: "Expose the QuotaExceededError interface and its quota/requested attributes"
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 RTCEncodedStreamsQuirkEnabled:
   type: bool
@@ -5462,7 +5517,7 @@ ScopedCustomElementRegistryEnabled:
   humanReadableName: "Scoped custom element registry"
   humanReadableDescription: "Enable scoped custom element registry"
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
 
 ScreenAvailableHeightOverride:
@@ -5516,7 +5571,9 @@ ScreenOrientationAPIEnabled:
   humanReadableDescription: "Enable Screen Orientation API"
   defaultValue:
     default: false
-    WebKit: WebKit::defaultShouldEnableScreenOrientationAPI()
+    WebKit:
+      "PLATFORM(WPE) && OS(DARWIN)": true
+      default: WebKit::defaultShouldEnableScreenOrientationAPI()
   sharedPreferenceForWebProcess: true
   richJavaScript: true
 
@@ -6165,6 +6222,7 @@ SpeechRecognitionEnabled:
     default: false
     WebKit:
       "HAVE(SPEECHRECOGNIZER) && ENABLE(MEDIA_STREAM)": true
+      "PLATFORM(WPE) && OS(DARWIN)": true
       default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
@@ -6358,7 +6416,9 @@ TemporalEnabled:
   jscOptionName: useTemporal
   sharedPreferenceForWebProcess: true
   excludeFrom: [ WebKitLegacy, WebCore ]
-  defaultValue: true
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 TemporaryTileCohortRetentionEnabled:
   type: bool
@@ -7282,6 +7342,10 @@ WebAuthenticationCrossDeviceFallbackURLEnabled:
   defaultValue:
     default: true
     WebKitLegacy: false
+    WebKit:
+      # System WebKit on macOS exposes neither the extension nor WebAuthnOperationException.
+      "PLATFORM(WPE) && OS(DARWIN)": false
+      default: true
 
 # FIXME: Is this implemented for WebKitLegacy? If not, this should be excluded from WebKitLegacy entirely.
 WebAuthenticationEnabled:
@@ -7350,6 +7414,7 @@ WebCodecsImageEnabled:
   humanReadableDescription: "Enable WebCodecs Image API"
   condition: ENABLE(WEB_CODECS)
   defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
     default: true
     WebKitLegacy: false
 
@@ -7497,6 +7562,19 @@ WebGPUHDREnabled:
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
 
+WebGPUNewerAPIEnabled:
+  comment: The parts of the WebGPU API that the system's WebKit on a Mac does not have yet (GPUError
+    as a global, the subgroup sizes of GPUAdapterInfo, GPUTexture.textureBindingViewDimension). Off
+    where the port presents itself as that WebKit.
+  type: bool
+  status: stable
+  category: dom
+  humanReadableName: "WebGPU API newer than the system's WebKit"
+  humanReadableDescription: "Expose the WebGPU interfaces and attributes added after the system's WebKit"
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
+
 WebInspectorEngineeringSettingsAllowed:
   type: bool
   status: internal
@@ -7575,7 +7653,7 @@ WebRTCEncodedTransformEnabled:
   humanReadableName: "WebRTC Encoded Transform API"
   humanReadableDescription: "Enable WebRTC Encoded Transform API"
   defaultValue:
-    "USE(LIBWEBRTC) && PLATFORM(COCOA)": WebKit::defaultPeerConnectionEnabledAvailable()
+    "USE(LIBWEBRTC) && (PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN)))": WebKit::defaultPeerConnectionEnabledAvailable()
     default: false
     WebKitLegacy: false
     WebCore:
@@ -7603,7 +7681,7 @@ WebRTCH265CodecEnabled:
   humanReadableName: "WebRTC HEVC codec"
   humanReadableDescription: "Enable WebRTC HEVC codec"
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
     WebKitLegacy: false
 
@@ -7726,7 +7804,7 @@ WebRTCVP9Profile2CodecEnabled:
   humanReadableDescription: "Enable WebRTC VP9 profile 2 codec"
   condition: ENABLE(WEB_RTC)
   defaultValue:
-    "PLATFORM(COCOA)": true
+    "PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))": true
     default: false
     WebKitLegacy: false
 
@@ -7756,6 +7834,7 @@ WebShareEnabled:
     default: false
     WebKit:
       "PLATFORM(COCOA) && !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)": true
+      "PLATFORM(WPE) && OS(DARWIN)": true
       default: false
   sharedPreferenceForWebProcess: true
   richJavaScript: true
@@ -7771,6 +7850,7 @@ WebShareFileAPIEnabled:
     default: false
     WebKit:
       "PLATFORM(COCOA) && !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)": true
+      "PLATFORM(WPE) && OS(DARWIN)": true
       default: false
 
 WebSocketEnabled:
@@ -7783,6 +7863,9 @@ WebSocketEnabled:
   richJavaScript: true
 
 
+# System WebKit exposes WebTransport to pages, so the interface and its error types are visible here
+# too. The network process has no WebTransport implementation of its own on this port, so creating a
+# session fails the way it does against an unreachable server rather than succeeding.
 WebTransportEnabled:
   type: bool
   status: developer
@@ -7791,10 +7874,22 @@ WebTransportEnabled:
   humanReadableDescription: "Enable WebTransport"
   defaultValue:
     default: false
-    WebKit: WebKit::defaultWebTransportEnabled()
+    WebKit:
+      "PLATFORM(WPE) && OS(DARWIN)": true
+      default: WebKit::defaultWebTransportEnabled()
   sharedPreferenceForWebProcess: true
   richJavaScript: true
   disableInLockdownMode: true
+
+WebTransportWriterEnabled:
+  type: bool
+  status: stable
+  category: networking
+  humanReadableName: "WebTransportWriter interface"
+  humanReadableDescription: "Expose the WebTransportWriter interface object"
+  defaultValue:
+    "PLATFORM(WPE) && OS(DARWIN)": false
+    default: true
 
 WebXRAugmentedRealityModuleEnabled:
   type: bool

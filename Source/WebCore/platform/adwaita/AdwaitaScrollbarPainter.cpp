@@ -44,6 +44,11 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
     if (!rect.intersects(damageRect))
         return;
 
+    // The bar is as thick as the theme laid it out, which is not the same everywhere. In a
+    // thinner bar the thumb keeps its width and gives up margin.
+    int barSize = scrollbar.orientation == ScrollbarOrientation::Vertical ? rect.width() : rect.height();
+    int thumbMargin = std::max(2, static_cast<int>(horizThumbMargin) - (static_cast<int>(scrollbarSize) - barSize) / 2);
+
     double opacity;
     if (scrollbar.usesOverlayScrollbars)
         opacity = scrollbar.opacity;
@@ -96,7 +101,7 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
         graphicsContext.beginTransparencyLayer(opacity);
     }
 
-    int thumbSize = scrollbarSize - scrollbarBorderSize - horizThumbMargin * 2;
+    int thumbSize = barSize - scrollbarBorderSize - thumbMargin * 2;
 
     if (!scrollbar.usesOverlayScrollbars) {
         graphicsContext.fillRect(rect, scrollbarBackgroundColor);
@@ -117,13 +122,13 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
         IntRect trough = rect;
         if (scrollbar.orientation == ScrollbarOrientation::Vertical) {
             if (scrollbar.shouldPlaceVerticalScrollbarOnLeft)
-                trough.move(scrollbarSize - (scrollbarSize / 2 + thumbSize / 2) - scrollbarBorderSize, vertThumbMargin);
+                trough.move(barSize - (barSize / 2 + thumbSize / 2) - scrollbarBorderSize, vertThumbMargin);
             else
-                trough.move(scrollbarSize - (scrollbarSize / 2 + thumbSize / 2), vertThumbMargin);
+                trough.move(barSize - (barSize / 2 + thumbSize / 2), vertThumbMargin);
             trough.setWidth(thumbSize);
             trough.setHeight(rect.height() - vertThumbMargin * 2);
         } else {
-            trough.move(vertThumbMargin, scrollbarSize - (scrollbarSize / 2 + thumbSize / 2));
+            trough.move(vertThumbMargin, barSize - (barSize / 2 + thumbSize / 2));
             trough.setWidth(rect.width() - vertThumbMargin * 2);
             trough.setHeight(thumbSize);
         }
@@ -156,11 +161,11 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
             if (scrollbar.shouldPlaceVerticalScrollbarOnLeft)
                 thumb.move(horizOverlayThumbMargin, thumbPos + vertThumbMargin);
             else
-                thumb.move(scrollbarSize - overlayThumbSize - horizOverlayThumbMargin, thumbPos + vertThumbMargin);
+                thumb.move(barSize - overlayThumbSize - horizOverlayThumbMargin, thumbPos + vertThumbMargin);
             thumb.setWidth(overlayThumbSize);
             thumb.setHeight(thumbLen - vertThumbMargin * 2);
         } else {
-            thumb.move(thumbPos + vertThumbMargin, scrollbarSize - overlayThumbSize - horizOverlayThumbMargin);
+            thumb.move(thumbPos + vertThumbMargin, barSize - overlayThumbSize - horizOverlayThumbMargin);
             thumb.setWidth(thumbLen - vertThumbMargin * 2);
             thumb.setHeight(overlayThumbSize);
         }
@@ -169,13 +174,13 @@ void paint(GraphicsContext& graphicsContext, const IntRect& damageRect, const St
 
         if (scrollbar.orientation == ScrollbarOrientation::Vertical) {
             if (scrollbar.shouldPlaceVerticalScrollbarOnLeft)
-                thumb.move(scrollbarSize - (scrollbarSize / 2 + thumbSize / 2) - scrollbarBorderSize, thumbPos + vertThumbMargin);
+                thumb.move(barSize - (barSize / 2 + thumbSize / 2) - scrollbarBorderSize, thumbPos + vertThumbMargin);
             else
-                thumb.move(scrollbarSize - (scrollbarSize / 2 + thumbSize / 2), thumbPos + vertThumbMargin);
+                thumb.move(barSize - (barSize / 2 + thumbSize / 2), thumbPos + vertThumbMargin);
             thumb.setWidth(thumbSize);
             thumb.setHeight(thumbLen - vertThumbMargin * 2);
         } else {
-            thumb.move(thumbPos + vertThumbMargin, scrollbarSize - (scrollbarSize / 2 + thumbSize / 2));
+            thumb.move(thumbPos + vertThumbMargin, barSize - (barSize / 2 + thumbSize / 2));
             thumb.setWidth(thumbLen - vertThumbMargin * 2);
             thumb.setHeight(thumbSize);
         }

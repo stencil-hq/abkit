@@ -46,7 +46,7 @@
 #include <wtf/text/UTF8ConversionError.h>
 #include <wtf/unicode/UTF8Conversion.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 typedef const struct __CFString * CFStringRef;
 #endif
 
@@ -523,7 +523,7 @@ public:
 
     WTF_EXPORT_PRIVATE std::optional<UCharDirection> defaultWritingDirection();
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
     RetainPtr<CFStringRef> createCFString();
 #endif
 

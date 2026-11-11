@@ -21,7 +21,7 @@
 
 #include <wtf/Platform.h>
 
-#if USE(CF) || defined(__OBJC__)
+#if USE(DARWIN_SYSTEM_TYPES) || defined(__OBJC__)
 
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RetainRef.h>
@@ -342,7 +342,7 @@ template<typename T> inline RetainPtr<RetainPtrType<T>> retainPtr(T ptr)
     return ptr;
 }
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 template<CFType T>
 ALWAYS_INLINE CLANG_POINTER_CONVERSION RetainPtr<RetainPtrType<T>> protect(T ptr)
 {

@@ -54,6 +54,9 @@ page/glib/QuirkTableGLib.cpp
 page/linux/ResourceUsageOverlayLinux.cpp
 page/linux/ResourceUsageThreadLinux.cpp
 
+platform/audio/AudioSession.cpp
+platform/audio/AudioSessionDarwin.cpp @no-unify
+
 platform/gamepad/libwpe/GamepadLibWPE.cpp
 platform/gamepad/libwpe/GamepadProviderLibWPE.cpp
 

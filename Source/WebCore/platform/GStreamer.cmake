@@ -78,6 +78,43 @@ if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO)
     endif ()
 endif ()
 
+if (ENABLE_WEB_AUDIO AND APPLE AND PORT STREQUAL "WPE")
+    # The FFT is Accelerate's (USE(ACCELERATE)), so that Web Audio renders the
+    # samples the system's WebKit renders.
+    list(APPEND WebCore_SOURCES
+        platform/audio/cocoa/FFTFrameCocoa.cpp
+    )
+endif ()
+
+if (APPLE AND PORT STREQUAL "WPE")
+    # navigator.audioSession's hardware questions (sample rate, buffer size, channels, output
+    # latency) are put to the default output device through CoreAudio, as the Cocoa port's Mac
+    # session puts them.
+    list(APPEND WebCore_LIBRARIES
+        "-framework CoreAudio"
+    )
+endif ()
+
+if (ENABLE_VIDEO AND APPLE)
+    # On a Mac the questions about media types are put to AVFoundation, as the
+    # system's WebKit puts them (MediaTypeSupportDarwin.h), and WebGPU is
+    # handed a frame as the CVPixelBuffer the Metal backend takes.
+    list(APPEND WebCore_SOURCES
+        platform/graphics/gstreamer/MediaTypeSupportDarwin.mm
+        platform/graphics/gstreamer/VideoFrameGStreamerDarwin.cpp
+        platform/graphics/gstreamer/PictureInPictureSupportDarwin.cpp
+    )
+    list(APPEND WebCore_LIBRARIES
+        "-framework AVFoundation"
+        "-framework AudioToolbox"
+        "-framework CoreGraphics"
+        "-framework CoreMedia"
+        "-framework CoreVideo"
+        "-framework IOKit"
+        "-framework VideoToolbox"
+    )
+endif ()
+
 if (ENABLE_VIDEO)
     list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${GSTREAMER_TAG_INCLUDE_DIRS}
@@ -168,7 +205,16 @@ if (ENABLE_ENCRYPTED_MEDIA AND ENABLE_THUNDER)
 endif ()
 
 if (ENABLE_SPEECH_SYNTHESIS)
-    if (USE_SPIEL)
+    if (APPLE)
+        # On a Mac the speech is the system's, as it is for Safari (PlatformSpeechSynthesizerDarwin.mm).
+        list(APPEND WebCore_SOURCES
+            platform/gstreamer/PlatformSpeechSynthesizerDarwin.mm
+        )
+        list(APPEND WebCore_LIBRARIES
+            "-framework AVFoundation"
+            "-framework AVFAudio"
+        )
+    elseif (USE_SPIEL)
         list(APPEND WebCore_SOURCES
             platform/spiel/PlatformSpeechSynthesizerSpiel.cpp
         )
