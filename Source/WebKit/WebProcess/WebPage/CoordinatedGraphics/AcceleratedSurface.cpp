@@ -591,13 +591,12 @@ AcceleratedSurface::RenderTargetIOSurface::~RenderTargetIOSurface()
 
 void AcceleratedSurface::RenderTargetIOSurface::sync(bool)
 {
-    // The window server reads the surface on the GPU after the work drawing
-    // it, once that work is scheduled: nothing to wait for beyond that.
-    static auto waitUntilWorkScheduled = reinterpret_cast<PFNEGLWAITUNTILWORKSCHEDULEDANGLEPROC>(eglGetProcAddress("eglWaitUntilWorkScheduledANGLE"));
-    auto eglDisplay = PlatformDisplay::sharedDisplay().glDisplay().eglDisplay();
-    if (waitUntilWorkScheduled)
-        waitUntilWorkScheduled(eglDisplay);
-    else if (auto fence = GLFence::create(PlatformDisplay::sharedDisplay().glDisplay()))
+    // Only this thread's context drew the frame, so only its work is waited
+    // for. eglWaitUntilWorkScheduledANGLE would not do: it flushes every
+    // context of the display, unlocked, while the main thread and the
+    // painting workers encode into theirs, which aborts the web process in
+    // Metal or leaves it waiting on a command buffer never scheduled.
+    if (auto fence = GLFence::create(PlatformDisplay::sharedDisplay().glDisplay()))
         fence->clientWait();
 }
 
