@@ -402,6 +402,10 @@ http/tests/site-isolation/scrolling/latching-stays-on-cross-origin-iframe-when-m
 http/tests/site-isolation/scrolling/latching-stays-on-mainframe-when-mouse-moves-to-cross-origin-iframe.html [ Skip ]
 http/tests/site-isolation/scrolling/dynamically-add-remove-wheel-listener-in-cross-origin-iframe.html [ Skip ]
 http/tests/site-isolation/scrolling/latching-with-synchronous-wheel-listener-across-processes.html [ Skip ]
+http/tests/site-isolation/scrolling/mouse-wheel-scroll-chains-from-listbox-at-its-end-in-cross-site-iframe.html [ Skip ]
+http/tests/site-isolation/scrolling/wheel-scroll-chains-from-cross-site-iframe-with-wheel-event-listener.html [ Skip ]
+http/tests/site-isolation/scrolling/wheel-scroll-listbox-in-cross-site-iframe.html [ Skip ]
+http/tests/site-isolation/scrolling/wheel-scroll-listbox-in-multiple-root-frames.html [ Skip ]
 
 # This test requires alpha-channel video support.
 compositing/video/video-background-color.html [ WontFix ]
@@ -5066,11 +5070,6 @@ webkit.org/b/259160 http/tests/privateClickMeasurement/triggering-event-with-att
 webkit.org/b/259157 imported/w3c/web-platform-tests/html/dom/elements/global-attributes/dir_auto-textarea-script-mixed.html [ Pass ImageOnlyFailure ]
 webkit.org/b/259157 imported/w3c/web-platform-tests/html/dom/elements/global-attributes/dir_auto-textarea-mixed.html [ Pass ImageOnlyFailure ]
 
-# These tests require compile-time flags in WebKit that are only enabled in iOS17. They were marked as Skip in
-# https://bugs.webkit.org/show_bug.cgi?id=248545 — re-enable them here.
-fast/images/animations-resume-from-last-displayed-frame.html [ Pass ]
-fast/images/pagewide-play-pause-animateTransform-svg-animation.html [ Pass ]
-fast/images/pagewide-play-pause-svg-image-sources.html [ Pass ]
 fast/images/pagewide-play-pause-offscreen-animations.html [ Pass Failure ] # rdar://178676128
 
 # Only applicable on platforms with HDR support
@@ -7094,6 +7093,7 @@ imported/w3c/web-platform-tests/html/editing/focus/sequential-focus-navigation-a
 # Drag-and-drop testdriver automation is not supported on iOS.
 webkit.org/b/66547 imported/w3c/web-platform-tests/html/editing/dnd/events/dragenter-dragleave-related-target.html [ Skip ]
 imported/w3c/web-platform-tests/html/editing/dnd/datastore/datatransferitemlist-clear-read-only.html [ Skip ]
+imported/w3c/web-platform-tests/html/editing/dnd/datastore/datatransferitemlist-dragstart-after-dispatch.html [ Skip ]
 
 ######################################################
 # Test failures from turning GPU Process on by default
@@ -10209,6 +10209,7 @@ imported/w3c/web-platform-tests/css/css-anchor-position/scroll-to-anchored-fixed
 
 imported/w3c/web-platform-tests/css/css-contain/content-visibility/scrollIntoView-with-focus-target-with-contents-hidden.html [ Pass ImageOnlyFailure ] # rdar://178676904
 imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-076.html [ Pass ImageOnlyFailure ] # rdar://178676904
+imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-auto-img-001.html [ Skip ]
 
 imported/w3c/web-platform-tests/html/semantics/selectors/pseudo-classes/indeterminate-radio-group.html [ Pass ImageOnlyFailure ] # rdar://178676934
 
@@ -10499,3 +10500,21 @@ webkit.org/b/328390 fast/filter-image/filter-image-blur.html [ ImageOnlyFailure 
 
 # New test in the css/css-page import. Fails on iOS, passes on macOS.
 webkit.org/b/328881 imported/w3c/web-platform-tests/css/css-page/page-background-003-print.html [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/event-timing/first-input-retrievable-from-timeline.html [ Skip ]
+imported/w3c/web-platform-tests/event-timing/interactionid-label-click.html [ Skip ]
+imported/w3c/web-platform-tests/event-timing/keydown-without-paint.tentative.html [ Skip ]
+imported/w3c/web-platform-tests/event-timing/pointerdown-pointerup-no-overlap.html [ Skip ]
+
+imported/w3c/web-platform-tests/service-workers/cache-storage/cache-add.https.any.html [ Skip ]
+imported/w3c/web-platform-tests/service-workers/cache-storage/cache-add.https.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/service-workers/cache-storage/cache-add.https.any.sharedworker.html [ Skip ]
+imported/w3c/web-platform-tests/service-workers/cache-storage/cache-add.https.any.worker.html [ Skip ]
+
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-keyboard-scroll.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-keyboard-scroll-child-frame.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-root.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-single-axis-keyboard.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-without-overflow.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=2.3&border-radius=40% [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=squircle&border-radius=50% [ ImageOnlyFailure ]

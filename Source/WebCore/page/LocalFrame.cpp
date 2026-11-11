@@ -417,7 +417,7 @@ void LocalFrame::invalidateContentEventRegionsIfNeeded(InvalidateContentEventReg
     bool needsUpdateForEditableElements = false;
     bool needsUpdateForInteractionRegions = false;
 #if ENABLE(WHEEL_EVENT_REGIONS)
-    needsUpdateForWheelEventHandlers = document->hasWheelEventHandlers() || reason == InvalidateContentEventRegionsReason::EventHandlerChange;
+    needsUpdateForWheelEventHandlers = document->hasWheelEventHandlers() || document->mayHaveListBoxes() || reason == InvalidateContentEventRegionsReason::EventHandlerChange;
 #else
     UNUSED_PARAM(reason);
 #endif
@@ -1154,6 +1154,18 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
         if (scrollPositionAfterZoomed)
             view->setScrollPosition(scrollPositionAfterZoomed.value());
     }
+}
+
+void LocalFrame::frameOwnerZoomDidChange()
+{
+    // https://github.com/w3c/csswg-drafts/issues/9644
+    RefPtr parentFrame = tree().parent();
+    auto frameOwnerZoomFactor = parentFrame ? parentFrame->frameOwnerZoomFactorForChild(*this) : 1.0f;
+    if (frameOwnerZoomFactor == m_frameOwnerZoomFactor)
+        return;
+    m_frameOwnerZoomFactor = frameOwnerZoomFactor;
+    if (RefPtr document = this->document())
+        document->scheduleFullStyleRebuild();
 }
 
 float LocalFrame::frameOwnerZoomFactorForChild(const Frame& child) const

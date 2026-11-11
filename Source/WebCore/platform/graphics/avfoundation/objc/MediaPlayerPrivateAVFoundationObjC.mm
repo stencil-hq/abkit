@@ -441,6 +441,7 @@ MediaPlayerPrivateAVFoundationObjC::MediaPlayerPrivateAVFoundationObjC(MediaPlay
     m_muted = player.muted();
     m_volume = player.volume();
     m_isVideoPlayer = player.isVideoPlayer();
+    m_suppressesAudioRendering = m_isVideoPlayer;
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     m_defaultSpatialTrackingLabel = player.defaultSpatialTrackingLabel();
@@ -1134,7 +1135,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVPlayer()
         [m_avPlayer setMuted:m_muted];
 
     if (m_isVideoPlayer)
-        [m_avPlayer _setSuppressesAudioRendering:!m_isAudible];
+        [m_avPlayer _setSuppressesAudioRendering:m_suppressesAudioRendering];
 
 #if HAVE(AVPLAYER_DISCONNECTEDFROMSYSTEMAUDIO)
     [m_avPlayer setDisconnectedFromSystemAudio:!m_isAudible completionHandler:nil];
@@ -2334,7 +2335,12 @@ void MediaPlayerPrivateAVFoundationObjC::updateVideoLayerGravity(ShouldAnimate s
 void MediaPlayerPrivateAVFoundationObjC::updateIsAudible()
 {
     bool isAudible = hasAudio() && !m_muted && m_volume;
-    if (m_isAudible == isAudible)
+    bool isAudibleChanged = m_isAudible != isAudible;
+
+    bool suppressesAudioRendering = !isAudible && (!hasAudio() || hasVideo());
+    bool suppressesAudioRenderingChanged = m_suppressesAudioRendering != suppressesAudioRendering;
+
+    if (!isAudibleChanged && !suppressesAudioRenderingChanged)
         return;
 
     // Only change the state of suppressesAudioRendering and
@@ -2344,20 +2350,22 @@ void MediaPlayerPrivateAVFoundationObjC::updateIsAudible()
     // ignore this check if becoming audible to ensure audio
     // rendering starts immediately. This method will be called
     // again by timeControlStatusDidChange().
-    if (!isAudible && m_cachedTimeControlStatus == AVPlayerTimeControlStatusPlaying)
+    if (suppressesAudioRendering && m_cachedTimeControlStatus == AVPlayerTimeControlStatusPlaying)
         return;
 
-    ALWAYS_LOG(LOGIDENTIFIER, isAudible);
+    ALWAYS_LOG(LOGIDENTIFIER, isAudible, "suppressesAudioRendering = ", suppressesAudioRendering);
     m_isAudible = isAudible;
+    m_suppressesAudioRendering = suppressesAudioRendering;
 
     if (!m_avPlayer)
         return;
 
-    if (m_isVideoPlayer)
-        [m_avPlayer _setSuppressesAudioRendering:!m_isAudible];
+    if (m_isVideoPlayer && suppressesAudioRenderingChanged)
+        [m_avPlayer _setSuppressesAudioRendering:m_suppressesAudioRendering];
 
 #if HAVE(AVPLAYER_DISCONNECTEDFROMSYSTEMAUDIO)
-    [m_avPlayer setDisconnectedFromSystemAudio:!m_isAudible completionHandler:nil];
+    if (isAudibleChanged)
+        [m_avPlayer setDisconnectedFromSystemAudio:!m_isAudible completionHandler:nil];
 #endif
 }
 
@@ -3396,18 +3404,20 @@ bool MediaPlayerPrivateAVFoundationObjC::hasAudio() const
 
 bool MediaPlayerPrivateAVFoundationObjC::isCurrentPlaybackTargetWireless() const
 {
-    bool wirelessTarget = false;
+    RefPtr playbackTarget = m_playbackTarget;
 
-#if !PLATFORM(IOS_FAMILY) || ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
-    if (RefPtr playbackTarget = m_playbackTarget) {
-        if (playbackTarget->targetType() == MediaPlaybackTarget::Type::AVOutputContext)
-            wirelessTarget = m_avPlayer && m_avPlayer.get().externalPlaybackActive;
-        else
-            wirelessTarget = m_shouldPlayToPlaybackTarget && playbackTarget->hasActiveRoute();
+#if !PLATFORM(IOS_FAMILY)
+    if (!playbackTarget) {
+        INFO_LOG(LOGIDENTIFIER, false);
+        return false;
     }
-#else
-    wirelessTarget = m_avPlayer && m_avPlayer.get().externalPlaybackActive;
 #endif
+
+    bool wirelessTarget;
+    if (playbackTarget && playbackTarget->targetType() != MediaPlaybackTarget::Type::AVOutputContext)
+        wirelessTarget = m_shouldPlayToPlaybackTarget && playbackTarget->hasActiveRoute();
+    else
+        wirelessTarget = [m_avPlayer isExternalPlaybackActive];
 
     INFO_LOG(LOGIDENTIFIER, wirelessTarget);
 
@@ -3506,22 +3516,17 @@ String MediaPlayerPrivateAVFoundationObjC::wirelessPlaybackTargetName() const
     if (!m_avPlayer)
         return emptyString();
 
-    String wirelessTargetName;
+    RefPtr playbackTarget = m_playbackTarget;
 
-#if !PLATFORM(IOS_FAMILY) || ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
-    if (RefPtr playbackTarget = m_playbackTarget) {
-#if HAVE(MEDIAEXPERIENCE_AVSYSTEMCONTROLLER)
-        if (playbackTarget->targetType() == MediaPlaybackTarget::Type::AVOutputContext)
-            wirelessTargetName = externalDeviceDisplayNameForPlayer(m_avPlayer.get()).get();
-        else
-#endif
-            wirelessTargetName = playbackTarget->deviceName();
-    }
+#if PLATFORM(IOS_FAMILY)
+    if (!playbackTarget || playbackTarget->targetType() == MediaPlaybackTarget::Type::AVOutputContext)
+        return externalDeviceDisplayNameForPlayer(m_avPlayer.get()).get();
 #else
-    wirelessTargetName = externalDeviceDisplayNameForPlayer(m_avPlayer.get()).get();
+    if (!playbackTarget)
+        return { };
 #endif
 
-    return wirelessTargetName;
+    return playbackTarget->deviceName();
 }
 
 bool MediaPlayerPrivateAVFoundationObjC::wirelessVideoPlaybackDisabled() const

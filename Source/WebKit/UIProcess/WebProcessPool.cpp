@@ -2515,6 +2515,13 @@ void WebProcessPool::processForNavigation(WebPageProxy& page, WebFrameProxy& fra
                 backForwardCacheProcess = WebProcessProxy::processForIdentifier(*processIdentifier);
             if (backForwardCacheProcess && backForwardCacheProcess->state() != AuxiliaryProcessProxy::State::Terminated && browsingContextGroup.canUseProcessForCrossOriginIsolation(*backForwardCacheProcess)) {
                 ASSERT(isolatedProcessType != WebProcessProxy::IsolatedProcessType::Shared);
+                // The cached page may since have been evicted without the entry being dropped (e.g. its WebPage
+                // closed after a client redirect), letting the process enter the WebProcessCache. Take it out
+                // before using it, like the non-site-isolation path does.
+                if (backForwardCacheProcess->isInProcessCache()) {
+                    m_webProcessCache->removeProcess(*backForwardCacheProcess, WebProcessCache::ShouldShutDownProcess::No);
+                    ASSERT(!backForwardCacheProcess->isInProcessCache());
+                }
                 prepareProcessForNavigation(backForwardCacheProcess.releaseNonNull(), page, nullptr,
                     "Using target back/forward item's process (in-process BFCache)"_s, isolatedProcessType,
                     site, mainFrameSite, navigation, lockdownMode, enhancedSecurity, loadedWebArchive,
@@ -2711,8 +2718,14 @@ std::tuple<Ref<WebProcessProxy>, RefPtr<SuspendedPageProxy>, ASCIILiteral> WebPr
         }
 
         RefPtr navigationOriginatorFrame = navigation.originatingFrameInfo() ? WebFrameProxy::webFrame(navigation.originatingFrameInfo()->frameID) : nullptr;
-        if (navigationOriginatorFrame)
-            return { navigationOriginatorFrame->process(), nullptr, "Frame is navigating to about:blank or about:srcdoc from a cross site origin. Switching to process that originated navigation."_s };
+        if (navigationOriginatorFrame) {
+            Ref originatorProcess = navigationOriginatorFrame->process();
+            // The originator's process belongs to the browsing context group the navigation leaves. When the originator shares the
+            // main frame's process, the web process enforces the opener policy against the document the navigation replaces.
+            if (navigation.browsingContextGroupSwitchDecisionForEmptyDocument() != BrowsingContextGroupSwitchDecision::StayInGroup && originatorProcess.ptr() != sourceProcess.ptr())
+                return { createNewProcess(), nullptr, "Main frame is navigating to about:blank with an opener policy that requires a new browsing context group"_s };
+            return { WTF::move(originatorProcess), nullptr, "Frame is navigating to about:blank or about:srcdoc from a cross site origin. Switching to process that originated navigation."_s };
+        }
     }
 
     // A data: URL document inherits the Document-Isolation-Policy of the document that started the navigation.

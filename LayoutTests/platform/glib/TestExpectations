@@ -608,9 +608,9 @@ fast/css/accent-color/text.html [ Pass ]
 
 fast/events/keyboardevent-modifier.html [ Pass ]
 
-# Support for VP9 encoded videos with transparency is only available on ports that use GStreamer.
-media/video-with-alpha.html [ Pass ]
-media/video-with-alpha-premultiplied.html [ Pass ]
+# glcolorconvert's planar YUVA to YUVA shader does not apply the bit depth factor to alpha, so 10-bit alpha comes out 64 times too small.
+# https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/12679
+media/video-with-alpha-10bit.html [ Failure ]
 
 # MSE text track support for formats other than WebVTT
 media/media-source/media-source-mp4ttsimple.html [ Pass ]
@@ -890,7 +890,7 @@ imported/w3c/web-platform-tests/css/css-backgrounds/background-size-043.html [ P
 imported/w3c/web-platform-tests/css/css-backgrounds/background-size-044.html [ Pass ]
 
 imported/w3c/web-platform-tests/css/css-transforms/transform3d-matrix3d-001.html [ Pass ]
-imported/w3c/web-platform-tests/css/filter-effects/css-filters-animation-combined-001.html [ Pass ]
+imported/w3c/web-platform-tests/css/filter-effects/animation/css-filters-animation-combined-001.html [ Pass ]
 
 # Passing since 312965@main.
 imported/w3c/web-platform-tests/css/css-tables/calc-percent-plus-0px-auto.html [ Pass ]
@@ -1442,6 +1442,15 @@ webkit.org/b/314312 media/media-sources-selection.html [ ImageOnlyFailure ]
 http/tests/cookies/same-site/fetch-after-navigating-iframe-in-cross-origin-page.html [ Failure ]
 http/tests/cookies/same-site/fetch-in-cross-origin-service-worker.html [ Failure ]
 http/tests/cookies/same-site/popup-cross-site-post.html [ Failure ]
+
+# Cookie blocking for an empty firstPartyForCookies domain is only implemented for Cocoa.
+webkit.org/b/331011 http/tests/security/cookies-from-empty-origin-and-detached-opener-fetch.html [ Failure ]
+webkit.org/b/331011 http/tests/security/cookies-from-empty-origin-and-detached-opener-redirect.html [ Failure ]
+webkit.org/b/331011 http/tests/security/cookies-from-empty-origin-and-detached-opener-syncxhr.html [ Failure ]
+webkit.org/b/331011 http/tests/security/cookies-from-empty-origin-and-detached-opener-websocket-with-blocked-third-party-cookies.html [ Failure ]
+webkit.org/b/331011 http/tests/security/cookies-from-empty-origin-and-detached-opener-websocket.html [ Failure ]
+webkit.org/b/331011 http/tests/security/ipc-cookie-access-from-file-url.html [ Failure ]
+webkit.org/b/331011 http/tests/security/redirect-to-allow-cookies-request.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Cookie-related bugs
@@ -2007,6 +2016,9 @@ imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.html?h
 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.html?vp9 [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.worker.html?h264 [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.worker.html?vp9 [ Failure ]
+
+imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.html?av1 [ Failure ]
+imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.worker.html?av1 [ Failure ]
 
 # HEVC support
 imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.html?h265_annexb [ Pass ]
@@ -4295,9 +4307,6 @@ webkit.org/b/245032 imported/w3c/web-platform-tests/css/compositing/root-element
 imported/w3c/web-platform-tests/css/css-color/system-color-hightlights-vs-getSelection-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-color/system-color-hightlights-vs-getSelection-002.html [ ImageOnlyFailure ]
 
-# Flakily crashing on GTK and WPE bots
-webkit.org/b/286131 imported/w3c/web-platform-tests/css/css-transforms/transform-box/cssbox-content-box-002.html [ Pass Crash ImageOnlyFailure Timeout ]
-
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-invoker-inside-popover.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-scroll-within.html [ Skip ]
 
@@ -5343,3 +5352,14 @@ imported/w3c/web-platform-tests/css/css-shadow/part/pseudo-classes-after-part.ht
 
 # New test in the css/css-page import. Fails on GTK and WPE, passes on macOS.
 webkit.org/b/328881 imported/w3c/web-platform-tests/css/css-page/page-background-003-print.html [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/streams/piping/crashtests/shutdown.html [ Skip ]
+imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.html [ Skip ]
+imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.sharedworker.html [ Skip ]
+imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.worker.html [ Skip ]
+
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-keyboard-scroll.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-root.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-single-axis-keyboard.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-without-overflow.html [ Skip ]

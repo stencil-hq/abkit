@@ -2537,6 +2537,10 @@ void WebPage::close(CompletionHandler<void()>&& completionHandler)
     m_printContext = nullptr;
     if (RefPtr localFrame = m_mainFrame->coreLocalFrame())
         localFrame->loader().detachFromParent();
+    else {
+        for (Ref rootFrame : copyToVectorOf<Ref<LocalFrame>>(m_page->rootFrames()))
+            rootFrame->loader().detachFromParent();
+    }
 
     if (RefPtr provisionalFrame = m_mainFrame->provisionalFrame())
         provisionalFrame->loader().detachFromParent();
@@ -5144,9 +5148,8 @@ void WebPage::visibilityDidChange()
     if (!isVisible && m_page) {
         // We save the document / scroll state when backgrounding a tab so that we are able to restore it
         // if it gets terminated while in the background.
-        // FIXME: A cross-site iframe that hasn't navigated since the page loaded still loses its state, because the UI
-        // process gives its first back/forward item the main frame entry's identifier, which the iframe's process
-        // doesn't learn, so the UI process drops the update.
+        // FIXME: A frame in another process keeps the identifier of the back/forward item it was added to, so its state
+        // is saved into that item rather than the current one once another frame adds an item.
         for (Ref frame : copyToVectorOf<Ref<LocalFrame>>(m_page->rootFrames()))
             frame->loader().history().saveDocumentAndScrollState();
     }
@@ -9422,6 +9425,12 @@ void WebPage::addUserStyleSheet(const String& source, WebCore::UserContentInject
     WebCore::UserStyleSheet userStyleSheet { source, aboutBlankURL(), Vector<String>(), Vector<String>(), injectedFrames };
 
     Ref { m_userContentController }->addUserStyleSheet(InjectedBundleScriptWorld::normalWorldSingleton(), WTF::move(userStyleSheet));
+}
+
+void WebPage::injectUserStyleSheetsScopedToThisPage()
+{
+    if (RefPtr page = corePage())
+        Ref { m_userContentController }->injectUserStyleSheetsScopedToPage(*page, m_identifier);
 }
 
 void WebPage::removeAllUserContent()

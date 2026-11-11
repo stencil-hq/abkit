@@ -476,6 +476,8 @@ void NetworkResourceLoader::startNetworkLoad(ResourceRequest&& request, FirstLoa
     if (parameters.storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use && m_networkLoadChecker)
         parameters.storedCredentialsPolicy = m_networkLoadChecker->storedCredentialsPolicy();
 
+    parameters.siteIsolationEnabled = connectionToWebProcess().sharedPreferencesForWebProcess()->siteIsolationEnabled;
+
     CheckedPtr networkSession = protect(connectionToWebProcess())->networkSession();
     if (!networkSession) {
         WTFLogAlways("Attempted to create a NetworkLoad with a session (id=%" PRIu64 ") that does not exist.", sessionID().toUInt64());
@@ -883,15 +885,15 @@ bool NetworkResourceLoader::shouldInterruptLoadForCSPFrameAncestorsOrXFrameOptio
 #endif
 
     auto url = response.url();
-    ContentSecurityPolicy contentSecurityPolicy { URL { url }, this, this };
-    contentSecurityPolicy.didReceiveHeaders(ContentSecurityPolicyResponseHeaders { response }, originalRequest().httpReferrer());
-    if (!contentSecurityPolicy.allowFrameAncestors(m_parameters.frameAncestorOrigins, url))
+    auto contentSecurityPolicy = makeUnique<ContentSecurityPolicy>(URL { url }, this, this);
+    contentSecurityPolicy->didReceiveHeaders(ContentSecurityPolicyResponseHeaders { response }, originalRequest().httpReferrer());
+    if (!contentSecurityPolicy->allowFrameAncestors(m_parameters.frameAncestorOrigins, url))
         return true;
 
     if (shouldInterruptNavigationForCrossOriginEmbedderPolicy(response))
         return true;
 
-    if (!contentSecurityPolicy.overridesXFrameOptions()) {
+    if (!contentSecurityPolicy->overridesXFrameOptions()) {
         String xFrameOptions = response.httpHeaderField(HTTPHeaderName::XFrameOptions);
         if (!xFrameOptions.isNull() && shouldInterruptLoadForXFrameOptions(xFrameOptions, response.url())) {
             String errorMessage = makeString("Refused to display '"_s, response.url().stringCenterEllipsizedToLength(), "' in a frame because it set 'X-Frame-Options' to '"_s, xFrameOptions, "'."_s);
@@ -1049,7 +1051,8 @@ void NetworkResourceLoader::checkLocalNetworkAccess(const ResourceRequest& reque
     if (isLessPublicThan(clientAddressSpace, recordedAddressSpace))
         clientAddressSpace = recordedAddressSpace;
 
-    bool topOriginIsAllowed = !topOrigin.isOpaque() && NetworkProcess::singleton().allowsFirstPartyForCookies(connection->webProcessIdentifier(), RegistrableDomain::uncheckedCreateFromHost(topOrigin.host())) == NetworkProcess::AllowCookieAccess::Allow;
+    auto topOriginDomain = RegistrableDomain::uncheckedCreateFromHost(topOrigin.host());
+    bool topOriginIsAllowed = !topOrigin.isOpaque() && !topOriginDomain.isEmpty() && NetworkProcess::singleton().allowsFirstPartyForCookies(connection->webProcessIdentifier(), topOriginDomain);
     clientIsSecureContext = clientIsSecureContext && topOriginIsAllowed && shouldTreatAsPotentiallyTrustworthy(sourceOrigin.toURL());
 
     auto clientOrigin = ClientOrigin { topOrigin, sourceOrigin };
@@ -1273,8 +1276,8 @@ void NetworkResourceLoader::handleEarlyHintsResponse(ResourceResponse&& response
         return;
 
     auto url = response.url();
-    ContentSecurityPolicy contentSecurityPolicy { URL { url }, this, nullptr };
-    contentSecurityPolicy.didReceiveHeaders(ContentSecurityPolicyResponseHeaders { response }, originalRequest().httpReferrer());
+    auto contentSecurityPolicy = makeUnique<ContentSecurityPolicy>(URL { url }, this, nullptr);
+    contentSecurityPolicy->didReceiveHeaders(ContentSecurityPolicyResponseHeaders { response }, originalRequest().httpReferrer());
 
     LinkHeaderSet headerSet(headerValue);
     for (const auto& header : headerSet) {
@@ -1282,7 +1285,7 @@ void NetworkResourceLoader::handleEarlyHintsResponse(ResourceResponse&& response
             continue;
 
         if (equalLettersIgnoringASCIICase(header.rel(), "preconnect"_s))
-            startPreconnectTask(url, header, contentSecurityPolicy);
+            startPreconnectTask(url, header, *contentSecurityPolicy);
     }
 }
 
@@ -2136,8 +2139,7 @@ void NetworkResourceLoader::continueWillSendRedirectedRequest(ResourceRequest&& 
             return completionHandler({ });
 
         if (newRequest.firstPartyForCookies() != firstPartyForCookiesFromRedirectRequest) {
-            auto allowCookieAccess = NetworkProcess::singleton().allowsFirstPartyForCookies(connection->webProcessIdentifier(), newRequest.firstPartyForCookies());
-            MESSAGE_CHECK_COMPLETION_BASE(allowCookieAccess == NetworkProcess::AllowCookieAccess::Allow, connection->connection(), completionHandler({ }));
+            MESSAGE_CHECK_COMPLETION_BASE(NetworkProcess::singleton().allowsFirstPartyForCookies(connection->webProcessIdentifier(), newRequest.firstPartyForCookies()), connection->connection(), completionHandler({ }));
 
             if (RegistrableDomain { newRequest.firstPartyForCookies() } != RegistrableDomain { firstPartyForCookiesFromRedirectRequest })
                 protectedThis->m_shouldRestartLoad = true;

@@ -36,6 +36,7 @@
 #include "WebContentMode.h"
 #include <WebCore/AdvancedPrivacyProtections.h>
 #include <WebCore/AgentClusterAssignment.h>
+#include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/NavigationIdentifier.h>
 #include <WebCore/PrivateClickMeasurement.h>
 #include <WebCore/ProcessIdentifier.h>
@@ -151,6 +152,7 @@ public:
     bool openedByDOMWithOpener() const { return m_lastNavigationAction && m_lastNavigationAction->openedByDOMWithOpener; }
     bool isInitialFrameSrcLoad() const { return m_lastNavigationAction && m_lastNavigationAction->isInitialFrameSrcLoad; }
     WebCore::SecurityOriginData requesterOrigin() const;
+    WebCore::SecurityOriginData originatingFrameSecurityOrigin() const;
     WebCore::ShouldOpenExternalURLsPolicy shouldOpenExternalURLsPolicy() const { return m_lastNavigationAction ? m_lastNavigationAction->shouldOpenExternalURLsPolicy : WebCore::ShouldOpenExternalURLsPolicy::ShouldNotAllow; }
 
     void setUserContentExtensionsEnabled(bool enabled) { m_userContentExtensionsEnabled = enabled; }
@@ -174,8 +176,6 @@ public:
     void setOriginatingFrameInfo(const WebKit::FrameInfoData& frameInfo) { m_originatingFrameInfo = frameInfo; }
     const std::optional<WebKit::FrameInfoData>& originatingFrameInfo() const LIFETIME_BOUND { return m_originatingFrameInfo; }
 
-    void setDestinationFrameSecurityOrigin(const WebCore::SecurityOriginData& origin) { m_destinationFrameSecurityOrigin = origin; }
-    const WebCore::SecurityOriginData& destinationFrameSecurityOrigin() const LIFETIME_BOUND { return m_destinationFrameSecurityOrigin; }
 
     void setEffectiveContentMode(WebKit::WebContentMode mode) { m_effectiveContentMode = mode; }
     WebKit::WebContentMode effectiveContentMode() const { return m_effectiveContentMode; }
@@ -212,6 +212,9 @@ public:
 
     void setUnpartitionedStorageSite(std::optional<WebCore::RegistrableDomain>&& site) { m_unpartitionedStorageSite = WTF::move(site); }
     const std::optional<WebCore::RegistrableDomain>& unpartitionedStorageSite() const LIFETIME_BOUND { return m_unpartitionedStorageSite; }
+
+    void setBrowsingContextGroupSwitchDecisionForEmptyDocument(WebCore::BrowsingContextGroupSwitchDecision decision) { m_browsingContextGroupSwitchDecisionForEmptyDocument = decision; }
+    WebCore::BrowsingContextGroupSwitchDecision browsingContextGroupSwitchDecisionForEmptyDocument() const { return m_browsingContextGroupSwitchDecisionForEmptyDocument; }
 
     // The most recent assignment handed out for this navigation, and the origin it was computed for.
     void setAgentClusterAssignment(const WebCore::SecurityOriginData&, const WebCore::AgentClusterAssignment&, RefPtr<WebKit::AgentClusterKeyingReservation>&& = nullptr);
@@ -273,7 +276,6 @@ private:
     std::optional<WebKit::NavigationActionData> m_lastNavigationAction;
     RefPtr<JSHandle> m_lastNavigationActionHitTestJSHandle;
     std::optional<WebKit::FrameInfoData> m_originatingFrameInfo;
-    WebCore::SecurityOriginData m_destinationFrameSecurityOrigin;
     WebKit::WebContentMode m_effectiveContentMode { WebKit::WebContentMode::Recommended };
     Variant<std::monostate, Ref<WebKit::ProcessThrottler::TimedActivity>, Ref<WebKit::ProcessActivityGroup>> m_clientNavigationActivity;
     bool m_userContentExtensionsEnabled : 1 { true };
@@ -290,6 +292,7 @@ private:
     RefPtr<API::WebsitePolicies> m_websitePolicies;
     std::optional<OptionSet<WebCore::AdvancedPrivacyProtections>> m_originatorAdvancedPrivacyProtections;
     std::optional<WebCore::RegistrableDomain> m_unpartitionedStorageSite;
+    WebCore::BrowsingContextGroupSwitchDecision m_browsingContextGroupSwitchDecisionForEmptyDocument { WebCore::BrowsingContextGroupSwitchDecision::StayInGroup };
     WebCore::SecurityOriginData m_agentClusterOrigin;
     std::optional<WebCore::AgentClusterAssignment> m_agentClusterAssignment;
     RefPtr<WebKit::AgentClusterKeyingReservation> m_agentClusterKeyingReservation;

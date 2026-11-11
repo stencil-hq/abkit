@@ -73,6 +73,7 @@
 #include "WebNotificationManagerProxy.h"
 #include "WebPageMessages.h"
 #include "WebPageProxy.h"
+#include "WebPageProxyTesting.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
 #include "WebProcessProxy.h"
@@ -671,6 +672,9 @@ void NetworkProcessProxy::considerProcessSwapForNavigationResponse(WebPageProxyI
     RefPtr page = WebProcessProxy::webPage(pageID);
     if (!page)
         return completionHandler(NavigationResponseWithoutProcessSwap::CancelLoad);
+
+    if (RefPtr pageForTesting = page->pageForTesting())
+        completionHandler = pageForTesting->holdNavigationResponseProcessSwapReply(WTF::move(completionHandler));
 
     switch (reason) {
     case NavigationResponseProcessSwapReason::EnhancedSecurity:
@@ -1471,6 +1475,12 @@ void NetworkProcessProxy::setDomainsWithUserInteraction(HashSet<WebCore::Registr
 {
     for (auto& processPool : WebProcessPool::allProcessPools())
         processPool->setDomainsWithUserInteraction(HashSet<WebCore::RegistrableDomain> { domains });
+}
+
+void NetworkProcessProxy::didGrantPageLevelStorageAccess(WebPageProxyIdentifier pageID, WebCore::RegistrableDomain&& topFrameDomain, WebCore::RegistrableDomain&& subFrameDomain)
+{
+    if (RefPtr page = WebPageProxy::fromIdentifier(pageID))
+        page->addDomainWithPageLevelStorageAccess(topFrameDomain, subFrameDomain);
 }
 
 void NetworkProcessProxy::setDomainsWithCrossPageStorageAccess(HashMap<TopFrameDomain, Vector<SubResourceDomain>>&& domains, CompletionHandler<void()>&& completionHandler)

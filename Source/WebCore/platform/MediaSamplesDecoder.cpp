@@ -52,6 +52,7 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaSamplesDecoder);
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(MediaSamplesDecoder::InFlightFrame);
 
 static constexpr uint32_t microsecondsTimeScale = 1000000;
 
@@ -474,14 +475,24 @@ Ref<MediaSamplesDecoder::DecodePromise> MediaSamplesDecoder::decodeOnQueue(Media
 
     if (block.isProtected())
         return DecodePromise::createAndReject(PlatformMediaError::ProtectedContent);
-    if (!block.isEmpty()) {
-        if (m_needsSyncSample && !block.isSync())
-            return DecodePromise::createAndReject(PlatformMediaError::InvalidState);
-        m_needsSyncSample = false;
-    }
 
     if (block.discontinuity().value_or(false))
         m_discontinuity = true;
+
+    // Items before the first sync item can't be decoded; a block without one produces no output.
+    if (m_needsSyncSample && !block.isEmpty()) {
+        auto sync = std::ranges::find_if(block, [](auto& item) {
+            return item.isSync();
+        });
+        if (sync == block.end())
+            return settleWithPendingOutput(true, m_generation);
+        if (size_t skipped = sync - block.begin()) {
+            auto samples = block.takeSamples();
+            samples.removeAt(0, skipped);
+            block.append(WTF::move(samples));
+        }
+        m_needsSyncSample = false;
+    }
 
     if (RefPtr videoDecoder = m_videoDecoder) {
         int64_t firstSequence = m_nextSequence;
@@ -491,7 +502,7 @@ Ref<MediaSamplesDecoder::DecodePromise> MediaSamplesDecoder::decodeOnQueue(Media
             auto metadata = item;
             metadata.data = nullptr;
             metadata.flags = MediaSample::IsSync | (item.flags & MediaSample::IsNonDisplaying);
-            m_inFlight.add(sequence, InFlightFrame { WTF::move(metadata), firstSequence });
+            m_inFlight.add(sequence, makeUniqueRef<InFlightFrame>(WTF::move(metadata), firstSequence));
             promises.append(videoDecoder->decode({ protect(item.data)->makeContiguous(), item.isSync(), sequence, durationInMicroseconds(item) }));
         }
 
@@ -699,7 +710,7 @@ void MediaSamplesDecoder::didDecodeVideo(Ref<VideoFrame>&& frame, int64_t sequen
     auto iterator = m_inFlight.find(sequence);
     if (iterator == m_inFlight.end())
         return;
-    auto [metadata, blockSequence] = WTF::move(iterator->value);
+    auto [metadata, blockSequence] = WTF::move(iterator->value.get());
     m_inFlight.remove(iterator);
 
     if (metadata.flags & MediaSample::IsNonDisplaying)

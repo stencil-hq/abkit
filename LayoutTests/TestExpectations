@@ -1518,7 +1518,6 @@ imported/w3c/web-platform-tests/resource-timing/content-type.html [ Pass Failure
 imported/w3c/web-platform-tests/resource-timing/connection-reuse.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/render-blocking-status-link.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/render-blocking-status-script.html [ Pass Failure ]
-imported/w3c/web-platform-tests/resource-timing/iframe-sequence-of-events.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/interim-response-times.html [ Skip ] # Timeout
 imported/w3c/web-platform-tests/resource-timing/interim-response-times.h2.html [ Skip ] # Timeout
 imported/w3c/web-platform-tests/resource-timing/initiator-type/link.html [ Skip ] # Timeout
@@ -1690,10 +1689,6 @@ imported/w3c/web-platform-tests/media-source/dedicated-worker/managed [ Pass ]
 # Tests a setting behind the ENABLE_FULLSCREEN_API flag, which is WK2-only
 media/video-supports-fullscreen.html [ Skip ]
 
-# Support for VP9 encoded videos with transparency is only available on ports that use GStreamer.
-media/video-with-alpha.html [ Skip ]
-media/video-with-alpha-premultiplied.html [ Skip ]
-
 # Support to pause with 0 rate playback seems to work only in GStreamer ports
 media/media-source/media-source-play-zero-playbackrate.html [ Skip ]
 
@@ -1710,14 +1705,6 @@ fast/css/accent-color/submit.html [ ImageOnlyFailure ]
 fast/css/accent-color/text.html [ ImageOnlyFailure ]
 
 webanimations/frame-rate [ Skip ]
-
-# Enabled in rdar://102830993
-fast/images/animations-resume-from-last-displayed-frame.html [ Skip ]
-fast/images/individual-animation-toggle.html [ Skip ]
-fast/images/page-wide-animation-toggle.html [ Skip ]
-fast/images/pagewide-play-pause-animateTransform-svg-animation.html [ Skip ]
-fast/images/pagewide-play-pause-svg-image-sources.html [ Skip ]
-fast/images/pagewide-play-pause-offscreen-animations.html [ Skip ]
 
 # NOTIFICATION_EVENT is Ventura+
 http/tests/workers/service/shownotification-allowed-document.html [ Skip ]
@@ -2089,9 +2076,6 @@ imported/w3c/web-platform-tests/css/css-grid/grid-lanes/item-placement/row-negat
 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/item-placement/row-negative-margin-004.html [ ImageOnlyFailure ]
 # Grid lanes does not use the limited min-content contribution for items spanning flexible tracks under a min-content constraint.
 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-flex-spanning-items.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-item-percentage-sizes-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-item-percentage-sizes-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-item-percentage-sizes-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-minimum-contribution-baseline-shim-vertical-lr.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/column-minimum-contribution-baseline-shim-vertical-rl.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-grid/grid-lanes/items/row-item-minmax-img-002.html [ ImageOnlyFailure ]
@@ -2785,6 +2769,9 @@ webkit.org/b/328375 imported/w3c/web-platform-tests/svg/struct/scripted/switch_r
 webkit.org/b/328373 imported/w3c/web-platform-tests/svg/text/crashtests/unicode-bidi-crash.html [ Skip ]
 imported/w3c/web-platform-tests/svg/render/order/z-index.tentative.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/render/reftests/blending-001.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/render/reftests/blending-svg-root-contain-paint.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/render/reftests/blending-svg-root-flex-item-z-index.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/render/reftests/blending-svg-will-change-opacity.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/layout/svg-foreign-relayout-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/layout/svg-foreign-relayout-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/text-clipped-offscreen-move-onscreen.html [ Skip ]
@@ -4299,7 +4286,6 @@ imported/w3c/web-platform-tests/css/css-overflow/line-clamp/line-clamp-auto-063.
 imported/w3c/web-platform-tests/css/css-overflow/line-clamp/webkit-line-clamp-035.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/css/css-overflow/line-clamp/block-ellipsis-bidi-004.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-overflow/line-clamp/line-clamp-auto-045.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/overflow-clip-margin-013.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/overflow-clip-margin-014.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/overflow-clip-margin-015.html [ ImageOnlyFailure ]
@@ -5085,8 +5071,6 @@ webkit.org/b/279023 imported/w3c/web-platform-tests/css/css-transforms/transform
 webkit.org/b/279023 imported/w3c/web-platform-tests/css/css-transforms/transforms-skewY.html [ ImageOnlyFailure ]
 webkit.org/b/279023 imported/w3c/web-platform-tests/css/css-transforms/fractional-scale-gradient-bg-obscure-red-bg.html [ ImageOnlyFailure ]
 
-webkit.org/b/279419 [ Debug ] imported/w3c/web-platform-tests/css/css-transforms/transform-box/cssbox-content-box-002.html [ Skip ] # Crash
-
 webkit.org/b/208396 http/tests/misc/object-embedding-svg-delayed-size-negotiation-2.htm [ Pass Failure ]
 
 # Untriaged writing-mode failures.
@@ -5738,6 +5722,11 @@ imported/w3c/web-platform-tests/css/css-contain/counter-scoping-004.html [ Image
 
 # Flaky css-contain test
 imported/w3c/web-platform-tests/css/css-contain/content-visibility/animation-display-lock.html [ Failure Pass ]
+imported/w3c/web-platform-tests/css/css-contain/contain-layout-select-001.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-svg-forced-layout.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-svg-gradient.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-svg-gradient-unlock.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-svg-resources.html [ ImageOnlyFailure ]
 
 # Counter style tests that fail on some platforms because of subtle character positioning differences, presumably from subpixel rounding.
 # These failures are slightly different per-platform, but it seems unwise to move the expectations into platform-specific expectations files.
@@ -5846,8 +5835,6 @@ imported/w3c/web-platform-tests/webcodecs/videoDecoder-codec-specific.https.any.
 imported/w3c/web-platform-tests/webcodecs/videoDecoder-codec-specific.https.any.html?vp9 [ Skip ]
 imported/w3c/web-platform-tests/webcodecs/videoDecoder-codec-specific.https.any.worker.html?vp9 [ Skip ]
 imported/w3c/web-platform-tests/webcodecs/video-encoder-canvasImageSource.https.html [ Failure ]
-imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.html?av1 [ Failure ]
-imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.worker.html?av1 [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.html?av1 [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.worker.html?av1 [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/videoFrame-canvasImageSource.html [ Failure ]
@@ -5939,7 +5926,7 @@ webkit.org/b/230004 imported/w3c/web-platform-tests/css/css-pseudo/selection-tex
 # css/filter-effects
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-svg-foreignObject.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-svg.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/filter-effects/css-filters-animation-combined-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/animation/css-filters-animation-combined-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/drop-shadow-currentcolor-dynamic-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/effect-reference-feimage-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/effect-reference-lighting-no-light.tentative.html [ ImageOnlyFailure ]
@@ -5994,6 +5981,23 @@ imported/w3c/web-platform-tests/css/filter-effects/visibility-hidden-element-wit
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-backdrop-root-animation-in-effect.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-backdrop-root-mask.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/filter-effects/fecolormatrix-display-p3.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-single-axis.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-masking/mask-image/mask-image-multi-layer-while-loading.tentative.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-masking/mask-image/backdrop-filter-mask-image-multi-layer-while-loading.tentative.html [ Skip ]
+imported/w3c/web-platform-tests/css/css-borders/border-image-color-scheme.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-borders/border-shape/border-shape-shadow-ellipse.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-borders/border-shape/border-shape-shape-arc-miter-limit.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-masking/clip-path/clip-path-path-with-zoom-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-masking/clip-path/clip-path-with-transform-and-zoom.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/animation/css-backdrop-filters-animation-displacement.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-blur-large-value.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-svg-displacement.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/feDropShadow-negative-deviation.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/feGaussianBlur-negative-deviation.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/feImage-orientation.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/invalidation-css-dropshadow-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/tainting-css-dropshadow-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/filter-effects/tainting-css-dropshadow-currentcolor.html [ ImageOnlyFailure ]
 
 # CSS motion path URL support.
 imported/w3c/web-platform-tests/css/motion/offset-path-url-002.html [ ImageOnlyFailure ]
@@ -6120,6 +6124,16 @@ webkit.org/b/243313 [ Debug ] imported/w3c/web-platform-tests/html/semantics/emb
 fast/text/accessibility-bold-system-font [ Pass Failure ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/streams/transferable/gc-crash.html [ Skip ]
+
+# A writable stream erroring before a chunk is enqueued trips a debug assertion in the WritableStreamDefaultWriter write builtin.
+[ Debug ] imported/w3c/web-platform-tests/streams/piping/crashtests/shutdown.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.worker.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.serviceworker.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/streams/piping/error-propagation-backward.any.sharedworker.html [ Skip ]
+
+# Its subtest names include a signature generated for each run.
+imported/w3c/web-platform-tests/subresource-integrity/signatures/tentative/authority.https.window.html [ Skip ]
 
 # height: fill-available failures
 webkit.org/b/241104 fast/block/fill-available-with-no-specified-containing-block-height.html [ ImageOnlyFailure ]
@@ -6978,18 +6992,17 @@ imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-flo
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-indentation-rtl.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-indentation.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-layout-text-decoration-underline.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial-rtl.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial-vlr.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial-vrl.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial.html?class= [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial.html?class=no-ascent [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial.html?class=no-descent [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial.html?class=rtl [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raised-sunken-caps-raise.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raised-sunken-caps-sunken.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-short-para-initial-letter-clears.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-short-para-initial-letter-wraps.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-sunk-initial-rtl.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-sunk-initial-vlr.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-sunk-initial-vrl.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-sunk-initial.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-with-first-line.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-with-tab-rtl.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-with-tab.html [ ImageOnlyFailure ]
@@ -7029,6 +7042,87 @@ imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-multi
 imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-multicol-011.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-multicol-012.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-multicol-014.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=alphabetic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=baseline [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=central [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=hanging [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=ideographic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=mathematical [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=middle [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=text-bottom [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-001.html?class=text-top [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=alphabetic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=baseline [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=central [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=hanging [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=ideographic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=mathematical [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=middle [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=text-bottom [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-002.html?class=text-top [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=alphabetic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=baseline [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=central [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=hanging [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=ideographic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=mathematical [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=text-bottom [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-horizontal-003.html?class=text-top [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-nested-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-nested-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=alphabetic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=baseline [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=central [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=hanging [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=ideographic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=mathematical [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=middle [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=text-bottom [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-002.html?class=text-top [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=alphabetic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=baseline [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=central [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=hanging [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=ideographic [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=mathematical [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=middle [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=text-bottom [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/alignment-baseline/alignment-baseline-vertical-rl-003.html?class=text-top [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-bottom-svg.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-bottom.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-center-svg.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-center.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-length-percentage-svg.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-length-percentage.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-top-svg.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/baseline-shift/baseline-shift-top.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/br-font-size.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/br-line-height.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/empty-span-size-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/empty-span-size-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-drop-vlr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-drop-vrl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-drop.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-size-vlr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-size-vrl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-fractional-size.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-margins-slr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-margins-srl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-over-sunk-vlr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-over-sunk-vrl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-block-position-over-sunk.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-breaking-slr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-breaking-srl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-drop-initial-slr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-drop-initial-srl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-float-001-slr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-float-001-srl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial-slr.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-inline/initial-letter/initial-letter-raise-initial-srl.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-tables/collapsed-border-fragmentation-001-print.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-tables/collapsed-border-fragmentation-002-print.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-tables/collapsed-border-large-rowgroup-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-tables/table-cell-percent-height-row-groups-print.html [ ImageOnlyFailure ]
 # The ideographic and ideographic-ink text box edges are not implemented and assert in debug builds.
 [ Release ] imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-end-001.html?class=ideographic [ ImageOnlyFailure ]
 [ Debug ] imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-trim-end-001.html?class=ideographic [ Crash ]
@@ -7894,7 +7988,6 @@ webkit.org/b/287313 [ Debug ] fast/inline/list-marker-float-crash.html [ Skip ]
 media/webkit-media-controls-not-visible-after-exiting-fullscreen.html [ Skip ]
 
 webkit.org/b/279297 fast/block/float/float-avoider-with-negative-margin.html [ ImageOnlyFailure ]
-webkit.org/b/298061 fast/block/crash-with-percent-padding.html [ Skip ]
 
 webkit.org/b/294638 imported/w3c/web-platform-tests/css/selectors/focus-visible-018-2.html [ Skip ]
 

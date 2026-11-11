@@ -760,9 +760,13 @@ void Element::cloneShadowTreeIfPossible(Element& newHost) const
         if (RefPtr registry = oldShadowRoot->customElementRegistry()) {
             if (!registry->isScoped())
                 registry = newHost.document().effectiveGlobalCustomElementRegistry();
-            clonedShadowRoot->setCustomElementRegistry(WTF::move(registry));
+            if (registry)
+                clonedShadowRoot->setCustomElementRegistry(WTF::move(registry));
+            else
+                clonedShadowRoot->setUsesNullCustomElementRegistry();
         }
     }
+    clonedShadowRoot->setKeepsCustomElementRegistryNull(oldShadowRoot->keepsCustomElementRegistryNull());
     newHost.addShadowRoot(clonedShadowRoot.copyRef());
     oldShadowRoot->cloneChildNodes(protect(newHost.document()), nullptr, clonedShadowRoot);
 }
@@ -1990,29 +1994,44 @@ NODELETE inline bool shouldObtainBoundsFromBoxModel(const Element* element)
     return false;
 }
 
-IntRect Element::boundsInRootViewSpace()
+static std::optional<IntRect> elementBoundingBox(Element& element)
 {
-    Ref document = this->document();
+    Ref document = element.document();
     document->updateLayoutIgnorePendingStylesheets();
 
-    RefPtr view = document->view();
-    if (!view)
-        return IntRect();
+    if (!document->view())
+        return std::nullopt;
 
-    if (isInNonRenderedSVGSubtree(*this))
-        return IntRect();
+    if (isInNonRenderedSVGSubtree(element))
+        return std::nullopt;
 
     Vector<FloatQuad> quads;
 
-    if (RefPtr svgElement = elementWithSVGLayoutBox(*this)) {
+    if (RefPtr svgElement = elementWithSVGLayoutBox(element)) {
         if (auto localRect = svgElement->getBoundingBox())
-            quads.append(protect(renderer())->localToAbsoluteQuad(*localRect));
-    } else if (shouldObtainBoundsFromBoxModel(this)) {
+            quads.append(protect(element.renderer())->localToAbsoluteQuad(*localRect));
+    } else if (shouldObtainBoundsFromBoxModel(&element)) {
         // Get the bounding rectangle from the box model.
-        protect(renderer())->absoluteQuads(quads);
+        protect(element.renderer())->absoluteQuads(quads);
     }
 
-    return view->contentsToRootView(enclosingIntRect(unitedBoundingBoxes(quads)));
+    return enclosingIntRect(unitedBoundingBoxes(quads));
+}
+
+IntRect Element::boundsInRootViewSpace()
+{
+    auto bounds = elementBoundingBox(*this);
+    if (!bounds)
+        return IntRect();
+    return protect(document().view())->contentsToRootView(*bounds);
+}
+
+IntRect Element::boundsInMainFrameViewSpace()
+{
+    auto bounds = elementBoundingBox(*this);
+    if (!bounds)
+        return IntRect();
+    return protect(document().view())->contentsToMainFrameView(*bounds);
 }
 
 IntRect Element::boundingBoxInRootViewCoordinates() const
@@ -3230,6 +3249,8 @@ static void preserveCustomElementRegistryAfterLeavingTreeScope(Element& element,
 
 static void preserveCustomElementRegistryAfterEnteringTreeScope(Element& element)
 {
+    if (element.isInUserAgentShadowTree())
+        return;
     if (element.usesScopedCustomElementRegistryMap()) {
         if (CustomElementRegistry::registryForElement(element) == element.treeScope().customElementRegistry())
             CustomElementRegistry::removeFromScopedCustomElementRegistryMap(element);
@@ -3238,7 +3259,7 @@ static void preserveCustomElementRegistryAfterEnteringTreeScope(Element& element
             // This element was moved into a shadow tree with a scoped custom element registry.
             // Keep using the document's non-scoped custom element registry.
             if (RefPtr window = element.document().window())
-                CustomElementRegistry::addToScopedCustomElementRegistryMap(element, protect(window->ensureCustomElementRegistry()));
+                CustomElementRegistry::addToScopedCustomElementRegistryMap(element, protect(window->customElementRegistry()));
         }
     }
 }
@@ -3579,9 +3600,8 @@ static bool canAttachAuthorShadowRoot(const Element& element)
     }
 
     if (auto localName = element.localName(); Document::validateCustomElementName(localName) == CustomElementNameValidationStatus::Valid) {
-        if (auto* window = element.document().window()) {
-            auto* registry = window->customElementRegistry();
-            if (registry && registry->isShadowDisabled(localName))
+        if (auto* registry = CustomElementRegistry::registryForElement(element)) {
+            if (registry->isShadowDisabled(localName))
                 return false;
         }
 
@@ -3658,6 +3678,7 @@ ExceptionOr<ShadowRoot&> Element::attachDeclarativeShadow(ShadowRootMode mode, S
     Ref shadowRoot = exceptionOrShadowRoot.releaseReturnValue();
     shadowRoot->setIsDeclarativeShadowRoot(true);
     shadowRoot->setIsAvailableToElementInternals(true);
+    shadowRoot->setKeepsCustomElementRegistryNull(registryKind == CustomElementRegistryKind::Null);
     return shadowRoot.get();
 }
 
@@ -3810,8 +3831,6 @@ CustomElementReactionQueue* Element::reactionQueue() const
 
 CustomElementRegistry* Element::customElementRegistry() const
 {
-    if (RefPtr window = document().window())
-        window->ensureCustomElementRegistry(); // Create the global registry before querying since registryForElement doesn't ensure it.
     return CustomElementRegistry::registryForElement(*this);
 }
 

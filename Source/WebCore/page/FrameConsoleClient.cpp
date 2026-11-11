@@ -176,7 +176,7 @@ void FrameConsoleClient::addMessage(std::unique_ptr<Inspector::ConsoleMessage>&&
     }
 
 #if ENABLE(WEBDRIVER_BIDI)
-    AutomationInstrumentation::addMessageToConsole(consoleMessage);
+    AutomationInstrumentation::addMessageToConsole(frame->frameID(), consoleMessage);
 #endif
     InspectorInstrumentation::addMessageToConsole(frame.get(), WTF::move(consoleMessage));
 }
@@ -254,7 +254,7 @@ void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel 
         domGlobalObject->invokeScriptErrorCallbacks(messageText, url, lineNumber, columnNumber);
 
 #if ENABLE(WEBDRIVER_BIDI)
-    AutomationInstrumentation::addMessageToConsole(message);
+    AutomationInstrumentation::addMessageToConsole(m_frame->frameID(), message);
 #endif
 
     Ref frame = m_frame.get();

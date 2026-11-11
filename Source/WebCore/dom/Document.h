@@ -561,6 +561,7 @@ public:
     void addResultForSelector(ContainerNode&, const String&, Element*, const AtomString& classNameToMatch);
     void invalidateQuerySelectorResults(Node&);
     void invalidateQuerySelectorResultsForClassAttributeChange(Node&, const SpaceSplitString& oldClasses, const SpaceSplitString& newClasses);
+    void removeQuerySelectorResults(Node&);
     void clearQuerySelectorResults();
 
     ExceptionOr<SelectorQuery&> selectorQueryForString(const String&);
@@ -605,7 +606,6 @@ public:
 
     WEBCORE_EXPORT Ref<Element> createElement(const QualifiedName&, bool createdByParser, CustomElementRegistry* = nullptr);
 
-    RefPtr<CustomElementRegistry> customElementRegistryForBindings();
     NODELETE CustomElementRegistry* effectiveGlobalCustomElementRegistry();
     static CustomElementNameValidationStatus validateCustomElementName(const AtomString&);
     CustomElementRegistry* activeCustomElementConstructorRegistry(JSC::JSObject* constructor);
@@ -1654,6 +1654,8 @@ public:
     void didRemoveEventTargetNode(Node&);
 
     bool hasWheelEventHandlers() const { return !m_wheelEventTargets.isEmptyIgnoringNullReferences(); }
+    bool mayHaveListBoxes() const { return m_mayHaveListBoxes; }
+    void setMayHaveListBoxes() { m_mayHaveListBoxes = true; }
 
     using RegionFixedPair = std::pair<Region, bool>;
     RegionFixedPair absoluteRegionForWheelEventTargets();
@@ -2956,6 +2958,7 @@ private:
 #if ENABLE(EDITABLE_REGION)
     bool m_mayHaveEditableElements : 1 { false };
 #endif
+    bool m_mayHaveListBoxes : 1 { false };
 #if ENABLE(TELEPHONE_NUMBER_DETECTION)
     bool m_isTelephoneNumberParsingAllowed : 1 { true };
 #endif

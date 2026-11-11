@@ -9,6 +9,7 @@ http/tests/security/referrer-policy-header-no-referrer.html [ Crash ]
 http/tests/security/referrer-policy-header-origin.html [ Crash ]
 http/tests/security/referrer-policy-header-strict-origin.html [ Crash ]
 webkit.org/b/330942 [ Debug ] imported/w3c/web-platform-tests/shadow-dom/declarative/declarative-parser-interaction.html [ Pass Crash ]
+webkit.org/b/331032 [ Debug ] imported/w3c/web-platform-tests/html/canvas/offscreen/text/2d.text.measure.width.space.worker.html [ Pass Crash ]
 
 #######################
 # Tests that time out #
@@ -57,8 +58,6 @@ webkit.org/b/311836 http/tests/site-isolation/inspector/page/set-emulated-media-
 http/tests/site-isolation/inspector/worker/worker-in-cross-origin-iframe.html [ Pass ]
 http/tests/site-isolation/inspector/storage/storage-get-cookies-cross-origin-iframe.html [ Pass ]
 http/tests/site-isolation/inspector/storage/storage-frontend-gate.html [ Pass ]
-http/tests/storageAccess/grant-storage-access-under-opener-at-popup-user-gesture-ephemeral.https.html [ Failure ]
-http/tests/storageAccess/grant-storage-access-under-opener-at-popup-user-gesture.https.html [ Failure ]
 http/wpt/webrtc/third-party-frame-ice-candidate-filtering.html [ Failure ]
 imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies.tentative.https.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/event_pause_noautoplay.html [ Pass Failure ]

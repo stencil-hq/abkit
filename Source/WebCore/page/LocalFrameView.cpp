@@ -3936,7 +3936,6 @@ void LocalFrameView::resumeVisibleImageAnimationsIncludingSubframes()
     });
 }
 
-#if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 void LocalFrameView::updatePlayStateForAllAnimations(const IntRect& visibleRect)
 {
     if (CheckedPtr renderView = m_frame->contentRenderer())
@@ -3949,7 +3948,6 @@ void LocalFrameView::updatePlayStateForAllAnimationsIncludingSubframes()
         frameView.updatePlayStateForAllAnimations(visibleRect);
     });
 }
-#endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 
 void LocalFrameView::updateLayerPositionsAfterScrolling()
 {
@@ -6985,6 +6983,7 @@ RenderView* LocalFrameView::renderView() const
 
 int LocalFrameView::mapFromLayoutToCSSUnits(LayoutUnit value) const
 {
+    // FIXME: Round like unapplyingZoom() instead of dropping the fraction. https://webkit.org/b/331029
     Ref frame = m_frame;
     return value / (frame->effectiveZoomFactor() * frame->frameScaleFactor());
 }

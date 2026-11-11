@@ -79,7 +79,7 @@ std::optional<SharedPreferencesForWebProcess> WebAuthenticatorCoordinatorProxy::
     return WebProcessProxy::fromConnection(connection)->sharedPreferencesForWebProcess();
 }
 
-void WebAuthenticatorCoordinatorProxy::makeCredential(IPC::Connection& connection, FrameIdentifier frameId, FrameInfoData&& frameInfo, PublicKeyCredentialCreationOptions&& options, MediationRequirement mediation, RequestCompletionHandler&& handler)
+void WebAuthenticatorCoordinatorProxy::makeCredential(IPC::Connection&, FrameIdentifier frameId, FrameInfoData&& frameInfo, PublicKeyCredentialCreationOptions&& options, MediationRequirement mediation, RequestCompletionHandler&& handler)
 {
     RefPtr webPageProxy = m_webPageProxy.get();
     if (!webPageProxy) {
@@ -92,11 +92,6 @@ void WebAuthenticatorCoordinatorProxy::makeCredential(IPC::Connection& connectio
     if (!frame) {
         RELEASE_LOG_ERROR(WebAuthn, "Frame not found for WebAuthn MakeCredential request");
         return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError });
-    }
-    if (frame->url().protocolIsInHTTPFamily()) {
-        auto expectedOrigin = SecurityOriginData::fromURLWithoutStrictOpaqueness(frame->url());
-        MESSAGE_CHECK_COMPLETION_BASE(frameInfo.securityOrigin == expectedOrigin, connection,
-            handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError }));
     }
 
     handleRequest({ { }, WTF::move(options), *webPageProxy, WebAuthenticationPanelResult::Unavailable, nullptr, GlobalFrameIdentifier { webPageProxy->webPageIDInMainFrameProcess(), frameId }, WTF::move(frameInfo), String(), nullptr, mediation, std::nullopt }, WTF::move(handler));
@@ -119,11 +114,6 @@ void WebAuthenticatorCoordinatorProxy::getAssertion(IPC::Connection& connection,
     if (!frame) {
         RELEASE_LOG_ERROR(WebAuthn, "Frame not found for WebAuthn GetAssertion request");
         return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError });
-    }
-    if (frame->url().protocolIsInHTTPFamily()) {
-        auto expectedOrigin = SecurityOriginData::fromURLWithoutStrictOpaqueness(frame->url());
-        MESSAGE_CHECK_COMPLETION_BASE(frameInfo.securityOrigin == expectedOrigin, connection,
-            handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError }));
     }
 
     if (parentOrigin) {
@@ -153,7 +143,7 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
     if (!data.frameInfo)
         return handler({ }, AuthenticatorAttachment::Platform, ExceptionData { ExceptionCode::InvalidStateError });
 
-    auto origin = API::SecurityOrigin::create(data.frameInfo->securityOrigin);
+    auto origin = API::SecurityOrigin::create(data.callerOrigin());
 
     bool shouldRequestConditionalRegistration = std::holds_alternative<PublicKeyCredentialCreationOptions>(data.options) && data.mediation == MediationRequirement::Conditional;
 
@@ -163,7 +153,7 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
     if (shouldRequestConditionalRegistration) {
         const auto& options = std::get<PublicKeyCredentialCreationOptions>(data.options);
         username = options.user.name;
-        callerOrigin = data.frameInfo->securityOrigin;
+        callerOrigin = data.callerOrigin();
         relyingPartyIdentifier = options.rp.id;
     }
 
@@ -204,9 +194,9 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
             WebAuthn::Scope scope = data.parentOrigin ? WebAuthn::Scope::CrossOrigin : WebAuthn::Scope::SameOrigin;
             auto topOrigin = data.parentOrigin ? data.parentOrigin->toString() : nullString();
             WTF::switchOn(data.options, [&](const PublicKeyCredentialCreationOptions& options) {
-                clientDataJSON = buildClientDataJson(ClientDataType::Create, options.challenge, data.frameInfo->securityOrigin.securityOrigin(), scope, topOrigin);
+                clientDataJSON = buildClientDataJson(ClientDataType::Create, options.challenge, data.callerOrigin().securityOrigin(), scope, topOrigin);
             }, [&](const PublicKeyCredentialRequestOptions& options) {
-                clientDataJSON = buildClientDataJson(ClientDataType::Get, options.challenge, data.frameInfo->securityOrigin.securityOrigin(), scope, topOrigin);
+                clientDataJSON = buildClientDataJson(ClientDataType::Get, options.challenge, data.callerOrigin().securityOrigin(), scope, topOrigin);
             });
             data.hash = buildClientDataJsonHash(*clientDataJSON);
 

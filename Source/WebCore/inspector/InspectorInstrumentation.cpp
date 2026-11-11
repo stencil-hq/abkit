@@ -47,6 +47,7 @@
 #include "FrameDOMStorageAgent.h"
 #include "FrameDebuggerAgent.h"
 #include "FrameInspectorController.h"
+#include "FrameLayerTreeAgent.h"
 #include "FrameRuntimeAgent.h"
 #include "FrameTimelineAgent.h"
 #include "GPUCanvasContext.h"
@@ -179,6 +180,10 @@ void InspectorInstrumentation::addEventListenersToNodeImpl(InstrumentingAgents& 
 {
     if (CheckedPtr domAgent = instrumentingAgents.persistentDOMAgent())
         domAgent->addEventListenersToNode(node);
+    if (RefPtr frame = node.document().frame()) {
+        if (CheckedPtr frameDOMAgent = frame->inspectorController().instrumentingAgents().persistentFrameDOMAgent())
+            frameDOMAgent->addEventListenersToNode(node);
+    }
 }
 
 void InspectorInstrumentation::willInsertDOMNodeImpl(InstrumentingAgents& instrumentingAgents, Node& parent)
@@ -476,8 +481,11 @@ void InspectorInstrumentation::pseudoElementCreatedImpl(InstrumentingAgents& ins
 void InspectorInstrumentation::pseudoElementDestroyedImpl(InstrumentingAgents& instrumentingAgents, PseudoElement& pseudoElement)
 {
     if (RefPtr frame = pseudoElement.document().frame()) {
-        if (CheckedPtr frameDOMAgent = frame->inspectorController().instrumentingAgents().persistentFrameDOMAgent())
+        Ref frameAgents = frame->inspectorController().instrumentingAgents();
+        if (CheckedPtr frameDOMAgent = frameAgents->persistentFrameDOMAgent())
             frameDOMAgent->pseudoElementDestroyed(pseudoElement);
+        if (CheckedPtr frameLayerTreeAgent = frameAgents->enabledFrameLayerTreeAgent())
+            frameLayerTreeAgent->pseudoElementDestroyed(pseudoElement);
     }
     if (CheckedPtr domAgent = instrumentingAgents.persistentDOMAgent())
         domAgent->pseudoElementDestroyed(pseudoElement);
@@ -735,6 +743,8 @@ void InspectorInstrumentation::eventDidResetAfterDispatchImpl(InstrumentingAgent
 {
     if (CheckedPtr domAgent = instrumentingAgents.persistentDOMAgent())
         domAgent->eventDidResetAfterDispatch(event);
+    if (CheckedPtr frameDOMAgent = instrumentingAgents.persistentFrameDOMAgent())
+        frameDOMAgent->eventDidResetAfterDispatch(event);
 }
 
 void InspectorInstrumentation::willEvaluateScriptImpl(InstrumentingAgents& instrumentingAgents, const String& url, int lineNumber, int columnNumber)
@@ -1175,6 +1185,9 @@ void InspectorInstrumentation::frameDocumentUpdatedImpl(InstrumentingAgents& ins
     // Runtime pattern used by didClearWindowObjectInWorld.
     if (CheckedPtr frameDOMAgent = frame.inspectorController().instrumentingAgents().persistentFrameDOMAgent())
         frameDOMAgent->frameDocumentUpdated(frame);
+
+    if (CheckedPtr frameLayerTreeAgent = frame.inspectorController().instrumentingAgents().enabledFrameLayerTreeAgent())
+        frameLayerTreeAgent->frameDocumentUpdated(frame);
 
     if (CheckedPtr domAgent = instrumentingAgents.persistentDOMAgent())
         domAgent->frameDocumentUpdated(frame);
@@ -1851,12 +1864,16 @@ InstrumentingAgents& InspectorInstrumentation::instrumentingAgents(const RenderO
 
 void InspectorInstrumentation::layerTreeDidChangeImpl(InstrumentingAgents& instrumentingAgents)
 {
+    if (CheckedPtr frameLayerTreeAgent = instrumentingAgents.enabledFrameLayerTreeAgent())
+        frameLayerTreeAgent->layerTreeDidChange();
     if (CheckedPtr layerTreeAgent = instrumentingAgents.enabledLayerTreeAgent())
         layerTreeAgent->layerTreeDidChange();
 }
 
 void InspectorInstrumentation::renderLayerDestroyedImpl(InstrumentingAgents& instrumentingAgents, const RenderLayer& renderLayer)
 {
+    if (CheckedPtr frameLayerTreeAgent = instrumentingAgents.enabledFrameLayerTreeAgent())
+        frameLayerTreeAgent->renderLayerDestroyed(renderLayer);
     if (CheckedPtr layerTreeAgent = instrumentingAgents.enabledLayerTreeAgent())
         layerTreeAgent->renderLayerDestroyed(renderLayer);
 }

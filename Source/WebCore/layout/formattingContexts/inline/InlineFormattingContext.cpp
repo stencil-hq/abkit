@@ -175,14 +175,16 @@ std::unique_ptr<InlineLayoutResult> InlineFormattingContext::layout(const Constr
     auto isStableTextWrap = lineClamp && lineClamp->isStableTextWrap;
     if (!isStableTextWrap && InlineContentConstrainer::constrainsContent(root().style())) {
         auto constrainer = InlineContentConstrainer { *this, inlineItemList, constraints.horizontal() };
-        if (auto constrainedLineWidths = constrainer.computeParagraphLevelConstraints(root().style().textWrapStyle()))
+        if (auto constrainedLineWidths = constrainer.computeParagraphLevelConstraints(root().style().textWrapStyle())) {
             inlineLayoutState.setAvailableLineWidthOverride({ WTF::move(*constrainedLineWidths) });
+            inlineLayoutState.setContentFitsWithinMaximumLinesWithoutLineWidthOverride(constrainer.contentFitsWithinMaximumLines());
+        }
     }
 
     if (TextOnlySimpleLineBuilder::isEligibleForSimplifiedTextOnlyInlineLayoutByContent(inlineItems, inlineLayoutState) && TextOnlySimpleLineBuilder::isEligibleForSimplifiedInlineLayoutByStyle(root())) {
         auto simplifiedLineBuilder = makeUniqueRef<TextOnlySimpleLineBuilder>(*this, root(), constraints.horizontal(), inlineItemList);
         auto shouldUseSimplifiedDisplayContentBuild = [&] {
-            if (lineDamage || !m_globalLayoutState.inStandardsMode() || inlineLayoutState.parentBlockLayoutState().lineClamp())
+            if (lineDamage || !m_globalLayoutState->inStandardsMode() || inlineLayoutState.parentBlockLayoutState().lineClamp())
                 return false;
             return TextOnlySimpleLineBuilder::isEligibleForSimplifiedDisplayBuild(root());
         };
@@ -333,7 +335,7 @@ UniqueRef<InlineLayoutResult> InlineFormattingContext::lineLayout(AbstractLineBu
         auto lineLayoutResult = lineBuilder.layoutInlineContent(lineInput, previousLine, isFirstFormattedLineCandidate);
         // Either this line is the clamped line (it has the block ellipsis) or we are coming back from a block (block-in-inline) that took the clamp point.
         if (lineLayoutResult.blockEllipsis || (lineLayoutResult.isBlockContent() && formattingUtils().shouldDiscardRemainingContentInBlockDirection()))
-            layoutResult->lineClamp.contentFitsWithinMaximumLines = lineLayoutResult.isLastLineWithoutBlockEllipsis;
+            layoutResult->lineClamp.contentFitsWithinMaximumLines = lineLayoutResult.isLastLineWithoutBlockEllipsis || layoutState().contentFitsWithinMaximumLinesWithoutLineWidthOverride();
         auto hasContentfulInFlowContent = lineLayoutResult.hasContentfulInFlowContent();
 
         auto canUseSimplifiedDisplayContentBuild = mayUseSimplifiedDisplayContentBuild && hasContentfulInFlowContent;
@@ -387,7 +389,7 @@ void InlineFormattingContext::layoutFloatContentOnly(const ConstraintsForInlineC
     auto floatingContext = this->floatingContext();
     auto& placedFloats = layoutState().placedFloats();
 
-    InlineItemsBuilder { inlineContentCache, root(), m_globalLayoutState.securityOrigin() }.build({ });
+    InlineItemsBuilder { inlineContentCache, root(), m_globalLayoutState->securityOrigin() }.build({ });
 
     for (auto& inlineItem : inlineContentCache.inlineItems().content()) {
         if (inlineItem.isFloat()) {
@@ -434,7 +436,7 @@ void InlineFormattingContext::updateBoxGeometryForPlacedFloats(const LineLayoutR
             // We should not be placing intrusive floats coming from parent BFC.
             continue;
         }
-        auto& boxGeometry = geometryForBox(*floatItem.layoutBox());
+        auto& boxGeometry = geometryForBox(*protect(floatItem.layoutBox()));
         auto usedGeometry = floatItem.boxGeometry();
         boxGeometry.setTopLeft(BoxGeometry::borderBoxTopLeft(usedGeometry));
         // Adopt trimmed inline direction margin.
@@ -507,12 +509,12 @@ void InlineFormattingContext::resetBoxGeometriesForDiscardedContent(const Inline
         auto hasBoxGeometry = inlineItem.isAtomicInlineBox() || inlineItem.isFloat() || inlineItem.isHardLineBreak() || inlineItem.isInlineBoxStart() || inlineItem.isOutOfFlow();
         if (!hasBoxGeometry)
             continue;
-        geometryForBox(inlineItem.layoutBox()).reset();
+        geometryForBox(protect(inlineItem.layoutBox())).reset();
         // Floats, atomic inline-level boxes and inline boxes that start after the clamp point are invisible boxes, and so is "any absolutely
         // positioned box which has an invisible box within its containing block chain" (see LineClampUpdater::setIsForcedHidden).
         // https://drafts.csswg.org/css-overflow-4/#line-clamp-containers
         if (inlineItem.isFloat() || inlineItem.isAtomicInlineBox() || inlineItem.isInlineBoxStart())
-            setIsForcedHidden(inlineItem.layoutBox());
+            setIsForcedHidden(protect(inlineItem.layoutBox()).get());
     }
 
     for (CheckedPtr floatBox : suspendedFloats) {
@@ -569,7 +571,7 @@ bool InlineFormattingContext::createDisplayContentForLineFromCachedContent(const
     lineContent.lineGeometry.logicalTopLeft = logicalTopLeft;
     lineContent.lineGeometry.logicalWidth = constraints.horizontal().logicalWidth;
     lineContent.lineGeometry.initialLogicalTopLeft = logicalTopLeft;
-    lineContent.contentGeometry.logicalLeft = InlineFormattingUtils::horizontalAlignmentOffset(root().style(), lineContent.contentGeometry.logicalWidth, lineContent.lineGeometry.logicalWidth, lineContent.hangingContent.logicalWidth, true);
+    lineContent.contentGeometry.logicalLeft = InlineFormattingUtils::horizontalAlignmentOffset(protect(root().style()), lineContent.contentGeometry.logicalWidth, lineContent.lineGeometry.logicalWidth, lineContent.hangingContent.logicalWidth, true);
 
     auto canUseSimplifiedDisplayContentBuild = mayUseSimplifiedDisplayContentBuild && lineContent.hasContentfulInFlowContent();
     auto lineBox = canUseSimplifiedDisplayContentBuild ? LineBoxBuilder { *this, lineContent }.buildForRootInlineBoxOnly({ }) : LineBoxBuilder { *this, lineContent }.build({ });
@@ -630,13 +632,13 @@ static inline bool isOkToAccessBoxGeometry(const Box& layoutBox, const ElementBo
 const BoxGeometry& InlineFormattingContext::geometryForBox(const Box& layoutBox, std::optional<EscapeReason> escapeReason) const
 {
     ASSERT_UNUSED(escapeReason, isOkToAccessBoxGeometry(layoutBox, root(), escapeReason));
-    return m_globalLayoutState.geometryForBox(layoutBox);
+    return m_globalLayoutState->geometryForBox(layoutBox);
 }
 
 BoxGeometry& InlineFormattingContext::geometryForBox(const Box& layoutBox)
 {
     ASSERT(isOkToAccessBoxGeometry(layoutBox, root(), { }));
-    return m_globalLayoutState.ensureGeometryForBox(layoutBox);
+    return m_globalLayoutState->ensureGeometryForBox(layoutBox);
 }
 
 void InlineFormattingContext::rebuildInlineItemListIfNeeded(InlineDamage* lineDamage)
@@ -666,7 +668,7 @@ void InlineFormattingContext::rebuildInlineItemListIfNeeded(InlineDamage* lineDa
         // Unsupported damage. Need to run full build/layout.
         return { };
     };
-    InlineItemsBuilder { inlineContentCache, root(), m_globalLayoutState.securityOrigin() }.build(startPositionForInlineItemsBuilding());
+    InlineItemsBuilder { inlineContentCache, root(), m_globalLayoutState->securityOrigin() }.build(startPositionForInlineItemsBuilding());
     if (lineDamage)
         lineDamage->setInlineItemListClean();
     inlineContentCache.clearMaximumIntrinsicWidthLineContent();

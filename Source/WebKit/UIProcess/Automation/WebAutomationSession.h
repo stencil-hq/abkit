@@ -47,6 +47,7 @@
 #include <wtf/Forward.h>
 #include <wtf/HashSet.h>
 #include <wtf/ListHashSet.h>
+#include <wtf/RefCounted.h>
 #include <wtf/RunLoop.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/WallTime.h>
@@ -196,6 +197,12 @@ public:
     void wheelEventsFlushedForPage(const WebPageProxy&);
 #if ENABLE(WEBDRIVER_BIDI)
     void didCreatePage(WebPageProxy&);
+    // browsingContext.navigate: loads `url` in the page, or in `frameHandle`'s frame when it is not empty, and resolves with the
+    // requested URL and the navigation id. Unlike the classic command, a navigation that fails or whose context closes is an error.
+    void navigateBrowsingContextForBidi(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, const String& url, Inspector::Protocol::Automation::PageLoadStrategy, Seconds pageLoadTimeout, Inspector::CommandCallbackOf<String, String>&&);
+    // browsingContext.reload: reloads the page, or `frameHandle`'s frame when it is not empty, with the same completion as navigate.
+    enum class IgnoreCache : bool { No, Yes };
+    void reloadBrowsingContextForBidi(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, IgnoreCache, Inspector::Protocol::Automation::PageLoadStrategy, Seconds pageLoadTimeout, Inspector::CommandCallbackOf<String, String>&&);
     void navigationStartedForFrame(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>);
     void navigationCommittedForFrame(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>);
     void navigationFailedForFrame(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>);
@@ -279,7 +286,7 @@ public:
     void evaluateJavaScriptFunction(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, const String& function, Ref<JSON::Array>&& arguments, std::optional<bool>&& expectsImplicitCallbackArgument, std::optional<bool>&& forceUserGesture, std::optional<double>&& callbackTimeout, Inspector::CommandCallback<String>&&) override;
     // Unlike the classic command, a user prompt does not end the evaluation: it completes when the script does.
     void evaluateJavaScriptFunctionForBidi(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, const String& function, Ref<JSON::Array>&& arguments, std::optional<bool>&& forceUserGesture, Inspector::CommandCallback<String>&&);
-    void evaluateBidiScript(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, const String& expression, bool awaitPromise, int maxObjectDepth, std::optional<double>&& callbackTimeout, Inspector::CommandCallback<String>&&);
+    void evaluateBidiScript(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, const String& expression, bool awaitPromise, std::optional<int> maxObjectDepth, std::optional<double>&& callbackTimeout, Inspector::CommandCallback<String>&&);
     void performMouseInteraction(const Inspector::Protocol::Automation::BrowsingContextHandle&, Ref<JSON::Object>&& requestedPosition, Inspector::Protocol::Automation::MouseButton, Inspector::Protocol::Automation::MouseInteraction, Ref<JSON::Array>&& keyModifiers, Inspector::CommandCallback<Ref<Inspector::Protocol::Automation::Point>>&&) override;
     void performKeyboardInteractions(const Inspector::Protocol::Automation::BrowsingContextHandle&, Ref<JSON::Array>&& interactions, Inspector::CommandCallback<void>&&) override;
     void performInteractionSequence(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, Ref<JSON::Array>&& sources, Ref<JSON::Array>&& steps, Inspector::CommandCallback<void>&&) override;
@@ -403,7 +410,10 @@ private:
     void waitForNavigationToCompleteOnPage(WebPageProxy&, Inspector::Protocol::Automation::PageLoadStrategy, Seconds, Inspector::CommandCallback<void>&&, RefPtr<API::Navigation>&& = nullptr, SameDocumentNavigation = SameDocumentNavigation::No);
     void waitForHistoryTraversalToComplete(WebPageProxy&, Inspector::Protocol::Automation::PageLoadStrategy, Seconds, Inspector::CommandCallback<void>&&, RefPtr<API::Navigation>&&);
     bool hasPendingNavigationCallbacks() const;
-    void waitForNavigationToCompleteOnFrame(WebFrameProxy&, Inspector::Protocol::Automation::PageLoadStrategy, Seconds, Inspector::CommandCallback<void>&&);
+    // A caller that has just started a load in the frame passes LoadStarted::Yes: the frame's load state does not
+    // change until the web process reports the load, so without it the wait would complete at once.
+    enum class LoadStarted : bool { No, Yes };
+    void waitForNavigationToCompleteOnFrame(WebFrameProxy&, Inspector::Protocol::Automation::PageLoadStrategy, Seconds, Inspector::CommandCallback<void>&&, LoadStarted = LoadStarted::No);
     void respondToPendingPageNavigationCallbacksWithTimeout(HashMap<WebPageProxyIdentifier, Vector<PendingPageNavigationCallback>>&);
     void respondToPendingFrameNavigationCallbacksWithTimeout(HashMap<WebCore::FrameIdentifier, Vector<Inspector::CommandCallback<void>>>&);
     void respondToPendingNavigationCallbacksWithSuccess(Vector<Inspector::CommandCallback<void>>&&);
@@ -424,11 +434,11 @@ private:
     void didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&) override;
 
     // Called by WebAutomationSession messages.
-    void logEntryAdded(const JSC::MessageSource&, const JSC::MessageLevel&, const String& messageText, const JSC::MessageType&, const WallTime&);
+    void logEntryAdded(IPC::Connection&, WebCore::FrameIdentifier, const JSC::MessageSource&, const JSC::MessageLevel&, const String& messageText, const JSC::MessageType&, const WallTime&);
     void addKnownNodeReference(WebCore::FrameIdentifier, const String& nodeHandle);
     void isKnownNodeReference(WebCore::FrameIdentifier, const String& nodeHandle, CompletionHandler<void(bool)>&&);
 #if ENABLE(WEBDRIVER_BIDI)
-    void scriptRealmCreated(WebCore::FrameIdentifier, RealmIdentifier, IPC::Untrusted<WebCore::SecurityOriginData>&&);
+    void scriptRealmCreated(IPC::Connection&, WebCore::FrameIdentifier, RealmIdentifier, IPC::Untrusted<WebCore::SecurityOriginData>&&);
     void scriptRealmDestroyed(WebCore::FrameIdentifier, RealmIdentifier);
 #endif
 
@@ -492,6 +502,50 @@ private:
 
 #if ENABLE(WEBDRIVER_BIDI)
     const UniqueRef<WebDriverBidiProcessor> m_bidiProcessor;
+
+    // A browsingContext.navigate or reload in flight: the id to report, filled in from the API::Navigation for a main frame or
+    // from WebCore's first navigationStarted/fragmentNavigated report for a child frame, and whether WebCore reported
+    // the navigation failed before the classic wait completed it. A main frame's command is matched by page, since a
+    // cross-site navigation can replace the main frame with one that has another identifier.
+    struct BidiPendingNavigation : public RefCounted<BidiPendingNavigation> {
+    public:
+        static Ref<BidiPendingNavigation> create(std::optional<WebPageProxyIdentifier> pageID, WebCore::FrameIdentifier frameID)
+        {
+            return adoptRef(*new BidiPendingNavigation(pageID, frameID));
+        }
+
+        bool matches(const WebFrameProxy&) const;
+
+        std::optional<WebPageProxyIdentifier> pageID;
+        WebCore::FrameIdentifier frameID;
+        std::optional<WebCore::NavigationIdentifier> navigationID;
+        bool failed { false };
+        // A main frame command whose URL differs from the current one only by its fragment, which WebCore reports
+        // with the current document's navigation id rather than this command's.
+        bool isFragmentNavigation { false };
+        // Set while the command waits for its navigation to commit, which is what wait "none" means.
+        Inspector::CommandCallback<void> commitCallback;
+
+    private:
+        BidiPendingNavigation(std::optional<WebPageProxyIdentifier> pageID, WebCore::FrameIdentifier frameID)
+            : pageID(pageID)
+            , frameID(frameID)
+        { }
+    };
+    Vector<Ref<BidiPendingNavigation>> m_bidiPendingNavigations;
+    void recordNavigationIDForPendingBidiNavigation(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>);
+
+    // https://w3c.github.io/webdriver-bidi/#await-a-navigation with wait condition "committed": the command completes
+    // when its navigation commits, navigates to a fragment, fails, or is aborted, or when the page load timeout fires.
+    void waitForBidiNavigationToCommit(BidiPendingNavigation&, Seconds timeout, Inspector::CommandCallback<void>&&);
+    void completeBidiCommitWaits(NOESCAPE const Function<bool(const BidiPendingNavigation&)>&, const Inspector::CommandResult<void>&);
+    bool reportSameDocumentNavigationForFrame(const WebFrameProxy&, SameDocumentNavigationType, std::optional<WebCore::NavigationIdentifier>, const URL& previousURL);
+    bool hasBidiCommitWaits() const;
+
+    // Shared by navigate and reload once the load has been started: records the command's pending navigation and
+    // completes `callback` with `requestedURL` and the navigation id when the classic wait for the frame finishes.
+    void awaitNavigationForBidi(WebPageProxy&, WebFrameProxy&, Ref<BidiPendingNavigation>&&, RefPtr<API::Navigation>&& awaitedNavigation, SameDocumentNavigation, const String& requestedURL, Inspector::Protocol::Automation::PageLoadStrategy, Seconds pageLoadTimeout, Inspector::CommandCallbackOf<String, String>&&);
+    RefPtr<WebFrameProxy> frameForBidiHandles(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&);
 #endif
 
     HashMap<WebPageProxyIdentifier, String> m_webPageHandleMap;

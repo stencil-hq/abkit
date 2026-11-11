@@ -224,6 +224,7 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
     , m_webPageProxyID(parameters.webPageProxyID)
     , m_isForMainResourceNavigationForAnyFrame(!!parameters.mainResourceNavigationDataForAnyFrame)
     , m_navigationLosesFrameSpecificStorageAccess(parameters.navigationLosesFrameSpecificStorageAccess)
+    , m_siteIsolationEnabled(parameters.siteIsolationEnabled)
     , m_sourceOrigin(parameters.sourceOrigin)
     , m_requiredCookiesVersion(parameters.requiredCookiesVersion)
     , m_advancedPrivacyProtections(parameters.advancedPrivacyProtections)
@@ -254,6 +255,9 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
         // FIXME: Support Digest authentication, and Proxy-Authorization.
         applyBasicAuthorizationHeader(request, m_initialCredential);
     }
+
+    if (WebCore::RegistrableDomain(request.firstPartyForCookies()).isEmpty())
+        request.setAllowCookies(false);
 
     auto thirdPartyCookieBlockingDecision = requestThirdPartyCookieBlockingDecision(request);
     restrictRequestReferrerToOriginIfNeeded(request);
@@ -558,7 +562,7 @@ void NetworkDataTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&
 
     if (isTopLevelNavigation())
         request.setFirstPartyForCookies(request.url());
-    else {
+    else if (!m_siteIsolationEnabled) {
         WebCore::RegistrableDomain firstPartyDomain { request.firstPartyForCookies() };
         if (CheckedPtr storageSession = session->networkStorageSession()) {
             bool didPreviousRequestHaveStorageAccess = storageSession->hasStorageAccess(WebCore::RegistrableDomain { redirectResponse.url() }, firstPartyDomain, m_frameID, m_webPageProxyID);
@@ -583,6 +587,8 @@ void NetworkDataTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&
                 protectedThis->restrictRequestReferrerToOriginIfNeeded(request);
                 updateTaskWithFirstPartyForSameSiteCookies(protectedThis->m_task.get(), request);
                 protectedThis->updateCompressionDictionaryForRedirect(request);
+                if (WebCore::RegistrableDomain(request.firstPartyForCookies()).isEmpty())
+                    request.setAllowCookies(false);
             }
             protectedThis->m_previousRequest = request;
             completionHandler(WTF::move(request));

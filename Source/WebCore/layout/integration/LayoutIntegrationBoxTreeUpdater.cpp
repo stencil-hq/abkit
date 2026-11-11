@@ -53,24 +53,15 @@
 namespace WebCore {
 namespace LayoutIntegration {
 
-BoxTreeUpdater::BoxTreeUpdater(RenderBlock& rootRenderer)
-    : m_rootRenderer(rootRenderer)
-{
-}
+namespace BoxTreeUpdater {
 
-BoxTreeUpdater::~BoxTreeUpdater() = default;
-
-Layout::ElementBox& BoxTreeUpdater::rootLayoutBox()
+void tearDown(RenderBlock& rootRenderer)
 {
-    return m_rootRenderer.layoutBox();
-}
-
-void BoxTreeUpdater::tearDown()
-{
-    if (m_rootRenderer.renderTreeBeingDestroyed())
+    if (rootRenderer.renderTreeBeingDestroyed())
         return;
 
-    for (CheckedRef layoutBox : formattingContextBoxes(rootLayoutBox())) {
+    CheckedRef rootLayoutBox = rootRenderer.layoutBox();
+    for (CheckedRef layoutBox : formattingContextBoxes(rootLayoutBox)) {
         // Nested formatting context roots keep what their own live layout needs.
         if (layoutBox->isIntegrationRoot())
             continue;
@@ -80,14 +71,14 @@ void BoxTreeUpdater::tearDown()
             textRenderer->updateLayoutBoxContentIfNeeded();
     }
 
-    if (!isInLiveFormattingContext(m_rootRenderer))
-        rootLayoutBox().clearFormattingContextData();
+    if (!isInLiveFormattingContext(rootRenderer))
+        rootLayoutBox->clearFormattingContextData();
 }
 
 static bool canUseSimplifiedMeasuring(const RenderText& renderer, StringView content)
 {
     CheckedRef style = renderer.style();
-    return Layout::TextUtil::canUseSimplifiedTextMeasuring(content, style->fontCascade(), style->collapseWhiteSpace(), &renderer.firstLineStyle());
+    return Layout::TextUtil::canUseSimplifiedTextMeasuring(content, protect(style->fontCascade()), style->collapseWhiteSpace(), protect(&renderer.firstLineStyle()));
 }
 
 static bool synthesizesGlyph(const RenderText& textRenderer)
@@ -98,7 +89,7 @@ static bool synthesizesGlyph(const RenderText& textRenderer)
     // The marker is this text's parent when it is an inline box, and its grandparent when a marker box holds the text in a content container of its own.
     for (CheckedPtr marker = textRenderer.parent(); marker; marker = marker->parent()) {
         if (marker->style().isListMarkerStyle())
-            return listMarkerSynthesizesGlyph(marker->style(), protect(marker->document()));
+            return listMarkerSynthesizesGlyph(protect(marker->style()), protect(marker->document()));
         if (!marker->isAnonymous())
             return false;
     }
@@ -116,7 +107,7 @@ static std::unique_ptr<Layout::InlineTextBox::CombinedText> computeCombinedText(
 
     RefPtr fontSelector = style->fontCascade().fontSelector();
     auto fontFor = [&](const FontCascadeDescription& description) {
-        auto font = FontCascade { FontCascadeDescription { description }, style->fontCascade() };
+        auto font = FontCascade { FontCascadeDescription { description }, protect(style->fontCascade()) };
         font.update(fontSelector.copyRef());
         font.setLetterSpacing(0);
         return font;
@@ -178,7 +169,7 @@ static std::unique_ptr<Layout::InlineTextBox::CombinedText> computeCombinedText(
     return nullptr;
 }
 
-bool BoxTreeUpdater::updateCombinedText(RenderText& textRenderer)
+bool updateCombinedText(RenderText& textRenderer)
 {
     CheckedRef inlineTextBox = textRenderer.layoutBox();
     auto wasCombined = inlineTextBox->isCombined();
@@ -186,7 +177,7 @@ bool BoxTreeUpdater::updateCombinedText(RenderText& textRenderer)
     return wasCombined != inlineTextBox->isCombined();
 }
 
-void BoxTreeUpdater::updateContent(RenderText& textRenderer)
+void updateContent(RenderText& textRenderer)
 {
     ASSERT(textRenderer.parent());
     CheckedRef style = textRenderer.style();
@@ -215,13 +206,13 @@ void BoxTreeUpdater::updateContent(RenderText& textRenderer)
     inlineTextBox->setCombinedText(computeCombinedText(textRenderer, inlineTextBox->content()));
 }
 
-void BoxTreeUpdater::updateSimplifiedMeasuring(RenderText& textRenderer)
+void updateSimplifiedMeasuring(RenderText& textRenderer)
 {
     CheckedRef inlineTextBox = textRenderer.layoutBox();
     inlineTextBox->setCanUseSimplifiedContentMeasuring(inlineTextBox->canUseSimpleFontCodePath() && canUseSimplifiedMeasuring(textRenderer, inlineTextBox->content()));
 }
 
-Layout::Box::ElementAttributes BoxTreeUpdater::elementAttributes(const RenderObject& renderer)
+Layout::Box::ElementAttributes elementAttributes(const RenderObject& renderer)
 {
     auto nodeType = [&] {
         if (renderer.isRenderListOutsideMarker())
@@ -241,7 +232,7 @@ Layout::Box::ElementAttributes BoxTreeUpdater::elementAttributes(const RenderObj
     return { nodeType, renderer.isAnonymous() ? Layout::Box::IsAnonymous::Yes : Layout::Box::IsAnonymous::No };
 }
 
-void BoxTreeUpdater::updateFirstLineStyleState(RenderElement& renderer)
+void updateFirstLineStyleState(RenderElement& renderer)
 {
     // As RenderElement::firstLineStyle() finds it. Anonymous blocks use the parent's, if they are its first in-flow child.
     auto mayHaveFirstLineStyle = [&] {
@@ -254,14 +245,16 @@ void BoxTreeUpdater::updateFirstLineStyleState(RenderElement& renderer)
     renderer.layoutBox().setMayHaveFirstLineStyle(mayHaveFirstLineStyle());
 }
 
-void BoxTreeUpdater::remove(RenderObject& child)
+void remove(RenderObject& child)
 {
     // Only text and line breaks are removed without invalidating the whole formatting context.
     ASSERT(!is<RenderElement>(child) || !downcast<RenderElement>(child).firstChild());
-    child.layoutBox().clearFormattingContextData();
+    protect(child.layoutBox())->clearFormattingContextData();
     // The inline items are gone, so content changes that waited for them can go in.
     if (CheckedPtr textRenderer = dynamicDowncast<RenderText>(child))
         textRenderer->updateLayoutBoxContentIfNeeded();
+}
+
 }
 
 #if ENABLE(TREE_DEBUGGING)

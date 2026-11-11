@@ -69,6 +69,7 @@
 #include "RenderLayerInlines.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderObjectInlines.h"
+#include "RenderTextControlSingleLine.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "RenderViewTransitionCapture.h"
@@ -1231,7 +1232,7 @@ bool RenderLayerCompositor::updateCompositingLayers(CompositingUpdateType update
     }
 #endif
 
-    InspectorInstrumentation::layerTreeDidChange(protect(page()).ptr());
+    InspectorInstrumentation::layerTreeDidChange(protect(m_renderView.frame()));
 
     if (m_renderView.needsRepaintHackAfterCompositingLayerUpdateForDebugOverlaysOnly()) {
         m_renderView.repaintRootContents();
@@ -2111,7 +2112,7 @@ void RenderLayerCompositor::layerBecameNonComposited(const RenderLayer& layer)
 {
     // Inform the inspector that the given RenderLayer was destroyed.
     // FIXME: "destroyed" is a misnomer.
-    InspectorInstrumentation::renderLayerDestroyed(protect(page()).ptr(), layer);
+    InspectorInstrumentation::renderLayerDestroyed(protect(m_renderView.frame()), layer);
 
     if (&layer != m_renderView.layer()) {
         ASSERT(m_contentLayersCount > 0);
@@ -3357,6 +3358,7 @@ bool RenderLayerCompositor::requiresCompositingLayer(const RenderLayer& layer, R
         || requiresCompositingForModel(renderer)
         || requiresCompositingForSpatialPortal(renderer)
         || requiresCompositingForSpatialPortalHosting(*renderer.layer())
+        || requiresCompositingForScreenCaptureProtection(renderer)
         || requiresCompositingForFrame(renderer, queryData)
         || requiresCompositingForPlugin(renderer, queryData)
         || requiresCompositingForOverflowScrolling(*renderer.layer(), queryData)
@@ -3445,6 +3447,7 @@ bool RenderLayerCompositor::requiresOwnBackingStore(const RenderLayer& layer, co
         || requiresCompositingForModel(renderer)
         || requiresCompositingForSpatialPortal(renderer)
         || requiresCompositingForSpatialPortalHosting(layer)
+        || requiresCompositingForScreenCaptureProtection(renderer)
         || requiresCompositingForFrame(renderer, queryData)
         || requiresCompositingForPlugin(renderer, queryData)
         || requiresCompositingForOverflowScrolling(layer, queryData)
@@ -3502,6 +3505,8 @@ OptionSet<CompositingReason> RenderLayerCompositor::reasonsForCompositing(const 
         reasons.add(CompositingReason::Model);
     else if (requiresCompositingForSpatialPortal(renderer))
         reasons.add(CompositingReason::SpatialPortal);
+    else if (requiresCompositingForScreenCaptureProtection(renderer))
+        reasons.add(CompositingReason::ScreenCaptureProtection);
     else if (requiresCompositingForPlugin(renderer, queryData))
         reasons.add(CompositingReason::Plugin);
     else if (requiresCompositingForFrame(renderer, queryData))
@@ -3631,6 +3636,7 @@ static ASCIILiteral compositingReasonToString(CompositingReason reason)
     case CompositingReason::SpatialPortalHosting: return "spatial-portal-hosting"_s;
     case CompositingReason::BackdropRoot: return "backdrop root"_s;
     case CompositingReason::AnchorPositioning: return "anchor positioning"_s;
+    case CompositingReason::ScreenCaptureProtection: return "screen capture protection"_s;
     }
     return ""_s;
 }
@@ -4149,6 +4155,12 @@ bool RenderLayerCompositor::requiresCompositingForModel(RenderLayerModelObject& 
 #endif
 
     return false;
+}
+
+bool RenderLayerCompositor::requiresCompositingForScreenCaptureProtection(RenderLayerModelObject& renderer) const
+{
+    CheckedPtr innerBlock = dynamicDowncast<RenderTextControlInnerBlock>(renderer);
+    return innerBlock && innerBlock->requiresLayerForScreenCaptureProtection();
 }
 
 bool RenderLayerCompositor::requiresCompositingForSpatialPortal(RenderLayerModelObject& renderer) const

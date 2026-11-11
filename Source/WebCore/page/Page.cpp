@@ -2980,7 +2980,6 @@ bool Page::imageAnimationEnabled() const
     return m_imageAnimationTimeline->allowsAnimation();
 }
 
-#if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 void Page::setImageAnimationEnabled(bool enabled)
 {
     // This method overrides any individually set animation play-states (so we need to do work even if `enabled` is
@@ -2992,7 +2991,6 @@ void Page::setImageAnimationEnabled(bool enabled)
     updatePlayStateForAllAnimations();
     chrome().client().isAnyAnimationAllowedToPlayDidChange(enabled);
 }
-#endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 
 #if ENABLE(ACCESSIBILITY_VIDEO_AUTOPLAY_CONTROL)
 void Page::setVideoAutoplayPreviewsEnabled(bool enabled)
@@ -5631,7 +5629,6 @@ void Page::forceRepaintAllFrames()
     }
 }
 
-#if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 void Page::updatePlayStateForAllAnimations()
 {
     for (auto& rootFrame : m_rootFrames) {
@@ -5660,7 +5657,6 @@ void Page::removeIndividuallyPlayingAnimationElement(HTMLImageElement& element)
     if (!m_individuallyPlayingAnimationElements.computeSize() && !imageAnimationEnabled())
         chrome().client().isAnyAnimationAllowedToPlayDidChange(false);
 }
-#endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 
 ScreenOrientationManager* Page::screenOrientationManager() const
 {

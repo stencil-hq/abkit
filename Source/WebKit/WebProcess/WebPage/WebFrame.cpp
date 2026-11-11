@@ -103,6 +103,8 @@
 #include <WebCore/HTMLSelectElement.h>
 #include <WebCore/HTMLTextAreaElement.h>
 #include <WebCore/HandleUserInputEventResult.h>
+#include <WebCore/HistoryController.h>
+#include <WebCore/HistoryItem.h>
 #include <WebCore/ImageBuffer.h>
 #include <WebCore/ImageData.h>
 #include <WebCore/JSCSSStyleDeclaration.h>
@@ -317,7 +319,6 @@ FrameInfoData WebFrame::info() const
     return {
         // FIXME: This should use the full request.
         ResourceRequest(url()),
-        coreFrame ? SecurityOriginData::fromFrame(*coreFrame) : SecurityOriginData { },
         coreFrame ? coreFrame->tree().specifiedName().string() : String(),
         frameID(),
         document ? std::optional { document->identifier() } : std::nullopt,
@@ -590,6 +591,28 @@ static bool shouldClearWindowNameOnReplacement(const WebCore::RemoteFrame& remot
     return !document || !protect(document->securityOrigin())->isSameOriginAs(protect(remoteFrame.frameDocumentSecurityOriginOrOpaque()));
 }
 
+NODELETE static void setBackForwardItemIdentifier(HistoryItem& item, BackForwardItemIdentifier itemID)
+{
+    item.setItemID(itemID);
+    for (auto& child : item.children())
+        setBackForwardItemIdentifier(child, itemID);
+}
+
+void WebFrame::didAddHistoryItemToBackForwardItem(BackForwardFrameItemIdentifier frameItemID, BackForwardItemIdentifier itemID)
+{
+    RefPtr localFrame = coreLocalFrame();
+    if (!localFrame)
+        return;
+
+    RefPtr currentItem = localFrame->loader().history().currentItem();
+    if (!currentItem || currentItem->frameItemID() != frameItemID)
+        return;
+
+    // The UI process looks up the items by the identifier of the back/forward item they belong to, so updates have to
+    // carry it.
+    setBackForwardItemIdentifier(*currentItem, itemID);
+}
+
 void WebFrame::commitProvisionalFrame()
 {
     RefPtr localFrame = std::exchange(m_provisionalFrame, nullptr);
@@ -633,6 +656,8 @@ void WebFrame::commitProvisionalFrame()
         ownerRenderer->setWidget(localFrame->view());
 
     localFrame->setOwnerElement(ownerElement.get());
+    // Reading the owner zoom needs the parent and owner element set above.
+    localFrame->frameOwnerZoomDidChange();
     if (remoteFrame->isMainFrame())
         corePage->setMainFrame(*localFrame);
     localFrame->takeWindowProxyAndOpenerFrom(*remoteFrame);

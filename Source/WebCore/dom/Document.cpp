@@ -1458,6 +1458,13 @@ void Document::invalidateQuerySelectorResultsForClassAttributeChange(Node& start
     }
 }
 
+void Document::removeQuerySelectorResults(Node& node)
+{
+    ASSERT(m_querySelectorResults.contains(node));
+    m_querySelectorResults.remove(node);
+    node.setHasValidQuerySelectorResults(false);
+}
+
 void Document::clearQuerySelectorResults()
 {
     // The map holds only weak references, so its keyed nodes outlive this clear. Reset their per-node flag too, or a
@@ -1896,13 +1903,6 @@ NODELETE static inline bool operator<(char32_t a, const UnicodeCodePointRange& b
 {
     ASSERT(b.minimum <= b.maximum);
     return a < b.minimum;
-}
-
-RefPtr<CustomElementRegistry> Document::customElementRegistryForBindings()
-{
-    if (RefPtr window = document().window())
-        return &window->ensureCustomElementRegistry();
-    return customElementRegistry();
 }
 
 CustomElementRegistry* Document::effectiveGlobalCustomElementRegistry()
@@ -9889,11 +9889,22 @@ void Document::didAddTouchEventHandler(Node& handler)
 void Document::didRemoveTouchEventHandler(Node& handler, EventHandlerRemoval removalMode)
 {
 #if ENABLE(TOUCH_EVENTS) || ENABLE(TOUCH_EVENT_REGIONS)
-    if (!removeHandlerFromSet(m_touchEventTargets, handler, removalMode))
+    auto iterator = m_touchEventTargets.find(handler);
+    if (iterator == m_touchEventTargets.end())
         return;
 
-    if (RefPtr parent = parentDocument())
-        parent->didRemoveTouchEventHandler(*this, removalMode);
+    unsigned removedCount = 1;
+    if (removalMode == EventHandlerRemoval::All) {
+        removedCount = iterator->value;
+        m_touchEventTargets.removeAll(iterator);
+    } else
+        m_touchEventTargets.remove(iterator);
+
+    // The parent document counts this document once per touch event handler it contains.
+    if (RefPtr parent = parentDocument()) {
+        for (unsigned i = 0; i < removedCount; ++i)
+            parent->didRemoveTouchEventHandler(*this);
+    }
 
     if (!shouldUseTouchEventRegions())
         return;

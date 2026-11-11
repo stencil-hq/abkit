@@ -140,6 +140,7 @@
 #include "RenderTableCell.h"
 #include "RenderTableRow.h"
 #include "RenderText.h"
+#include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
 #include "RenderTreeAsText.h"
 #include "RenderTreeMutationDisallowedScope.h"
@@ -156,6 +157,7 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SourceGraphic.h"
+#include "StyleAdjuster.h"
 #include "StyleAttributeMutationScope.h"
 #include "StyleComputedStyle+SettersInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -380,6 +382,7 @@ RenderLayer::RenderLayer(RenderLayerModelObject& renderer)
 
     setIsNormalFlowOnly(shouldBeNormalFlowOnly());
     setIsCSSStackingContext(shouldBeCSSStackingContext());
+    updateEstablishesBlendingIsolationGroup();
     setCanBeBackdropRoot(computeCanBeBackdropRoot());
     setNeedsPositionUpdate();
 
@@ -653,8 +656,12 @@ bool RenderLayer::shouldBeNormalFlowOnly() const
 
 bool RenderLayer::shouldBeCSSStackingContext() const
 {
-    return !renderer().style().usedZIndex().isAuto()
-        || renderer().shouldApplyLayoutContainment()
+    return !renderer().style().usedZIndex().isAuto() || shouldBeCSSStackingContextIgnoringZIndex();
+}
+
+bool RenderLayer::shouldBeCSSStackingContextIgnoringZIndex() const
+{
+    return renderer().shouldApplyLayoutContainment()
         || renderer().shouldApplyPaintContainment()
         || renderer().requiresRenderingConsolidationForViewTransition()
         || renderer().isRenderViewTransitionCapture()
@@ -1719,8 +1726,66 @@ void RenderLayer::updateAncestorChainHasBlendingDescendants()
 
         layer->updateSelfPaintingLayer();
 
-        if (layer->isCSSStackingContext())
+        if (layer->m_establishesBlendingIsolationGroup)
             break;
+    }
+}
+
+bool RenderLayer::computeEstablishesBlendingIsolationGroup() const
+{
+    if (!isCSSStackingContext())
+        return false;
+
+    if (!m_svgData)
+        return true;
+
+    CheckedRef renderer = this->renderer();
+    if (renderer->createsGroup() || renderer->isRenderSVGForeignObject() || renderer->isDocumentElementRenderer())
+        return true;
+
+    auto& style = renderer->style();
+    if (style.isolation() != Isolation::Auto)
+        return true;
+
+    if (renderer->isRenderSVGRoot()) {
+        auto zIndexApplies = [&] {
+            if (renderer->isPositioned())
+                return true;
+            CheckedPtr parent = renderer->parent();
+            return parent && parent->style().display().isFlexibleBoxIncludingDeprecatedOrGridFormattingContextBox();
+        };
+        return Style::Adjuster::shouldTreatAutoZIndexAsZero(style)
+            || (!style.specifiedZIndex().isAuto() && zIndexApplies())
+            || shouldBeCSSStackingContextIgnoringZIndex();
+    }
+
+    return renderer->hasSVGGroupingWillChangeProperty() || renderer->hasSVG3DTransformRelatedProperty();
+}
+
+void RenderLayer::updateEstablishesBlendingIsolationGroup()
+{
+    bool establishesBlendingIsolationGroup = computeEstablishesBlendingIsolationGroup();
+    if (establishesBlendingIsolationGroup == m_establishesBlendingIsolationGroup)
+        return;
+
+    m_establishesBlendingIsolationGroup = establishesBlendingIsolationGroup;
+    if (!parent())
+        return;
+
+    // Isolation only matters for compositing if there are blending descendants.
+    if (hasNotIsolatedBlendingDescendantsStatusDirty() || hasNotIsolatedBlendingDescendants()) {
+        setNeedsPostLayoutCompositingUpdate();
+        setChildrenNeedCompositingGeometryUpdate();
+    }
+
+    if (establishesBlendingIsolationGroup) {
+        if (!hasNotIsolatedBlendingDescendantsStatusDirty() && hasNotIsolatedBlendingDescendants())
+            parent()->dirtyAncestorChainHasBlendingDescendants();
+    } else {
+        if (hasNotIsolatedBlendingDescendantsStatusDirty())
+            parent()->dirtyAncestorChainHasBlendingDescendants();
+        else if (hasNotIsolatedBlendingDescendants())
+            parent()->updateAncestorChainHasBlendingDescendants();
     }
 }
 
@@ -1777,6 +1842,12 @@ void RenderLayer::dirtyAncestorChainHasAlwaysIncludedInZOrderListsDescendants()
 
 void RenderLayer::updateTransformFromStyle(TransformationMatrix& transform, const Style::ComputedStyle& style, OptionSet<Style::TransformResolverOption> options) const
 {
+    // Not in the tree yet (only the RenderView is legitimately parentless): no reference box to resolve against.
+    if (!renderer().parent() && !renderer().isRenderView()) {
+        ASSERT(!m_anchorScrollAdjustment);
+        return;
+    }
+
     // https://drafts.csswg.org/css-anchor-position-1/#default-scroll-shift
     // > After layout has been performed for abspos, it is additionally shifted by
     // > the default scroll shift, as if affected by a transform
@@ -1832,13 +1903,9 @@ void RenderLayer::updateTransform()
 
 void RenderLayer::forceStackingContextIfNeeded()
 {
-    if (setIsCSSStackingContext(true)) {
+    if (setIsCSSStackingContext(true))
         setIsNormalFlowOnly(false);
-        if (parent()) {
-            if (!hasNotIsolatedBlendingDescendantsStatusDirty() && hasNotIsolatedBlendingDescendants())
-                parent()->dirtyAncestorChainHasBlendingDescendants();
-        }
-    }
+    updateEstablishesBlendingIsolationGroup();
 }
 
 float RenderLayer::currentOpacity() const
@@ -3129,8 +3196,9 @@ LayoutSize RenderLayer::minimumSizeForResizing(float zoomFactor) const
     // Use the resizer size as the strict minimum size
     auto resizerRect = overflowControlsRects().resizer;
     auto& rendererStyle = renderer().style();
-    auto minWidth = Style::evaluateMinimum<LayoutUnit>(rendererStyle.minWidth(), renderer().containingBlock()->borderBoxWidth(), rendererStyle.usedZoomForLength());
-    auto minHeight = Style::evaluateMinimum<LayoutUnit>(rendererStyle.minHeight(), renderer().containingBlock()->borderBoxHeight(), rendererStyle.usedZoomForLength());
+    auto containingBlockSize = protect(renderer().containingBlock())->borderBoundingBox().size();
+    auto minWidth = Style::evaluateMinimum<LayoutUnit>(rendererStyle.minWidth(), containingBlockSize.width(), rendererStyle.usedZoomForLength());
+    auto minHeight = Style::evaluateMinimum<LayoutUnit>(rendererStyle.minHeight(), containingBlockSize.height(), rendererStyle.usedZoomForLength());
     minWidth = std::max(LayoutUnit(minWidth / zoomFactor), LayoutUnit(resizerRect.width()));
     minHeight = std::max(LayoutUnit(minHeight / zoomFactor), LayoutUnit(resizerRect.height()));
     return LayoutSize(minWidth, minHeight);
@@ -6209,7 +6277,14 @@ bool RenderLayer::shouldBeSelfPaintingLayer() const
         || renderer().isRenderVideo()
         || renderer().isRenderEmbeddedObject()
         || renderer().isRenderIFrame()
-        || renderer().isRenderFragmentedFlow();
+        || renderer().isRenderFragmentedFlow()
+        || isScreenCaptureProtectionLayer();
+}
+
+bool RenderLayer::isScreenCaptureProtectionLayer() const
+{
+    CheckedPtr innerBlock = dynamicDowncast<RenderTextControlInnerBlock>(renderer());
+    return innerBlock && innerBlock->requiresLayerForScreenCaptureProtection();
 }
 
 void RenderLayer::updateSelfPaintingLayer()
@@ -6450,19 +6525,8 @@ void RenderLayer::styleChanged(Style::Difference diff, const Style::ComputedStyl
     if (m_svgData)
         setIsOpportunisticStackingContext(true);
 
-    if (setIsCSSStackingContext(shouldBeCSSStackingContext())) {
-        if (parent()) {
-            if (isCSSStackingContext()) {
-                if (!hasNotIsolatedBlendingDescendantsStatusDirty() && hasNotIsolatedBlendingDescendants())
-                    parent()->dirtyAncestorChainHasBlendingDescendants();
-            } else {
-                if (hasNotIsolatedBlendingDescendantsStatusDirty())
-                    parent()->dirtyAncestorChainHasBlendingDescendants();
-                else if (hasNotIsolatedBlendingDescendants())
-                    parent()->updateAncestorChainHasBlendingDescendants();
-            }
-        }
-    }
+    setIsCSSStackingContext(shouldBeCSSStackingContext());
+    updateEstablishesBlendingIsolationGroup();
 
     updateLayerScrollableArea();
 

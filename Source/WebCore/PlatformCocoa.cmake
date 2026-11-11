@@ -1369,6 +1369,7 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/cocoa/ISOBMFFPreParser.h
     platform/graphics/cocoa/ISOBMFFTrackInfoParser.h
     platform/graphics/cocoa/MediaPlayerEnumsCocoa.h
+    platform/graphics/cocoa/MeshGradientRendererMetal.h
     platform/graphics/cocoa/NativeImageCocoa.h
     platform/graphics/cocoa/NullPlaybackSessionInterface.h
     platform/graphics/cocoa/NullVideoPresentationInterface.h
@@ -1571,7 +1572,10 @@ set(WebCore_USER_AGENT_SCRIPTS
     ${WEBCORE_DIR}/Modules/modern-media-controls/media/CNNCaptionQuirk.js
 )
 
-list(APPEND WebCoreTestSupport_LIBRARIES PRIVATE WebCore ${IOKIT_LIBRARY})
+# Listed as a framework so WEBKIT_LIBRARY() skips PAL, which WebCore already
+# contains, instead of linking a second copy of it into WebCoreTestSupport.
+list(APPEND WebCoreTestSupport_FRAMEWORKS WebCore)
+list(APPEND WebCoreTestSupport_LIBRARIES PRIVATE ${IOKIT_LIBRARY})
 list(APPEND WebCoreTestSupport_PRIVATE_HEADERS
     testing/cocoa/CocoaColorSerialization.h
     testing/cocoa/WebArchiveDumpSupport.h

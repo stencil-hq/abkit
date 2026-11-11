@@ -66,6 +66,8 @@ public:
         WebCore::SecurityOriginData origin;
         Inspector::Protocol::BidiScript::RealmType type;
         Inspector::Protocol::BidiBrowsingContext::BrowsingContext context;
+        // The top-level context of `context`. Subscriptions made with `contexts` are recorded for top-level contexts.
+        Inspector::Protocol::BidiBrowsingContext::BrowsingContext topLevelContext;
     };
 
 
@@ -81,7 +83,7 @@ public:
     void getRealms(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext& optionalBrowsingContext , std::optional<Inspector::Protocol::BidiScript::RealmType>&& optionalRealmType, Inspector::CommandCallback<Ref<JSON::ArrayOf<Inspector::Protocol::BidiScript::RealmInfo>>>&&) override;
 
     // Realm lifecycle events.
-    void notifyRealmCreated(RealmIdentifier, Inspector::Protocol::BidiBrowsingContext::BrowsingContext, const WebCore::SecurityOriginData&);
+    void notifyRealmCreated(RealmIdentifier, Inspector::Protocol::BidiBrowsingContext::BrowsingContext, Inspector::Protocol::BidiBrowsingContext::BrowsingContext topLevelContext, const WebCore::SecurityOriginData&);
     void notifyRealmDestroyed(RealmIdentifier, Inspector::Protocol::BidiBrowsingContext::BrowsingContext);
 
     // Lookup RealmIdentifier from browsing context (for UIProcess-initiated realm destruction).
@@ -106,7 +108,7 @@ private:
         std::optional<Vector<String>> userContexts;
     };
 
-    void sendRealmCreatedEvent(const String& realmID, const WebCore::SecurityOriginData&, Inspector::Protocol::BidiScript::RealmType, Inspector::Protocol::BidiBrowsingContext::BrowsingContext);
+    void sendRealmCreatedEvent(const String& realmID, const RealmInfo&);
 
     void processRealmsForPagesAsync(Deque<Ref<WebPageProxy>>&& pagesToProcess, std::optional<Inspector::Protocol::BidiScript::RealmType>&& optionalRealmType, std::optional<String>&& contextHandleFilter, Vector<RefPtr<Inspector::Protocol::BidiScript::RealmInfo>>&& accumulated, Inspector::CommandCallback<Ref<JSON::ArrayOf<Inspector::Protocol::BidiScript::RealmInfo>>>&&);
     void collectExecutionReadyFrameRealms(const FrameTreeNodeData&, Vector<RefPtr<Inspector::Protocol::BidiScript::RealmInfo>>& realms, const std::optional<String>& contextHandleFilter, bool recurseSubframes = true);
@@ -117,7 +119,18 @@ private:
     String generateRealmIdForBrowsingContext(const String& browsingContext);
     static String originStringFromSecurityOriginData(const WebCore::SecurityOriginData&);
 
+    struct ParsedStackTrace {
+        Ref<JSON::ArrayOf<Inspector::Protocol::BidiScript::StackFrame>> callFrames;
+        unsigned topLineNumber { 0 };
+        unsigned topColumnNumber { 0 };
+    };
+
     void finishEvaluateBidiScriptResult(const String& realmID, const String& expression, Inspector::CommandResult<String>&&, Inspector::CommandCallbackOf<Inspector::Protocol::BidiScript::EvaluateResultType, String, RefPtr<Inspector::Protocol::BidiScript::RemoteValue>, RefPtr<Inspector::Protocol::BidiScript::ExceptionDetails>>&&);
+
+    ParsedStackTrace parseStackTrace(const String& stackTraceString);
+    Ref<Inspector::Protocol::BidiScript::ExceptionDetails> buildExceptionDetailsFromExceptionObject(const JSON::Object& exceptionObject);
+    static Ref<Inspector::Protocol::BidiScript::StackTrace> createEmptyStackTrace();
+    static Ref<Inspector::Protocol::BidiScript::ExceptionDetails> createExceptionDetails(const String& text, Ref<Inspector::Protocol::BidiScript::RemoteValue>&&, unsigned lineNumber = 0, unsigned columnNumber = 0);
 
     static std::optional<RealmIdentifier> parseRealmIdentifier(const String& realmID);
     std::optional<String> browsingContextForRealm(RealmIdentifier) const;
@@ -129,8 +142,6 @@ private:
 
     // Store active realms (key: realm identifier, value: realm info).
     HashMap<RealmIdentifier, RealmInfo> m_activeRealms;
-
-    // Track realm counters for navigation detection: frame ID -> counter
 
     Vector<std::pair<PreloadScriptIdentifier, PreloadScriptInfo>> m_preloadScripts;
 };

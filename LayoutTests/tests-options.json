@@ -1661,6 +1661,12 @@
     "imported/w3c/web-platform-tests/css/css-fonts/variations/font-style-interpolation.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-keyboard-scroll-child-frame.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/css/css-overscroll-behavior/overscroll-behavior-keyboard-scroll.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/css/css-page/monolithic-overflow-024-print.html": [
         "slow"
     ],
@@ -2801,6 +2807,9 @@
     "imported/w3c/web-platform-tests/event-timing/retrievability.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/event-timing/target-selector.tentative.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/event-timing/timingconditions.html": [
         "slow"
     ],
@@ -3075,6 +3084,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/007.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/embedded-svg-document-fragment-does-not-scroll-parent.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/scroll-frag-non-utf8-encoded-document.html": [
@@ -5888,13 +5900,13 @@
     "imported/w3c/web-platform-tests/subresource-integrity/integrity-policy/parsing.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/subresource-integrity/integrity-policy/preload-script-with-integrity.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/subresource-integrity/integrity-policy/script.https.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/subresource-integrity/tentative/integrity-policy/parsing.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/subresource-integrity/tentative/integrity-policy/script.https.html": [
+    "imported/w3c/web-platform-tests/subresource-integrity/integrity-policy/style.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/svg/animations/svglengthlist-animation-3.html": [
