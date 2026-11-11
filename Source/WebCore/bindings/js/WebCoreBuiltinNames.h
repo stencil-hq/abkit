@@ -382,6 +382,7 @@ namespace WebCore {
     macro(PushSubscription) \
     macro(PushSubscriptionChangeEvent) \
     macro(PushSubscriptionOptions) \
+    macro(QuotaExceededError) \
     macro(Report) \
     macro(ReportBody) \
     macro(ReportingObserver) \
@@ -428,6 +429,27 @@ namespace WebCore {
     macro(SQLResultSet) \
     macro(SQLResultSetRowList) \
     macro(SQLTransaction) \
+    macro(SVGPathSeg) \
+    macro(SVGPathSegArcAbs) \
+    macro(SVGPathSegArcRel) \
+    macro(SVGPathSegClosePath) \
+    macro(SVGPathSegCurvetoCubicAbs) \
+    macro(SVGPathSegCurvetoCubicRel) \
+    macro(SVGPathSegCurvetoCubicSmoothAbs) \
+    macro(SVGPathSegCurvetoCubicSmoothRel) \
+    macro(SVGPathSegCurvetoQuadraticAbs) \
+    macro(SVGPathSegCurvetoQuadraticRel) \
+    macro(SVGPathSegCurvetoQuadraticSmoothAbs) \
+    macro(SVGPathSegCurvetoQuadraticSmoothRel) \
+    macro(SVGPathSegLinetoAbs) \
+    macro(SVGPathSegLinetoHorizontalAbs) \
+    macro(SVGPathSegLinetoHorizontalRel) \
+    macro(SVGPathSegLinetoRel) \
+    macro(SVGPathSegLinetoVerticalAbs) \
+    macro(SVGPathSegLinetoVerticalRel) \
+    macro(SVGPathSegList) \
+    macro(SVGPathSegMovetoAbs) \
+    macro(SVGPathSegMovetoRel) \
     macro(ScreenLuminance) \
     macro(ScreenOrientation) \
     macro(ScrollTimeline) \

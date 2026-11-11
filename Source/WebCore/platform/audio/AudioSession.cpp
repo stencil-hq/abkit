@@ -334,10 +334,12 @@ Logger& AudioSession::logger()
     return *m_logger;
 }
 
+#if !RELEASE_LOG_DISABLED
 WTFLogChannel& AudioSession::logChannel() const
 {
     return LogMedia;
 }
+#endif
 
 String convertEnumerationToString(RouteSharingPolicy enumerationValue)
 {

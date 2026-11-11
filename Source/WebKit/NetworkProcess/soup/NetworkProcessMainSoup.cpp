@@ -45,7 +45,7 @@ public:
 #if USE(GCRYPT)
         PAL::GCrypt::initialize();
 #endif
-#if OS(DARWIN)
+#if OS(DARWIN) || OS(LINUX)
         loadBundledTLSBackend();
 #endif
         return true;

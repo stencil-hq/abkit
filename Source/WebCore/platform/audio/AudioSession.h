@@ -176,7 +176,9 @@ protected:
 
     Logger& logger();
     ASCIILiteral logClassName() const { return "AudioSession"_s; }
+#if !RELEASE_LOG_DISABLED
     NODELETE WTFLogChannel& logChannel() const;
+#endif
     uint64_t logIdentifier() const { return 0; }
 
     mutable RefPtr<Logger> m_logger;

@@ -89,7 +89,7 @@ public:
     virtual PlatformLayer* platformLayer() { return nullptr; }
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    virtual RetainPtr<PlatformLayer> createVideoFullscreenLayer() { return nullptr; }
+    virtual PlatformLayerContainer createVideoFullscreenLayer() { return nullptr; }
     virtual void setVideoFullscreenLayer(PlatformLayer*, Function<void()>&& completionHandler) { completionHandler(); }
     virtual void updateVideoFullscreenInlineImage() { }
     virtual void setVideoFullscreenFrame(const FloatRect&) { }

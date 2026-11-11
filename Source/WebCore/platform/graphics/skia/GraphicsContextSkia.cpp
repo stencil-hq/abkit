@@ -1519,7 +1519,9 @@ void GraphicsContextSkia::drawCoreTextGlyphs(const sk_sp<SkImage>& image, const 
         }
         bool inExtraTransparencyLayer = false;
         if (hasDropShadow())
-            inExtraTransparencyLayer = drawOutsetShadow(paint, drawInDeviceSpace);
+            inExtraTransparencyLayer = drawOutsetShadow(paint, [&](const SkPaint& paint) {
+                drawInDeviceSpace(paint);
+            });
         drawInDeviceSpace(paint);
         if (inExtraTransparencyLayer)
             restoreLayer();

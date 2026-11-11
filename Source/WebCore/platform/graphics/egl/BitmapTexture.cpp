@@ -215,7 +215,7 @@ bool BitmapTexture::allocateTextureFromMemoryMappedGPUBuffer()
 }
 #endif
 
-#if USE(GBM) || OS(ANDROID)
+#if USE(GBM) || HAVE(DMABUF)
 BitmapTexture::BitmapTexture(EGLImage image, const IntSize& size, OptionSet<Flags> flags)
     : m_flags(flags)
     , m_size(size)

@@ -74,4 +74,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENT(GestureEvent)
+
 #endif // ENABLE(MAC_GESTURE_EVENTS) && !PLATFORM(COCOA)

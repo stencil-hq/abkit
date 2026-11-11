@@ -25,16 +25,17 @@
 
 #pragma once
 
-#if OS(DARWIN)
+#if OS(DARWIN) || OS(LINUX)
 
 namespace WebKit {
 
 // Loads the GIO TLS backend that ships beside the engine library (libgioboringssl.so: BoringSSL
-// sending Safari's ClientHello, trust by the Security framework). The backend ranks itself above
+// sending Safari's ClientHello, trust by the Security framework on macOS and by the system's CA
+// bundle on Linux). The backend ranks itself above
 // the ones GIO finds installed, so loading it before anything asks GIO for the default backend
 // makes it the one every connection of the process uses.
 void loadBundledTLSBackend();
 
 } // namespace WebKit
 
-#endif // OS(DARWIN)
+#endif // OS(DARWIN) || OS(LINUX)

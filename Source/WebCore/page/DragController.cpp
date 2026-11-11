@@ -1319,8 +1319,10 @@ bool DragController::startDrag(LocalFrame& src, const DragState& state, OptionSe
 #if PLATFORM(IOS_FAMILY)
         pasteboardImage.suggestedName = modelElement->model()->filename();
 #endif
+#if !(PLATFORM(GTK) || PLATFORM(WPE) || PLATFORM(WIN))
         pasteboardImage.resourceMIMEType = modelElement->model()->mimeType();
         pasteboardImage.resourceData = modelElement->model()->data();
+#endif
         dataTransfer->pasteboard().write(WTF::move(pasteboardImage));
 
         dragImageOffset = IntPoint { dragImage.size() };

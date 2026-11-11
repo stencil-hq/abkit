@@ -57,6 +57,7 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/glib/SelectionData.h
     platform/glib/SystemSettings.h
 
+    platform/graphics/BundledRuntime.h
     platform/graphics/DMABufBuffer.h
     platform/graphics/DMABufBufferAttributes.h
 

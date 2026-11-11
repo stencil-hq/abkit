@@ -208,7 +208,7 @@ static bool mainDisplaySupportsHighDynamicRange()
         CFRelease(displayNumber);
         if (!displayList)
             return false;
-        Boolean result = shouldPlayHDRVideo(displayList);
+        bool result = shouldPlayHDRVideo(displayList);
         CFRelease(displayList);
         return result;
     }();

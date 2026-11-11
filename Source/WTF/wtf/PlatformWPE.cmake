@@ -60,7 +60,7 @@ if (WIN32)
     # GLib's translation macros call libintl, a library of its own there.
     find_package(Intl REQUIRED)
     list(APPEND WTF_LIBRARIES
-        DbgHelp
+        dbghelp
         Intl::Intl
         shlwapi
         synchronization
@@ -127,10 +127,13 @@ elseif (APPLE)
 
         text/cocoa/StringCocoa.mm
         text/cocoa/StringImplCocoa.mm
+
+        BlockObjCExceptions.mm
     )
     set_source_files_properties(
         text/cocoa/StringCocoa.mm
         text/cocoa/StringImplCocoa.mm
+        BlockObjCExceptions.mm
         PROPERTIES COMPILE_OPTIONS -fobjc-arc
     )
     list(APPEND WTF_PUBLIC_HEADERS

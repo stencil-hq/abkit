@@ -91,7 +91,7 @@
 #include "WebKitThunderParser.h"
 #endif
 
-#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
 #include "WebKitClearKeyDecryptorGStreamer.h"
 #endif
 
@@ -454,7 +454,7 @@ bool ensureGStreamerInitializedNonWebProcess()
     static std::once_flag onceFlag;
     static bool isGStreamerInitialized;
     std::call_once(onceFlag, [] {
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
         // A packaged engine keeps its plugins and their libraries beside the library.
         useBundledRuntimePathsIfPresent();
 #endif
@@ -482,7 +482,7 @@ bool ensureGStreamerInitialized()
     std::call_once(onceFlag, [] {
         isGStreamerInitialized = false;
 
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
         // A packaged engine keeps its plugins and their libraries beside the library.
         useBundledRuntimePathsIfPresent();
 #endif
@@ -570,7 +570,7 @@ void registerWebKitGStreamerElements()
         }
 #endif
 
-#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
         // This is the port's only decryptor: nothing outside WebKit decrypts ClearKey here, so it is
         // primary-ranked for playbin and parsebin to auto-plug.
         gst_element_register(nullptr, "webkitclearkey", GST_RANK_PRIMARY, WEBKIT_TYPE_MEDIA_CK_DECRYPT);

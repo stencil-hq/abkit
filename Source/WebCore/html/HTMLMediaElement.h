@@ -232,7 +232,7 @@ public:
     void setPreparedToReturnVideoLayerToInline(bool);
     void waitForPreparedForInlineThen(Function<void()>&& completionHandler);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    RetainPtr<PlatformLayer> createVideoFullscreenLayer();
+    PlatformLayerContainer createVideoFullscreenLayer();
     WEBCORE_EXPORT void setVideoFullscreenLayer(PlatformLayer*, Function<void()>&& completionHandler = [] { });
 #ifdef __OBJC__
     PlatformLayer* videoFullscreenLayer() const { return m_videoFullscreenLayer.get(); }
@@ -1356,7 +1356,7 @@ private:
     bool m_temporarilyAllowingInlinePlaybackAfterFullscreen { false };
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    RetainPtr<PlatformLayer> m_videoFullscreenLayer;
+    PlatformLayerContainer m_videoFullscreenLayer;
     FloatRect m_videoFullscreenFrame;
     MediaPlayer::VideoGravity m_videoFullscreenGravity { MediaPlayer::VideoGravity::ResizeAspect };
 #endif

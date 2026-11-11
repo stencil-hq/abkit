@@ -930,8 +930,13 @@ void MediaElementSession::showPlaybackTargetPicker()
     }
 #endif
 
+#if USE(AUDIO_SESSION)
     auto& audioSession = AudioSession::singleton();
     document->showPlaybackTargetPicker(*this, is<HTMLVideoElement>(m_element), audioSession.routeSharingPolicy(), audioSession.routingContextUID());
+#else
+    // Without an audio session there is no route to share and no routing context.
+    document->showPlaybackTargetPicker(*this, is<HTMLVideoElement>(m_element), RouteSharingPolicy::Default, { });
+#endif
 }
 
 bool MediaElementSession::hasWirelessPlaybackTargets() const

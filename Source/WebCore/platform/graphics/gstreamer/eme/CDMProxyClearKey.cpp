@@ -26,16 +26,21 @@
 #include "config.h"
 #include "CDMProxyClearKey.h"
 
-#if ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
 
 #include "GStreamerCommon.h"
-#include <CommonCrypto/CommonCrypto.h>
 #include <array>
 #include <optional>
 #include <string.h>
 #include <utility>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
+
+#if OS(DARWIN)
+#include <CommonCrypto/CommonCrypto.h>
+#else
+#include <openssl/evp.h>
+#endif
 
 GST_DEBUG_CATEGORY_EXTERN(webkitMediaClearKeyDecryptDebugCategory);
 #define GST_CAT_DEFAULT webkitMediaClearKeyDecryptDebugCategory
@@ -45,6 +50,9 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CDMProxyFactoryClearKey);
 
 namespace {
+
+constexpr size_t aesBlockSize = 16;
+constexpr size_t aes128KeySize = 16;
 
 // A CENC subsample table entry is the number of clear bytes of the subsample, then the number of
 // encrypted bytes (ISO/IEC 23001-7:2016 section 9.6), both big endian.
@@ -73,22 +81,23 @@ static bool readBigEndianUInt32(const uint8_t* buffer, size_t bufferSize, size_t
 
 // The AES-CTR counter of a sample: the least significant 8 bytes of a 16 byte counter are zero when
 // the sample carries an 8 byte IV (ISO/IEC 23001-7:2016 section 9.3).
-static std::optional<std::array<uint8_t, kCCBlockSizeAES128>> makeCounter(const uint8_t* iv, size_t ivSize)
+static std::optional<std::array<uint8_t, aesBlockSize>> makeCounter(const uint8_t* iv, size_t ivSize)
 {
-    if (ivSize != 8 && ivSize < kCCBlockSizeAES128)
+    if (ivSize != 8 && ivSize < aesBlockSize)
         return std::nullopt;
 
-    std::array<uint8_t, kCCBlockSizeAES128> counter { 0 };
+    std::array<uint8_t, aesBlockSize> counter { 0 };
     memcpy(counter.data(), iv, ivSize == 8 ? 8 : counter.size());
     return counter;
 }
 
 // AES-128-CTR over the encrypted bytes of one sample, in place. ClearKey has no keys smaller or
 // larger than AES-128, and CTR needs the encrypt operation for both directions.
-static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, kCCBlockSizeAES128>& counter, uint8_t* data, size_t size)
+#if OS(DARWIN)
+static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, uint8_t* data, size_t size)
 {
     CCCryptorRef cryptor = nullptr;
-    if (CCCryptorCreateWithMode(kCCEncrypt, kCCModeCTR, kCCAlgorithmAES, ccNoPadding, counter.data(), key.data(), key.size(), nullptr, 0, 0, kCCModeOptionCTR_BE, &cryptor) != kCCSuccess) {
+    if (CCCryptorCreateWithMode(kCCEncrypt, kCCModeCTR, kCCAlgorithmAES, ccNoPadding, counter.data(), key.span().data(), key.size(), nullptr, 0, 0, kCCModeOptionCTR_BE, &cryptor) != kCCSuccess) {
         GST_ERROR("CommonCrypto could not start an AES-128-CTR cryptor");
         return false;
     }
@@ -100,13 +109,13 @@ static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_
     // The output buffer must not overlap the input one, so the plaintext is written aside.
     Vector<uint8_t> plainText(CCCryptorGetOutputLength(cryptor, size, true));
     size_t bytesWritten = 0;
-    if (CCCryptorUpdate(cryptor, data, size, plainText.data(), plainText.size(), &bytesWritten) != kCCSuccess) {
+    if (CCCryptorUpdate(cryptor, data, size, plainText.mutableSpan().data(), plainText.size(), &bytesWritten) != kCCSuccess) {
         GST_ERROR("CommonCrypto AES-128-CTR update failed");
         return false;
     }
 
     size_t finalBytesWritten = 0;
-    if (CCCryptorFinal(cryptor, plainText.data() + bytesWritten, plainText.size() - bytesWritten, &finalBytesWritten) != kCCSuccess) {
+    if (CCCryptorFinal(cryptor, plainText.mutableSpan().data() + bytesWritten, plainText.size() - bytesWritten, &finalBytesWritten) != kCCSuccess) {
         GST_ERROR("CommonCrypto AES-128-CTR finalization failed");
         return false;
     }
@@ -116,9 +125,37 @@ static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_
         return false;
     }
 
-    memcpy(data, plainText.data(), size);
+    memcpy(data, plainText.span().data(), size);
     return true;
 }
+#else
+static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, uint8_t* data, size_t size)
+{
+    EVP_CIPHER_CTX* context = EVP_CIPHER_CTX_new();
+    if (!context || !EVP_EncryptInit_ex(context, EVP_aes_128_ctr(), nullptr, key.span().data(), counter.data())) {
+        GST_ERROR("OpenSSL could not start an AES-128-CTR cipher");
+        EVP_CIPHER_CTX_free(context);
+        return false;
+    }
+
+    auto releaseContext = makeScopeExit([&] {
+        EVP_CIPHER_CTX_free(context);
+    });
+
+    // CTR is a stream cipher, so it decrypts in place; EVP takes an int's worth of bytes per call.
+    size_t offset = 0;
+    while (offset < size) {
+        int chunk = static_cast<int>(std::min<size_t>(size - offset, 1 << 30));
+        int bytesWritten = 0;
+        if (!EVP_EncryptUpdate(context, data + offset, &bytesWritten, data + offset, chunk) || bytesWritten != chunk) {
+            GST_ERROR("OpenSSL AES-128-CTR update failed");
+            return false;
+        }
+        offset += chunk;
+    }
+    return true;
+}
+#endif
 
 } // namespace
 
@@ -161,7 +198,7 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
     }
 
     auto iv = mappedIV.createVector();
-    auto counter = makeCounter(iv.data(), iv.size());
+    auto counter = makeCounter(iv.span().data(), iv.size());
     if (!counter) {
         GST_ERROR("ClearKey IV of %zu bytes is neither 8 nor 16 bytes", iv.size());
         return DecryptionResult::Failure;
@@ -173,7 +210,7 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
 
     ASSERT(std::holds_alternative<Vector<uint8_t>>(*keyData));
     auto& key = std::get<Vector<uint8_t>>(*keyData);
-    if (key.size() != kCCKeySizeAES128) {
+    if (key.size() != aes128KeySize) {
         GST_ERROR("ClearKey key of %zu bytes is not an AES-128 key", key.size());
         return DecryptionResult::Failure;
     }
@@ -232,16 +269,16 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
     Vector<uint8_t> encryptedData(totalEncryptedBytes);
     size_t offset = 0;
     for (auto& range : encryptedRanges) {
-        memcpy(encryptedData.data() + offset, mappedData.data() + range.first, range.second);
+        memcpy(encryptedData.mutableSpan().data() + offset, mappedData.data() + range.first, range.second);
         offset += range.second;
     }
 
-    if (!decryptAES128CTR(key, *counter, encryptedData.data(), encryptedData.size()))
+    if (!decryptAES128CTR(key, *counter, encryptedData.mutableSpan().data(), encryptedData.size()))
         return DecryptionResult::Failure;
 
     offset = 0;
     for (auto& range : encryptedRanges) {
-        memcpy(mappedData.data() + range.first, encryptedData.data() + offset, range.second);
+        memcpy(mappedData.data() + range.first, encryptedData.span().data() + offset, range.second);
         offset += range.second;
     }
 
@@ -252,4 +289,4 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
 
 #undef GST_CAT_DEFAULT
 
-#endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)

@@ -72,6 +72,11 @@ static inline void addToCGPath(CGMutablePathRef path, const PathMoveTo& segment)
     CGPathMoveToPoint(path, nullptr, segment.point.x(), segment.point.y());
 }
 
+static inline void addToCGPath(CGMutablePathRef path, const PathCloseSubpath&)
+{
+    CGPathCloseSubpath(path);
+}
+
 static inline void addToCGPath(CGMutablePathRef path, const PathLineTo& segment)
 {
     CGPathAddLineToPoint(path, nullptr, segment.point.x(), segment.point.y());
@@ -146,10 +151,10 @@ static inline void addToCGPath(CGMutablePathRef path, const PathRoundedRect& seg
         CGRect rect = toCoreGraphics(segment.roundedRect.rect());
         CGFloat radiusWidth = radius.width();
         CGFloat radiusHeight = radius.height();
-        if (2 * radiusWidth > rect.width())
-            radiusWidth = rect.width() / 2 - std::numeric_limits<CGFloat>::epsilon();
-        if (2 * radiusHeight > rect.height())
-            radiusHeight = rect.height() / 2 - std::numeric_limits<CGFloat>::epsilon();
+        if (2 * radiusWidth > rect.size.width)
+            radiusWidth = rect.size.width / 2 - std::numeric_limits<CGFloat>::epsilon();
+        if (2 * radiusHeight > rect.size.height)
+            radiusHeight = rect.size.height / 2 - std::numeric_limits<CGFloat>::epsilon();
         CGPathAddRoundedRect(path, nullptr, rect, radiusWidth, radiusHeight);
         return;
     }
@@ -161,11 +166,6 @@ static inline void addToCGPath(CGMutablePathRef path, const PathRoundedRect& seg
 static inline void addToCGPath(CGMutablePathRef path, const PathContinuousRoundedRect& segment)
 {
     addToCGPath(path, PathRoundedRect { FloatRoundedRect { segment.rect, CornerRadii { segment.cornerWidth, segment.cornerHeight } }, PathRoundedRect::Strategy::PreferNative });
-}
-
-static inline void addToCGPath(CGMutablePathRef path, const PathCloseSubpath&)
-{
-    CGPathCloseSubpath(path);
 }
 
 static inline void addToCGPath(CGMutablePathRef path, const PathDataLine& segment)

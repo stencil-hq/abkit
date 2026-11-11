@@ -27,6 +27,7 @@
 #include "AudioUtilities.h"
 #include "GStreamerCommon.h"
 #include "GStreamerQuirks.h"
+#include "GUniquePtrGStreamer.h"
 #include "WebKitWebAudioSourceGStreamer.h"
 #include <gst/audio/gstaudiobasesink.h>
 #include <gst/gst.h>

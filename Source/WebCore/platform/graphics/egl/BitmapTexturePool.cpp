@@ -101,7 +101,7 @@ Ref<BitmapTexture> BitmapTexturePool::acquireTexture(const IntSize& size, Option
     return selectedEntry->texture;
 }
 
-#if USE(GBM)
+#if USE(GBM) || HAVE(DMABUF)
 Ref<BitmapTexture> BitmapTexturePool::createTextureForImage(EGLImage image, const IntSize& size, OptionSet<BitmapTexture::Flags> flags)
 {
     ASSERT(GLContextWrapper::currentContext());
@@ -120,7 +120,7 @@ void BitmapTexturePool::releaseAllTextures()
     Locker locker { m_lock };
     m_releaseUnusedTexturesTimer.stop();
     m_textures.clear();
-#if USE(GBM)
+#if USE(GBM) || HAVE(DMABUF)
     m_imageTextures.clear();
 #endif
     m_poolSizeInBytes = 0;
@@ -144,7 +144,7 @@ void BitmapTexturePool::releaseUnusedTexturesTimerFired()
         assertIsHeld(m_lock);
         if (!m_textures.isEmpty())
             return true;
-#if USE(GBM)
+#if USE(GBM) || HAVE(DMABUF)
         if (!m_imageTextures.isEmpty())
             return true;
 #endif
@@ -173,7 +173,7 @@ void BitmapTexturePool::releaseUnusedTexturesTimerFired()
                 exitLimitExceededModeIfNeeded();
         }
 
-#if USE(GBM)
+#if USE(GBM) || HAVE(DMABUF)
         if (!m_imageTextures.isEmpty()) {
             m_imageTextures.removeAllMatching([](const BitmapTexture& texture) {
                 return texture.refCount() == 1;

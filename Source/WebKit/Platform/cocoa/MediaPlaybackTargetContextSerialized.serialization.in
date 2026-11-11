@@ -29,15 +29,6 @@ header: <WebCore/MediaPlaybackTargetMock.h>
     OutputDeviceAvailable,
 };
 
-header: <WebCore/MediaPlaybackTarget.h>
-[CustomHeader, OptionSet] enum class WebCore::MediaPlaybackTargetType : uint8_t {
-    None,
-    AVOutputContext,
-    Mock,
-    WirelessPlayback,
-    Serialized,
-};
-
 header: "MediaPlaybackTargetContextSerialized.h"
 [CustomHeader] class WebKit::MediaPlaybackTargetContextSerialized {
     String deviceName();

@@ -8304,7 +8304,7 @@ bool HTMLMediaElement::isVideoLayerInline()
     return !m_videoFullscreenLayer;
 }
 
-RetainPtr<PlatformLayer> HTMLMediaElement::createVideoFullscreenLayer()
+PlatformLayerContainer HTMLMediaElement::createVideoFullscreenLayer()
 {
     if (RefPtr player = m_player)
         return player->createVideoFullscreenLayer();

@@ -26,7 +26,7 @@
 #include "config.h"
 #include "BundledTLSBackend.h"
 
-#if OS(DARWIN)
+#if OS(DARWIN) || OS(LINUX)
 
 #include "ProcessExecutablePath.h"
 #include <gio/gio.h>
@@ -50,4 +50,4 @@ void loadBundledTLSBackend()
 
 } // namespace WebKit
 
-#endif // OS(DARWIN)
+#endif // OS(DARWIN) || OS(LINUX)

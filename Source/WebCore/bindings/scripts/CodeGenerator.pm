@@ -985,6 +985,24 @@ sub IsSVGAnimatedType
     return $object->IsSVGAnimatedTypeName($type->name);
 }
 
+# The legacy SVGPathSeg interfaces (SVGPathSeg, its subclasses and SVGPathSegList) are implemented together in
+# SVGPathSegImpl.h rather than in a header per interface.
+sub IsSVGPathSegTypeName
+{
+    my ($object, $typeName) = @_;
+
+    return $typeName =~ /^SVGPathSeg/;
+}
+
+sub IsSVGPathSegType
+{
+    my ($object, $type) = @_;
+
+    assert("Not a type") if ref($type) ne "IDLType";
+
+    return $object->IsSVGPathSegTypeName($type->name);
+}
+
 sub IsConstructorType
 {
     my ($object, $type) = @_;

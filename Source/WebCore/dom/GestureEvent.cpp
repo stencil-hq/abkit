@@ -37,7 +37,7 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(GestureEvent);
 
 GestureEvent::GestureEvent()
-    : Event(EventInterfaceType::GestureEvent)
+    : UIEvent(EventInterfaceType::GestureEvent)
 {
 }
 

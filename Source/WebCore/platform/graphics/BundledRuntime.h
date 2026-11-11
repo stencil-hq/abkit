@@ -27,14 +27,16 @@
 
 namespace WebCore {
 
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
 
 // Points the libraries the engine loads by absolute path at the copies packaged beside it:
-// GStreamer's plugin directory, plugin scanner and registry, and fontconfig's configuration.
+// GIO's module directory, GStreamer's plugin directory, plugin scanner and registry,
+// fontconfig's configuration and xkbcommon's keymaps. webkitInitialize() calls it in the UI
+// process before anything uses GIO, so the helper processes inherit the paths.
 // When there is no lib/ directory beside the engine library nothing is touched, so a run from
 // the build tree keeps finding the libraries where they were built. Safe to call more than once.
 void useBundledRuntimePathsIfPresent();
 
-#endif // PLATFORM(WPE) && OS(DARWIN)
+#endif // PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
 
 } // namespace WebCore

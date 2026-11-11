@@ -1467,7 +1467,8 @@ if (APPLE)
         Source/third_party/boringssl/src/crypto/cipher/e_aeseax.cc
         Source/third_party/boringssl/src/crypto/cipher/get_cipher.cc
         Source/third_party/boringssl/src/crypto/cms/cms.cc
-        Source/third_party/boringssl/src/crypto/curve25519/curve25519_64_adx.cc
+        # Not crypto/curve25519/curve25519_64_adx.cc: an x86_64 build's X25519 calls it
+        # (BORINGSSL_FE25519_ADX), and it compiles to nothing elsewhere.
         Source/third_party/boringssl/src/crypto/ec/ec_derive.cc
         Source/third_party/boringssl/src/crypto/ec/hash_to_curve.cc
         Source/third_party/boringssl/src/crypto/ecdsa/ecdsa_p1363.cc

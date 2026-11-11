@@ -26,13 +26,18 @@
 #include "config.h"
 #include "BundledRuntime.h"
 
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
 
 #include <glib.h>
 #include <mutex>
 #include <wtf/FileSystem.h>
-#include <wtf/darwin/EngineLibrary.h>
 #include <wtf/text/ASCIILiteral.h>
+
+#if OS(DARWIN)
+#include <wtf/darwin/EngineLibrary.h>
+#else
+#include <dlfcn.h>
+#endif
 
 namespace WebCore {
 
@@ -42,14 +47,33 @@ static void setEnvironmentIfUnset(const char* name, const String& value)
         g_setenv(name, FileSystem::fileSystemRepresentation(value).legacyCStringPointer(), TRUE);
 }
 
+static String directoryOfEngineLibrary()
+{
+#if OS(DARWIN)
+    return WTF::directoryOfEngineLibrary();
+#else
+    Dl_info info;
+    if (!dladdr(reinterpret_cast<const void*>(&useBundledRuntimePathsIfPresent), &info) || !info.dli_fname)
+        return String();
+    return FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(info.dli_fname));
+#endif
+}
+
 void useBundledRuntimePathsIfPresent()
 {
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [] {
-        auto libraryDirectory = WTF::directoryOfEngineLibrary();
+        auto libraryDirectory = directoryOfEngineLibrary();
         if (libraryDirectory.isNull())
             return;
         auto libDirectory = FileSystem::pathByAppendingComponent(libraryDirectory, "lib"_s);
+
+        // GIO loads every module of the directory it was built with, whose modules link the GLib
+        // of that prefix rather than the package's. The package's own directory holds none: the TLS
+        // backend is loaded from beside the library (BundledTLSBackend.cpp).
+        auto gioModulesDirectory = FileSystem::pathByAppendingComponent(FileSystem::pathByAppendingComponent(libDirectory, "gio"_s), "modules"_s);
+        if (g_file_test(FileSystem::fileSystemRepresentation(gioModulesDirectory).legacyCStringPointer(), G_FILE_TEST_IS_DIR))
+            setEnvironmentIfUnset("GIO_MODULE_DIR", gioModulesDirectory);
 
         // GStreamer looks for its plugins, for the scanner that reads them and for its
         // registry cache under the prefix it was built in, none of which a package has.
@@ -70,6 +94,12 @@ void useBundledRuntimePathsIfPresent()
             }
         }
 
+        // Some distributions (Alpine) ship ICU's data as a file ICU opens from the prefix it was
+        // built in rather than inside libicudata; a package carries that file in lib/icu.
+        auto icuDirectory = FileSystem::pathByAppendingComponent(libDirectory, "icu"_s);
+        if (g_file_test(FileSystem::fileSystemRepresentation(icuDirectory).legacyCStringPointer(), G_FILE_TEST_IS_DIR))
+            setEnvironmentIfUnset("ICU_DATA", icuDirectory);
+
         // fontconfig reads its configuration, and the conf.d directory beside it, from the
         // prefix it was built in.
         auto fontsDirectory = FileSystem::pathByAppendingComponent(libDirectory, "fonts"_s);
@@ -78,9 +108,15 @@ void useBundledRuntimePathsIfPresent()
             setEnvironmentIfUnset("FONTCONFIG_FILE", fontsConfig);
             setEnvironmentIfUnset("FONTCONFIG_PATH", fontsDirectory);
         }
+
+        // xkbcommon reads the keymaps it compiles from the prefix of the xkeyboard-config it was
+        // built against.
+        auto xkbDirectory = FileSystem::pathByAppendingComponent(libDirectory, "xkb"_s);
+        if (g_file_test(FileSystem::fileSystemRepresentation(xkbDirectory).legacyCStringPointer(), G_FILE_TEST_IS_DIR))
+            setEnvironmentIfUnset("XKB_CONFIG_ROOT", xkbDirectory);
     });
 }
 
 } // namespace WebCore
 
-#endif // PLATFORM(WPE) && OS(DARWIN)
+#endif // PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
