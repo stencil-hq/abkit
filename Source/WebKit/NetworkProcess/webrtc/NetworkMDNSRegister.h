@@ -39,17 +39,25 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 
-#if PLATFORM(COCOA) && defined __has_include && __has_include(<dns_sd.h>)
+// The GLib ports register names with Avahi, which Darwin does not have: there
+// they use the system's responder, like the Cocoa ports.
+#if OS(DARWIN) && defined __has_include && __has_include(<dns_sd.h>)
 #define ENABLE_MDNS 1
 #else
 #define ENABLE_MDNS 0
+#endif
+
+#if USE(GLIB) && !ENABLE_MDNS
+#define USE_AVAHI_MDNS 1
+#else
+#define USE_AVAHI_MDNS 0
 #endif
 
 #if ENABLE_MDNS
 #include <dns_sd.h>
 #endif
 
-#if USE(GLIB)
+#if USE_AVAHI_MDNS
 #include <gio/gio.h>
 #include <wtf/glib/GRefPtr.h>
 #endif
@@ -101,7 +109,7 @@ public:
         String address;
         PAL::SessionID sessionID;
         CompletionHandler<void(const String &, std::optional<WebCore::MDNSRegisterError>)> completionHandler;
-#if USE(GLIB)
+#if USE_AVAHI_MDNS
         GRefPtr<GCancellable> cancellable;
 #endif
     };
@@ -121,7 +129,7 @@ private:
     struct DNSServiceDeallocator;
     HashMap<WebCore::ScriptExecutionContextIdentifier, std::unique_ptr<_DNSServiceRef_t, DNSServiceDeallocator>> m_services;
 #endif
-#if USE(GLIB)
+#if USE_AVAHI_MDNS
     GRefPtr<GCancellable> m_cancellable;
     GRefPtr<GDBusProxy> m_dbusProxy;
 #endif

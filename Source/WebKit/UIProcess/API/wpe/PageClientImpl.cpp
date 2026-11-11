@@ -49,6 +49,7 @@
 #include <WebCore/DOMPasteAccess.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/PasteboardCustomData.h>
+#include <WebCore/ShareData.h>
 #include <WebCore/SharedBuffer.h>
 #include <WebCore/SystemSettings.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -347,6 +348,14 @@ RefPtr<WebDataListSuggestionsDropdown> PageClientImpl::createDataListSuggestions
 RefPtr<WebDateTimePicker> PageClientImpl::createDateTimePicker(WebPageProxy& page)
 {
     return nullptr;
+}
+
+bool PageClientImpl::showShareSheet(WebCore::ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&& completionHandler)
+{
+    // The port has no share sheet to present, so the request ends the way a sheet closed without
+    // choosing a target does.
+    completionHandler(false);
+    return false;
 }
 
 void PageClientImpl::enterAcceleratedCompositingMode(const LayerTreeContext& context)

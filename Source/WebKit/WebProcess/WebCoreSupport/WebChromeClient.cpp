@@ -159,7 +159,7 @@
 #include "PlaybackSessionManager.h"
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 #include "VideoPresentationManager.h"
 #endif
 
@@ -1338,9 +1338,9 @@ RefPtr<WebCore::WebGPUIntegration> WebChromeClient::createGPUForWebGPU() const
         return nullptr;
     return RemoteGPUProxy::create(WebGPU::DowncastConvertToBackingContext::create(), ModelDowncastConvertToBackingContext::create(), page.releaseNonNull());
 #else
-    return WebCore::createWebGPUIntegration([](Function<void()>&& workItem) {
+    return WebCore::createInProcessWebGPUIntegration([](Function<void()>&& workItem) {
         callOnMainRunLoop(WTF::move(workItem));
-    }, nullptr);
+    });
 #endif
 }
 #endif
@@ -1640,7 +1640,7 @@ void WebChromeClient::ensureScrollbarsController(Page& corePage, ScrollableArea&
 #endif
 
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 void WebChromeClient::prepareForVideoFullscreen()
 {
@@ -1738,7 +1738,7 @@ void WebChromeClient::removeMediaUsageManagerSession(MediaSessionIdentifier iden
 }
 #endif // ENABLE(MEDIA_USAGE)
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 void WebChromeClient::exitVideoFullscreenToModeWithoutAnimation(HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode targetMode)
 {
@@ -1773,7 +1773,7 @@ void WebChromeClient::enterFullScreenForElement(Element& element, HTMLMediaEleme
     RefPtr page = m_page.get();
     ASSERT(page);
     protect(page->fullScreenManager())->enterFullScreenForElement(element, mode, WTF::move(willEnterFullscreen), WTF::move(didEnterFullscreen));
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(element); videoElement && mode == HTMLMediaElementEnums::VideoFullscreenModeInWindow)
         setVideoFullscreenMode(*videoElement, mode);
 #endif
@@ -1789,7 +1789,7 @@ void WebChromeClient::updateImageSource(Element& element)
 
 void WebChromeClient::exitFullScreenForElement(Element* element, CompletionHandler<void()>&& completionHandler)
 {
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     bool exitingInWindowFullscreen = false;
     if (element) {
         if (auto* videoElement = dynamicDowncast<HTMLVideoElement>(*element))
@@ -1798,7 +1798,7 @@ void WebChromeClient::exitFullScreenForElement(Element* element, CompletionHandl
 #endif
     if (RefPtr page = m_page.get())
         protect(page->fullScreenManager())->exitFullScreenForElement(element, WTF::move(completionHandler));
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (exitingInWindowFullscreen)
         clearVideoFullscreenMode(*dynamicDowncast<HTMLVideoElement>(*element), HTMLMediaElementEnums::VideoFullscreenModeInWindow);
 #endif
@@ -2219,7 +2219,7 @@ void WebChromeClient::performSwitchHapticFeedback()
         page->send(Messages::WebPageProxy::PerformSwitchHapticFeedback());
 }
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
 
 void WebChromeClient::addPlaybackTargetPickerClient(PlaybackTargetClientContextIdentifier contextId)
 {

@@ -5,8 +5,12 @@ streams. This file is the contract between the host and its clients (omp's `webk
 
 ## Process
 
-- `WPEAgentHost [--data-dir DIR]`. `DIR` keeps website data per profile across runs; without it every profile
-  lives in a temporary directory that is removed when the host exits.
+- `WPEAgentHost [--data-dir DIR] [--inspector HOST:PORT]`. `DIR` keeps website data per profile across runs;
+  without it every profile lives in a temporary directory that is removed when the host exits.
+- `--inspector HOST:PORT` serves the Web Inspector for the host's views: open `http://HOST:PORT` in a browser and
+  pick a view from the target list, and the views' pages enable the instrumentation that makes them debuggable.
+  The views serve from the engine's own resources, beside its library. It is off by default (no inspector server
+  runs and the views are not inspectable) and binds only the given address, a port alone meaning `127.0.0.1`.
 - Requests arrive on standard input and answers leave on standard output, as frames of a 4-byte little-endian
   payload length followed by UTF-8 JSON (at most 256 MiB). Nothing else is written to standard output: the host
   keeps a private duplicate for the protocol and points descriptor 1 at standard error. Diagnostics go to
@@ -63,7 +67,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `cookies` | | `{"cookies":[{"name","value","domain","path","expires","httpOnly","secure","sameSite"}]}` |
 | `setCookie`, `deleteCookie` | `cookie`; `name`, `domain`, `path` | `{}` |
 | `agent` | `value` (string, or `null` for the host's default) | `{}` |
-| `appearance` | `value`: `dark`, `light`, `null` | `{}`; applies to every block of the process |
+| `appearance` | `value`: `dark`, `light`, `null` | `{}`; applies to every block of the process. `null` (the default) is the system's appearance: on macOS the Mac's own, dark or light, as in Safari; light elsewhere |
 | `allow` | `hosts` (exact names and `*.domain`, or `null`) | `{}` |
 | `insecure` | `value` | `{}`; `true` accepts invalid certificates |
 | `credentials` | `username`, `password`, or neither | `{}` |
@@ -114,7 +118,14 @@ page-world script; everything below holds without one.
   `(pointer: fine)` match and there are no touch events or `ontouch*` attributes.
 - On macOS the user agent is Safari's and `window.safari` exists. The generic font families are the ones Safari
   uses (Times, Helvetica, Courier, Apple Chancery, Papyrus; Times for a family that is not installed), and
-  `system-ui` and `-apple-system` are the system font.
+  `system-ui` and `-apple-system` are the system font. Form controls use the system font at 11 px.
+  Scrollbars overlay the page and take no room in it, as on a Mac with only a trackpad.
+- On macOS the TLS handshake, the HTTP/2 settings and the request headers, their order included, are the ones
+  Safari sends.
+- Video and audio play and Web Audio runs, but no sound reaches an output device. There is no camera or
+  microphone: `enumerateDevices()` lists one unlabelled device of each kind, as Safari does before permission,
+  and `getUserMedia()` and `getDisplayMedia()` are denied. WebAuthn requests and `navigator.share()` end as a
+  sheet the user dismissed, and no gamepad is attached.
 - `identity` changes this: `seed` (a string; `null` for none) seeds the noise the engine adds to canvas
   read-backs, so one seed is one stable device; `screen` (`{"width","height","availLeft","availTop","availWidth",
   "availHeight"}`) and `window` (`{"x","y","width","height"}`) pin those values, and `null` returns either to
@@ -135,6 +146,25 @@ the target it is presented to already does nothing; to another one, ends the fir
   outlive the presentations to it. One service serves every block, and every host, of a client. The answer
   `{}` comes once the service was reached and sent `hello`; `failed` when it cannot be reached.
 - `{"hwnd":N}` (Windows) and `{"socket":PATH}` (Linux) are reserved: answered `unsupported`.
+
+### The viewer (macOS)
+
+The host has no window. `WPEAgentView`, beside the host in the engine's directory, is a presentation client
+that gives presented blocks one each: a program a client starts, takes its service name from, and presents
+blocks to. It speaks one JSON object a line on its standard streams and exits when its input closes.
+
+- It writes `{"ready":{"mach":NAME}}` once its service is checked in: the `present` target is `{"mach":NAME}`.
+  One viewer serves the blocks of one host.
+- `{"show":{"block":N,"title":"…","scale":S}}` names a block's window before the block is presented: its title
+  and the block's `scale`, from which the window takes its size (one point per CSS pixel, smaller where the
+  screen is). The window opens with the block's first frame, in front but without taking the keyboard from the
+  app the user is in, and closes when the presentation ends. `show` for a shown block renames its window.
+- `{"hide":{"block":N}}` closes a block's window; the client also stops presenting the block.
+- `{"input":{"block":N,"events":[…]}}` is what the user did in a window, as steps of the `input` op in the
+  block's CSS pixels (`mouse`, `wheel`, `key`, and `text` for what a key press cannot say); the client sends
+  them on. The viewer never sets `focus`: a shown page stays focused like a hidden one.
+- `{"closed":{"block":N}}`: the user closed the window; the client stops presenting the block.
+  `{"ended":{"block":N}}`: the block's presentation ended (`bye`) and its window is gone.
 
 ### Pacing
 

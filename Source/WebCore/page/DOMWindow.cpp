@@ -953,7 +953,7 @@ ExceptionOr<String> DOMWindow::atob(const String& stringToEncode)
     return WindowOrWorkerGlobalScope::atob(stringToEncode);
 }
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
 ExceptionOr<PushManager&> DOMWindow::pushManager()
 {
     auto* localThis = dynamicDowncast<LocalDOMWindow>(*this);

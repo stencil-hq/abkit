@@ -100,6 +100,11 @@ struct FontMetadata {
     bool isSyntheticBold = false;
     bool isSyntheticOblique = false;
     FontMetricsOverrides metricsOverrides { };
+#if USE(SKIA)
+    // The text size the font's tracking table is read at when that is not the size of the font:
+    // with optical sizing off, a font is spaced as it is at its default optical size.
+    float trackingSize = { 0.0 };
+#endif
 
     friend bool operator==(const FontMetadata&, const FontMetadata&) = default;
 };
@@ -400,6 +405,14 @@ public:
     hb_font_t* hbFont() const;
     const Vector<hb_feature_t>& features() const LIFETIME_BOUND { return m_features; }
     static bool skiaTypefaceHasAnySupportedColorTable(const SkTypeface&);
+    // What is added to the advance of every glyph that has one, in pixels: the tracking the font
+    // asks for at the size of the text, and the widening that comes with synthetic bold.
+    float advanceAdjustment() const { return m_advanceAdjustment; }
+    void setTrackingSize(float);
+    float glyphAdvance(SkGlyphID) const;
+    // How far below the baseline the font's glyphs sit, in pixels.
+    float glyphBaselineShift() const { return m_glyphBaselineShift; }
+    bool hasWholePixelAdvances() const { return m_hasWholePixelAdvances; }
 #endif
 
 #if ENABLE(MATHML) && USE(HARFBUZZ)
@@ -464,6 +477,7 @@ private:
 
 #if USE(SKIA)
     void platformDataInit();
+    void updateSizeDependentState();
 #endif
 
 #if USE(FREETYPE) && USE(CAIRO)
@@ -482,6 +496,9 @@ private:
     SkFont m_font;
     RefPtr<SkiaHarfBuzzFont> m_hbFont;
     Vector<hb_feature_t> m_features;
+    float m_advanceAdjustment { 0 };
+    float m_glyphBaselineShift { 0 };
+    bool m_hasWholePixelAdvances { false };
 #endif
 
 #if USE(FREETYPE)

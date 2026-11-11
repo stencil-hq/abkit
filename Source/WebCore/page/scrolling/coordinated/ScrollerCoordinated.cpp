@@ -112,7 +112,14 @@ void ScrollerCoordinated::updateValues()
         state = m_state;
     }
 
+    // The bar is as thick as its layer, which is as thick as the theme laid the scrollbar out.
     int width = AdwaitaScrollbarPainter::scrollbarSize;
+    {
+        Locker layerLocker { hostLayer->lock() };
+        auto& layerSize = hostLayer->size();
+        if (int thickness = m_orientation == ScrollbarOrientation::Horizontal ? layerSize.height() : layerSize.width(); thickness > 0)
+            width = thickness;
+    }
     IntRect rect { 0, 0, width, int(values.visibleSize) };
 
     if (rect.isEmpty())

@@ -821,6 +821,7 @@ protected:
 
     String audioOutputDeviceId() const final { return m_audioOutputPersistentDeviceId; }
     String audioOutputDeviceIdOverride() const final { return m_audioOutputPersistentDeviceId; }
+    bool isAudioOutputEnabled() const final;
 
     bool mediaControlsDependOnPageScaleFactor() const { return m_mediaControlsDependOnPageScaleFactor; }
     void setMediaControlsDependOnPageScaleFactor(bool);

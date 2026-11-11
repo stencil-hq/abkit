@@ -24,6 +24,7 @@
 #if ENABLE(MEDIA_STREAM) && USE(GSTREAMER)
 #include "GStreamerCaptureDeviceManager.h"
 
+#include "GStreamerScreenDeviceDarwin.h"
 #include "GStreamerVideoCaptureSource.h"
 #include "PipeWireCaptureDevice.h"
 #include <wtf/UUID.h>
@@ -41,11 +42,15 @@ GStreamerDisplayCaptureDeviceManager& GStreamerDisplayCaptureDeviceManager::sing
 
 GStreamerDisplayCaptureDeviceManager::GStreamerDisplayCaptureDeviceManager() = default;
 
+#if OS(DARWIN)
+GStreamerDisplayCaptureDeviceManager::~GStreamerDisplayCaptureDeviceManager() = default;
+#else
 GStreamerDisplayCaptureDeviceManager::~GStreamerDisplayCaptureDeviceManager()
 {
     for (auto& sourceId : m_sessions.keys())
         stopSource(sourceId);
 }
+#endif
 
 void GStreamerDisplayCaptureDeviceManager::computeCaptureDevices(CompletionHandler<void()>&& callback)
 {
@@ -57,6 +62,18 @@ void GStreamerDisplayCaptureDeviceManager::computeCaptureDevices(CompletionHandl
     callback();
 }
 
+#if OS(DARWIN)
+CaptureSourceOrError GStreamerDisplayCaptureDeviceManager::createDisplayCaptureSource(const CaptureDevice& device, MediaDeviceHashSalts&& hashSalts, const MediaConstraints* constraints)
+{
+    GStreamerCaptureDevice screen { createScreenCaptureDevice(), device.persistentId(), device.type(), device.label(), device.groupId() };
+    return GStreamerVideoCaptureSource::create(WTF::move(screen), WTF::move(hashSalts), constraints);
+}
+
+void GStreamerDisplayCaptureDeviceManager::stopSource(const String&)
+{
+    // The capture ends with its pipeline; there is no session to close.
+}
+#else
 CaptureSourceOrError GStreamerDisplayCaptureDeviceManager::createDisplayCaptureSource(const CaptureDevice& device, MediaDeviceHashSalts&& hashSalts, const MediaConstraints* constraints)
 {
     const auto it = m_sessions.find(device.persistentId());
@@ -155,6 +172,7 @@ void GStreamerDisplayCaptureDeviceManager::stopSource(const String& persistentID
     auto session = m_sessions.take(persistentID);
     m_portal->closeSession(session->path);
 }
+#endif
 
 } // namespace WebCore
 

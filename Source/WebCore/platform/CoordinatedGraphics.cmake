@@ -30,6 +30,7 @@ list(APPEND WebCore_SOURCES
     platform/graphics/coordinated/CoordinatedTileBuffer.cpp
     platform/graphics/coordinated/CoordinatedTileManager.cpp
     platform/graphics/coordinated/GraphicsContextGLCoordinated.cpp
+    platform/graphics/coordinated/GraphicsContextGLCoordinatedANGLE.cpp
     platform/graphics/coordinated/GraphicsContextGLCoordinatedEpoxy.cpp
     platform/graphics/coordinated/GraphicsLayerAsyncContentsDisplayDelegateCoordinated.cpp
     platform/graphics/coordinated/GraphicsLayerContentsDisplayDelegateCoordinated.cpp

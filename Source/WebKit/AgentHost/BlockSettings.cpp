@@ -87,16 +87,15 @@ void Block::setAgent(const Json& operation, const Reply& reply)
 void Block::setAppearance(const Json& operation, const Reply& reply)
 {
     auto value = operation.get("value");
-    bool dark = false;
     if (value.isString() && value.toString() == "dark")
-        dark = true;
+        m_host.setDarkAppearance(true);
     else if (value.isString() && value.toString() == "light")
-        dark = false;
+        m_host.setDarkAppearance(false);
     else if (value && !value.isNull()) {
         reply->invalid("appearance: unknown value " + (value.isString() ? Json::quote(value.toString()) : value.serialize()) + " (dark, light, null)");
         return;
-    }
-    m_host.setDarkAppearance(dark);
+    } else
+        m_host.followSystemAppearance();
     // Answered once the page drew in its new colours.
     runPatiently("await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));", 500, [reply] {
         reply->ok();
@@ -344,6 +343,8 @@ static std::string allowRules(const std::vector<std::string>& hosts)
         rules.append(entry);
     };
     rule("^[^:]+://[^/]", "block");
+    // The PDF viewer's own resources use a scheme with no host an allowlist could name.
+    rule("^webkit-pdfjs-viewer://", "ignore-previous-rules");
     for (auto host : hosts) {
         for (auto& character : host)
             character = g_ascii_tolower(character);

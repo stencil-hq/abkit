@@ -207,7 +207,7 @@ void EventDispatcher::wheelEvent(PageIdentifier pageID, Ref<WebWheelEvent>&& whe
     internalWheelEvent(pageID, wheelEvent, rubberBandableEdges, WTF::move(completionHandler));
 }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 void EventDispatcher::gestureEvent(FrameIdentifier frameID, PageIdentifier pageID, Ref<WebGestureEvent>&& gestureEvent, CompletionHandler<void(std::optional<WebEventType>, bool, std::optional<RemoteUserInputEventData>)>&& completionHandler)
 {
     RunLoop::mainSingleton().dispatch([this, frameID, pageID, gestureEvent = WTF::move(gestureEvent), completionHandler = WTF::move(completionHandler)] mutable {
@@ -364,7 +364,7 @@ void EventDispatcher::dispatchWheelEvent(PageIdentifier pageID, const WebWheelEv
     completionHandler(handled);
 }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 void EventDispatcher::dispatchGestureEvent(FrameIdentifier frameID, PageIdentifier pageID, const WebGestureEvent& gestureEvent, CompletionHandler<void(std::optional<WebEventType>, bool, std::optional<RemoteUserInputEventData>)>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());

@@ -24,6 +24,7 @@
 #if USE(GSTREAMER)
 
 #include "ApplicationGLib.h"
+#include "BundledRuntime.h"
 #include "FloatSize.h"
 #include "GLVideoSinkGStreamer.h"
 #include "GStreamerAudioMixer.h"
@@ -90,7 +91,12 @@
 #include "WebKitThunderParser.h"
 #endif
 
+#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#include "WebKitClearKeyDecryptorGStreamer.h"
+#endif
+
 #if ENABLE(VIDEO)
+#include "CafDemuxGStreamer.h"
 #include "ImageDecoderGStreamer.h"
 #include "VideoEncoderPrivateGStreamer.h"
 #include "WebKitWebSourceGStreamer.h"
@@ -448,6 +454,11 @@ bool ensureGStreamerInitializedNonWebProcess()
     static std::once_flag onceFlag;
     static bool isGStreamerInitialized;
     std::call_once(onceFlag, [] {
+#if PLATFORM(WPE) && OS(DARWIN)
+        // A packaged engine keeps its plugins and their libraries beside the library.
+        useBundledRuntimePathsIfPresent();
+#endif
+
 #if OS(ANDROID)
         gst_registry_fork_set_enabled(FALSE);
 #endif
@@ -470,6 +481,11 @@ bool ensureGStreamerInitialized()
     static bool isGStreamerInitialized;
     std::call_once(onceFlag, [] {
         isGStreamerInitialized = false;
+
+#if PLATFORM(WPE) && OS(DARWIN)
+        // A packaged engine keeps its plugins and their libraries beside the library.
+        useBundledRuntimePathsIfPresent();
+#endif
 
 #if OS(ANDROID)
         gst_registry_fork_set_enabled(FALSE);
@@ -554,6 +570,12 @@ void registerWebKitGStreamerElements()
         }
 #endif
 
+#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+        // This is the port's only decryptor: nothing outside WebKit decrypts ClearKey here, so it is
+        // primary-ranked for playbin and parsebin to auto-plug.
+        gst_element_register(nullptr, "webkitclearkey", GST_RANK_PRIMARY, WEBKIT_TYPE_MEDIA_CK_DECRYPT);
+#endif
+
 #if ENABLE(MEDIA_STREAM)
         gst_element_register(nullptr, "mediastreamsrc", GST_RANK_PRIMARY, WEBKIT_TYPE_MEDIA_STREAM_SRC);
 #endif
@@ -573,6 +595,11 @@ void registerWebKitGStreamerElements()
 #if USE(GSTREAMER_GL)
         gst_element_register(0, "webkitglvideosink", GST_RANK_NONE, WEBKIT_TYPE_GL_VIDEO_SINK);
 #endif
+#if OS(DARWIN)
+        // A Mac plays CAF with AVFoundation; the GStreamer a page's media comes from has a
+        // typefinder for the container but no demuxer for it.
+        gst_element_register(0, "webkitcafdemux", GST_RANK_PRIMARY, WEBKIT_TYPE_CAF_DEMUX);
+#endif
 #endif
         // We don't want autoaudiosink to autoplug our sink.
         gst_element_register(0, "webkitaudiosink", GST_RANK_NONE, WEBKIT_TYPE_AUDIO_SINK);
@@ -580,10 +607,24 @@ void registerWebKitGStreamerElements()
         // Prevent decodebin2 from auto-plugging hlsdemux if it was disabled. UAs should be able
         // to fallback to MSE when this happens.
         auto hlsSupport = UTF8CStringView::unsafeFromUTF8(g_getenv("WEBKIT_GST_ENABLE_HLS_SUPPORT"));
+#if OS(DARWIN)
+        // The system's browser plays HLS itself, so pages made for it have no other way to play.
+        if (hlsSupport == "0"_s) {
+#else
         if (!hlsSupport || hlsSupport == "0"_s) {
+#endif
             if (GRefPtr factory = adoptGRef(gst_element_factory_find("hlsdemux")))
                 gst_plugin_feature_set_rank(GST_PLUGIN_FEATURE_CAST(factory.get()), GST_RANK_NONE);
         }
+
+#if OS(DARWIN)
+        // VideoToolbox has no MPEG-1/2 decoder that works outside AVFoundation's player, and when
+        // it fails to negotiate decodebin3 does not retry with the next decoder. The software
+        // decoder is therefore ordered above it for those caps only; H.264, HEVC and the rest keep
+        // VideoToolbox.
+        if (GRefPtr factory = adoptGRef(gst_element_factory_find("avdec_mpeg2video")))
+            gst_plugin_feature_set_rank(GST_PLUGIN_FEATURE_CAST(factory.get()), GST_RANK_PRIMARY + 2);
+#endif
 
         // Prevent decodebin2 from auto-plugging dashdemux if it was disabled. UAs should be able
         // to fallback to MSE when this happens.
@@ -1269,6 +1310,17 @@ GstElement* /* (transfer floating) */ createPlatformAudioSink(const String& role
             audioSink = createAutoAudioSink(role);
     }
 
+    return audioSink;
+}
+
+GstElement* /* (transfer floating) */ createDiscardingAudioSink()
+{
+    // fakeaudiosink has the volume and mute controls of a device sink, which playbin then uses.
+    if (auto* audioSink = gst_element_factory_make("fakeaudiosink", nullptr))
+        return audioSink;
+
+    auto* audioSink = makeGStreamerElement("fakesink"_s);
+    g_object_set(audioSink, "sync", TRUE, nullptr);
     return audioSink;
 }
 

@@ -18,6 +18,12 @@ set(WebGPU_PRIVATE_INCLUDE_DIRECTORIES
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+if (NOT WEBKIT_APPLE_FRAMEWORKS)
+    # Without a framework bundle to search, <WebGPU/...> resolves through the
+    # directory the headers are copied to.
+    list(APPEND WebGPU_PRIVATE_INCLUDE_DIRECTORIES "${WebGPU_PRIVATE_FRAMEWORK_HEADERS_DIR}")
+endif ()
+
 set(WebGPU_PRIVATE_DEFINITIONS
     WGPU_IMPLEMENTATION
     WGPU_SHARED_LIBRARY

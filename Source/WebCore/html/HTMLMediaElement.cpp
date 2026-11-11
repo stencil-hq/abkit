@@ -228,7 +228,7 @@
 #include "NotImplemented.h"
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 #include "VideoPresentationModel.h"
 #endif
 
@@ -10618,6 +10618,11 @@ void HTMLMediaElement::mediaStreamCaptureStarted()
 SecurityOriginData HTMLMediaElement::documentSecurityOrigin() const
 {
     return protect(document())->securityOrigin().data();
+}
+
+bool HTMLMediaElement::isAudioOutputEnabled() const
+{
+    return document().settings().audioOutputEnabled();
 }
 
 void HTMLMediaElement::setShowPosterFlag(bool flag)

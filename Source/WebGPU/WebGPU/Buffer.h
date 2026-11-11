@@ -201,7 +201,7 @@ private:
     uint64_t m_indexContentsGeneration { 0 }; // NOLINT
     uint32_t m_indexValueUpperBoundUint { 0 }; // NOLINT
     uint16_t m_indexValueUpperBoundUshort { 0 }; // NOLINT
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     bool m_mappedAtCreation { false };
 #endif
     HashMap<uint64_t, bool, DefaultHash<uint64_t>, WTF::UnsignedWithZeroKeyHashTraits<uint64_t>> m_didReadOOB;

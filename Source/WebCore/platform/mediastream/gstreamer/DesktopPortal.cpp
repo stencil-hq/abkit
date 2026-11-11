@@ -18,9 +18,10 @@
  */
 
 #include "config.h"
-#include "DesktopPortal.h"
 
-#if ENABLE(MEDIA_STREAM) && USE(GSTREAMER)
+// Darwin has no desktop portal: cameras come from the device monitor and the screen from AVFoundation.
+#if ENABLE(MEDIA_STREAM) && USE(GSTREAMER) && !OS(DARWIN)
+#include "DesktopPortal.h"
 
 #include "GRefPtrGStreamer.h"
 #include "GStreamerCommon.h"

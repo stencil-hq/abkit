@@ -3258,7 +3258,7 @@ CloseWatcherManager& LocalDOMWindow::closeWatcherManager()
     return *m_closeWatcherManager;
 }
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
 PushManager& LocalDOMWindow::pushManager()
 {
     if (!m_pushManager)
@@ -3266,6 +3266,7 @@ PushManager& LocalDOMWindow::pushManager()
     return *m_pushManager;
 }
 
+#if ENABLE(DECLARATIVE_WEB_PUSH)
 static URL toScope(LocalDOMWindow& window)
 {
     if (RefPtr frame = window.frame()) {
@@ -3332,6 +3333,30 @@ void LocalDOMWindow::getPushPermissionState(DOMPromiseDeferred<IDLEnumeration<Pu
     });
 }
 
-#endif // #if ENABLE(DECLARATIVE_WEB_PUSH)
+#elif ENABLE(WINDOW_PUSH_MANAGER)
+// No push service is part of this engine, so the window answers the calls instead of asking a
+// strategy for one: nothing can be subscribed, and there is no subscription to read back.
+void LocalDOMWindow::subscribeToPushService(const Vector<uint8_t>&, DOMPromiseDeferred<IDLInterface<PushSubscription>>&& promise)
+{
+    promise.reject(Exception { ExceptionCode::NotSupportedError, "This port has no push service"_s });
+}
+
+void LocalDOMWindow::unsubscribeFromPushService(std::optional<PushSubscriptionIdentifier>, DOMPromiseDeferred<IDLBoolean>&& promise)
+{
+    promise.reject(Exception { ExceptionCode::NotSupportedError, "This port has no push service"_s });
+}
+
+void LocalDOMWindow::getPushSubscription(DOMPromiseDeferred<IDLNullable<IDLInterface<PushSubscription>>>&& promise)
+{
+    promise.resolve(nullptr);
+}
+
+void LocalDOMWindow::getPushPermissionState(DOMPromiseDeferred<IDLEnumeration<PushPermissionState>>&& promise)
+{
+    promise.resolve(PushPermissionState::Denied);
+}
+#endif // ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
+
+#endif // #if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
 
 } // namespace WebCore

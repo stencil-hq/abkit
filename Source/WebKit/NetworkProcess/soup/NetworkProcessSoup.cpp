@@ -129,7 +129,7 @@ void NetworkProcess::userPreferredLanguagesChanged(const Vector<String>& languag
     auto acceptLanguages = buildAcceptLanguages(languages);
     SoupNetworkSession::setInitialAcceptLanguages(acceptLanguages);
     forEachNetworkSession([&acceptLanguages](const auto& session) {
-        static_cast<const NetworkSessionSoup&>(session).soupNetworkSession().setAcceptLanguages(acceptLanguages);
+        static_cast<const NetworkSessionSoup&>(session).setAcceptLanguages(acceptLanguages);
     });
 }
 

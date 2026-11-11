@@ -36,6 +36,12 @@ namespace WebCore {
 
 void FontCascade::drawGlyphs(GraphicsContext& graphicsContext, const FontBase& font, std::span<const GlyphBufferGlyph> glyphs, std::span<const GlyphBufferAdvance> advances, const FloatPoint& position, FontSmoothingMode smoothingMode)
 {
+#if PLATFORM(WPE) && OS(DARWIN)
+    // A canvas is rasterised by Core Text, as Safari's is; page text stays with Skia.
+    if (static_cast<GraphicsContextSkia*>(&graphicsContext)->drawGlyphsWithCoreText(font, glyphs, advances, position, smoothingMode))
+        return;
+#endif
+
     auto blob = font.buildTextBlob(glyphs, advances, smoothingMode);
     if (!blob)
         return;

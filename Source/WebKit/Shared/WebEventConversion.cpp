@@ -32,7 +32,7 @@
 #include "WebWheelEvent.h"
 #include <WebCore/PlatformMouseEvent.h>
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include "WebGestureEvent.h"
 #endif
 
@@ -554,7 +554,7 @@ WebCore::PlatformTouchEvent platform(const WebTouchEvent& webEvent)
 }
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 class WebKit2PlatformGestureEvent : public WebCore::PlatformGestureEvent {
 public:
     WebKit2PlatformGestureEvent(const WebGestureEvent& webEvent)

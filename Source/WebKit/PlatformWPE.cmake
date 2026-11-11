@@ -535,6 +535,16 @@ list(APPEND WebKit_MESSAGES_IN_FILES
     WebProcess/glib/SystemSettingsManager
 )
 
+if (ENABLE_WEB_AUTHN)
+    list(APPEND WebKit_MESSAGES_IN_FILES
+        UIProcess/WebAuthentication/WebAuthenticatorCoordinatorProxy
+    )
+    list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBKIT_DIR}/WebProcess/DigitalCredentials"
+        "${WEBKIT_DIR}/WebProcess/WebAuthentication"
+    )
+endif ()
+
 if (ENABLE_WPE_PLATFORM)
     list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
         "${WPEPlatform_DERIVED_SOURCES_DIR}"

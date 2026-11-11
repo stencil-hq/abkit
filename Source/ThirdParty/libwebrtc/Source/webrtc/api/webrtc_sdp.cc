@@ -1386,6 +1386,15 @@ void BuildRtpContentAttributes(const MediaContentDescription* media_desc,
     InitAttrLine(kAttributeRtcpXr, &os);
     os << kSdpDelimiterColon << kRtcpXrFormatRcvrRtt << "=all";
     AddLine(os.str(), message);
+#if defined(WEBRTC_WEBKIT_BUILD) && defined(__APPLE__)
+    // Safari's libwebrtc writes the older form of the same request as well,
+    // one line for every payload type, and servers see both from it.
+    for (const Codec& codec : media_desc->codecs()) {
+      WriteRtcpFbHeader(codec.id, &os);
+      os << " " << kRtcpFbParamRrtr;
+      AddLine(os.str(), message);
+    }
+#endif
   }
 
   if (media_desc->conference_mode()) {
@@ -2541,6 +2550,14 @@ bool ParseRtcpFbAttribute(absl::string_view line,
     param.append(iter->data(), iter->length());
   }
   const FeedbackParam feedback_param(id, param);
+
+#if defined(WEBRTC_WEBKIT_BUILD) && defined(__APPLE__)
+  // The older form of a=rtcp-xr:rcvr-rtt, written back with that attribute.
+  if (id == kRtcpFbParamRrtr) {
+    media_desc->set_receive_non_sender_rtt(true);
+    return true;
+  }
+#endif
 
   if (media_type == MediaType::AUDIO || media_type == MediaType::VIDEO) {
     UpdateCodec(media_desc, payload_type, feedback_param);

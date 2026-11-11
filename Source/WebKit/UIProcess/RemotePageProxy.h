@@ -169,7 +169,7 @@ private:
 #if ENABLE(FULLSCREEN_API)
     RefPtr<RemotePageFullscreenManagerProxy> m_fullscreenManager;
 #endif
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     RefPtr<RemotePageVideoPresentationManagerProxy> m_videoPresentationManager;
 #endif
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)

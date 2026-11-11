@@ -212,10 +212,10 @@ private:
     NSString* _Nullable m_lastErrorString { nil };
     uint64_t m_debugGroupStackSize { 0 };
     ThreadSafeWeakPtr<CommandBuffer> m_cachedCommandBuffer;
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     NSMutableSet<id<MTLTexture>> * _Nullable m_managedTextures { nil };
     NSMutableSet<id<MTLBuffer>> * _Nullable m_managedBuffers { nil };
-#endif // CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#endif // CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
 private:
     NSMutableSet<id<MTLIndirectCommandBuffer>> * _Nullable m_retainedICBs { nil };
     NSMutableSet<id<MTLTexture>> * _Nullable m_retainedTextures { nil };

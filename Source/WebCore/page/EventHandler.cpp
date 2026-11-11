@@ -177,7 +177,7 @@
 #include "PlatformTouchEvent.h"
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include "PlatformGestureEventMac.h"
 #endif
 

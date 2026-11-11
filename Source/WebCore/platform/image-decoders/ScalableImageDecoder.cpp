@@ -41,6 +41,9 @@
 #if USE(JPEGXL)
 #include "JPEGXLImageDecoder.h"
 #endif
+#if USE(SKIA) && OS(DARWIN)
+#include "HEICImageDecoder.h"
+#endif
 
 #if USE(CG)
 #include "ImageDecoderCG.h"
@@ -96,6 +99,39 @@ static bool matchesCURSignature(std::span<const uint8_t> contents)
 static bool matchesWebPSignature(std::span<const uint8_t> contents)
 {
     return spanHasPrefix(contents, "RIFF"_span) && spanHasPrefix(contents.subspan(8), "WEBPVP"_span);
+}
+#endif
+
+#if USE(SKIA) && OS(DARWIN)
+// The brands of HEVC-coded pictures in the file type box of an ISO base media file.
+static bool hasHEICBrand(std::span<const uint8_t> brand)
+{
+    return spanHasPrefix(brand, "heic"_span) || spanHasPrefix(brand, "heix"_span) || spanHasPrefix(brand, "heim"_span) || spanHasPrefix(brand, "heis"_span)
+        || spanHasPrefix(brand, "hevc"_span) || spanHasPrefix(brand, "hevx"_span) || spanHasPrefix(brand, "hevm"_span) || spanHasPrefix(brand, "hevs"_span);
+}
+
+static bool matchesHEICSignature(std::span<const uint8_t> contents, FragmentedSharedBuffer& data)
+{
+    if (!spanHasPrefix(contents.subspan(4), "ftyp"_span))
+        return false;
+    auto majorBrand = contents.subspan(8);
+    if (hasHEICBrand(majorBrand))
+        return true;
+
+    // A file of the generic image brands is HEIC when an HEVC brand is among its compatible ones,
+    // which follow the major brand and its version in the box.
+    if (!spanHasPrefix(majorBrand, "mif1"_span) && !spanHasPrefix(majorBrand, "msf1"_span))
+        return false;
+    std::array<uint8_t, 64> storage;
+    auto box = std::span { storage }.first(std::min(storage.size(), data.size()));
+    data.copyTo(box);
+    size_t boxSize = (static_cast<size_t>(box[0]) << 24) | (static_cast<size_t>(box[1]) << 16) | (static_cast<size_t>(box[2]) << 8) | box[3];
+    box = box.first(std::min(box.size(), boxSize));
+    for (size_t offset = 16; offset + 4 <= box.size(); offset += 4) {
+        if (hasHEICBrand(box.subspan(offset)))
+            return true;
+    }
+    return false;
 }
 #endif
 
@@ -159,6 +195,12 @@ RefPtr<ScalableImageDecoder> ScalableImageDecoder::create(FragmentedSharedBuffer
 
     if (matchesWebPSignature(contentsSpan))
         return WEBPImageDecoder::create(alphaOption, gammaAndColorProfileOption);
+#endif
+
+#if USE(SKIA) && OS(DARWIN)
+    // Before AVIF, whose signature here is the file type box of any brand.
+    if (matchesHEICSignature(contentsSpan, data))
+        return HEICImageDecoder::create(alphaOption, gammaAndColorProfileOption);
 #endif
 
 #if USE(AVIF)

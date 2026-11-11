@@ -37,7 +37,7 @@
 #include <WebCore/PlatformTouchPoint.h>
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include <WebKitAdditions/PlatformGestureEventMac.h>
 #endif
 
@@ -55,7 +55,7 @@ class WebTouchEvent;
 class WebTouchPoint;
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 class WebGestureEvent;
 #endif
 
@@ -70,7 +70,7 @@ WebCore::PlatformTouchPoint platform(const WebTouchPoint&);
 #endif
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 WebCore::PlatformGestureEvent platform(const WebGestureEvent&);
 #endif
 

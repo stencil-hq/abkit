@@ -175,7 +175,8 @@ protected:
     };
     void scheduleFailure(FailureType);
 
-    void restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest&);
+    // Returns whether it set the request's referrer.
+    bool restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest&);
     void setBytesTransferredOverNetwork(size_t bytes) { m_bytesTransferredOverNetwork = bytes; }
 
     const WeakPtr<NetworkSession> m_session;

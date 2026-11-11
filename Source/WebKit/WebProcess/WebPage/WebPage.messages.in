@@ -736,7 +736,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     SetShouldDispatchFakeMouseMoveEvents(bool shouldDispatchFakeMouseMoveEvents)
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     PlaybackTargetSelected(WebCore::PlaybackTargetClientContextIdentifier contextId, WebKit::MediaPlaybackTargetContextSerialized target)
     PlaybackTargetAvailabilityDidChange(WebCore::PlaybackTargetClientContextIdentifier contextId, bool available)
     [DeferSendingIfSuspendedWithCoalescingKeys=(contextId)] SetShouldPlayToPlaybackTarget(WebCore::PlaybackTargetClientContextIdentifier contextId, bool shouldPlay)
@@ -1011,7 +1011,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     FrameNameWasChangedInAnotherProcess(WebCore::FrameIdentifier frameID, String frameName)
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     StartPlayingPredominantVideo() -> (bool success)
 #endif
 

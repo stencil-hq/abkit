@@ -95,6 +95,17 @@ public:
     int sliderTickOffsetFromTrackCenter() const final;
     void adjustListButtonStyle(Style::ComputedStyle&, const Element*) const final;
 
+#if OS(MACOS)
+    // The measures of a Mac's controls, which pages find in computed styles and in the sizes of boxes.
+    int baselinePosition(const RenderBox&) const final;
+    ScrollbarWidth scrollbarWidthStyleForPart(StyleAppearance) final { return ScrollbarWidth::Thin; }
+    void adjustButtonStyle(Style::ComputedStyle&, const Element*) const final;
+    void adjustTextControlInnerPlaceholderStyle(Style::ComputedStyle&, const Style::ComputedStyle&, const Element*) const final;
+    void adjustTextControlInnerTextStyle(Style::ComputedStyle&, const Style::ComputedStyle&, const Element*) const final;
+    float adjustedMaximumLogicalWidthForControl(const Style::ComputedStyle&, const Element&, float) const final;
+    int minimumMenuListSize(const Style::ComputedStyle&) const final;
+#endif
+
     Style::PreferredSizePair controlSize(StyleAppearance, const FontCascade&, const Style::PreferredSizePair&, float) const final;
     Style::MinimumSizePair minimumControlSize(StyleAppearance, const FontCascade&, const Style::MinimumSizePair&, float zoomFactor) const final;
     Style::LineWidthBox controlBorder(StyleAppearance, const FontCascade&, const Style::LineWidthBox&, float, const Element*) const final;

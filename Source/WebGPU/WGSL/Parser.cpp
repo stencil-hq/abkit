@@ -454,6 +454,14 @@ Result<void> Parser<Lexer>::parseRequireDirective()
     do {
         CONSUME_TYPE_NAMED(identifier, Identifier);
         auto* languageFeature = parseLanguageFeature(identifier.ident);
+#if PLATFORM(WPE) && OS(DARWIN)
+        // The system's WebKit, which the port presents itself as there, has no subgroups: these
+        // names are unknown to it, and this is its message.
+        if (languageFeature && (*languageFeature == LanguageFeature::SubgroupId || *languageFeature == LanguageFeature::SubgroupUniformity))
+            languageFeature = nullptr;
+        if (!languageFeature)
+            FAIL("Expected 'clip_distances', 'readonly_and_readwrite_storage_textures', 'packed_4x8_integer_dot_product', 'unrestricted_pointer_parameters', 'texture_formats_tier1', or 'pointer_composite_access'"_s);
+#endif
         if (!languageFeature)
             FAIL("Expected 'clip_distances', 'readonly_and_readwrite_storage_textures', 'packed_4x8_integer_dot_product', 'unrestricted_pointer_parameters', 'texture_formats_tier1', 'subgroup_id', 'subgroup_uniformity', or 'pointer_composite_access'"_s);
         m_shaderModule.requiredFeatures().add(*languageFeature);

@@ -123,7 +123,7 @@ CommandEncoder::CommandEncoder(id<MTLCommandBuffer> commandBuffer, Device& devic
     , m_device(device)
     , m_uniqueId(uniqueId)
 {
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     m_managedTextures = [NSMutableSet set];
     m_managedBuffers = [NSMutableSet set];
 #endif
@@ -1654,7 +1654,7 @@ void CommandEncoder::addBuffer(id<MTLBuffer> buffer)
     if (!buffer)
         return;
 
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (buffer.storageMode == MTLStorageModeManaged)
         [m_managedBuffers addObject:buffer];
@@ -1668,7 +1668,7 @@ void CommandEncoder::addTexture(id<MTLTexture> texture)
     if (!texture)
         return;
 
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (texture.storageMode == MTLStorageModeManaged)
         [m_managedTextures addObject:texture];
@@ -2319,7 +2319,7 @@ RefPtr<WebGPU::CommandBuffer> CommandEncoder::finish(const WebGPU::CommandBuffer
     for (auto& priorCommandBuffer : m_priorCommandBuffers)
         [priorCommandBuffer.get() setLabel:commandBuffer.label];
 
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (m_managedBuffers.count || m_managedTextures.count) {
         id<MTLBlitCommandEncoder> blitCommandEncoder = [commandBuffer blitCommandEncoder];

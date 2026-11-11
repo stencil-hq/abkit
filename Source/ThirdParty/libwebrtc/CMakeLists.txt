@@ -3987,25 +3987,45 @@ if (APPLE)
 
     file(READ ${_libwebrtc_exp_base} _libwebrtc_exp_contents)
     file(READ ${_libwebrtc_exp_config} _libwebrtc_exp_config_contents)
+    if (NOT ENABLE_AV1)
+        # The libaom encoder is compiled only with AV1, and ld fails on an
+        # exported name nothing defines.
+        string(REPLACE "__ZN6webrtc22CreateLibaomAv1EncoderERKNS_11EnvironmentENS_24LibaomAv1EncoderSettingsE\n" "" _libwebrtc_exp_contents "${_libwebrtc_exp_contents}")
+    endif ()
+    if (NOT WEBKIT_PORT_IS_COCOA)
+        set(_libwebrtc_exp_port "${CMAKE_CURRENT_SOURCE_DIR}/Configurations/libwebrtc.glib.exp")
+        file(READ ${_libwebrtc_exp_port} _libwebrtc_exp_port_contents)
+        string(APPEND _libwebrtc_exp_config_contents "${_libwebrtc_exp_port_contents}")
+    endif ()
     file(CONFIGURE OUTPUT ${_libwebrtc_exp}
         CONTENT "${_libwebrtc_exp_contents}${_libwebrtc_exp_config_contents}"
         @ONLY)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        ${_libwebrtc_exp_base} ${_libwebrtc_exp_config})
+        ${_libwebrtc_exp_base} ${_libwebrtc_exp_config} ${_libwebrtc_exp_port})
 
     target_sources(webrtc PRIVATE $<TARGET_OBJECTS:webrtc_objc_categories>)
 
     target_link_options(webrtc PRIVATE
         "LINKER:-exported_symbols_list,${_libwebrtc_exp}")
 
-    # FIXME: Only correct for iOS-family platforms. On macOS the Xcode build
-    # resolves NORMAL_UMBRELLA_FRAMEWORKS_DIR to
-    # /System/Library/Frameworks/WebKit.framework/Versions/A/Frameworks.
-    set_target_properties(webrtc PROPERTIES
-        MACOSX_RPATH OFF
-        BUILD_WITH_INSTALL_NAME_DIR ON
-        INSTALL_NAME_DIR "/System/Library/PrivateFrameworks/WebCore.framework/${WEBKIT_FRAMEWORK_VERSION_PATH}Frameworks"
-    )
+    if (WEBKIT_PORT_IS_COCOA)
+        # FIXME: Only correct for iOS-family platforms. On macOS the Xcode build
+        # resolves NORMAL_UMBRELLA_FRAMEWORKS_DIR to
+        # /System/Library/Frameworks/WebKit.framework/Versions/A/Frameworks.
+        set_target_properties(webrtc PROPERTIES
+            MACOSX_RPATH OFF
+            BUILD_WITH_INSTALL_NAME_DIR ON
+            INSTALL_NAME_DIR "/System/Library/PrivateFrameworks/WebCore.framework/${WEBKIT_FRAMEWORK_VERSION_PATH}Frameworks"
+        )
+    else ()
+        # The other ports ship the library beside the one that links it. The
+        # system's path would load the system's libwebrtc, a different ABI.
+        set_target_properties(webrtc PROPERTIES
+            MACOSX_RPATH OFF
+            BUILD_WITH_INSTALL_NAME_DIR ON
+            INSTALL_NAME_DIR "@loader_path"
+        )
+    endif ()
     set_property(TARGET webrtc APPEND PROPERTY LINK_DEPENDS ${_libwebrtc_exp})
 
     _WEBKIT_ADD_CODE_SIGN(webrtc)

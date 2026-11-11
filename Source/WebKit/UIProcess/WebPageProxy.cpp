@@ -105,7 +105,9 @@
 #include "MediaPlaybackState.h"
 #include "MessageSenderInlines.h"
 #include "ModelProcessProxy.h"
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include "NativeWebGestureEvent.h"
+#endif
 #include "NativeWebKeyboardEvent.h"
 #include "NativeWebMouseEvent.h"
 #include "NativeWebWheelEvent.h"
@@ -416,7 +418,7 @@
 #include <WebCore/SelectionData.h>
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
 #include "MediaPlaybackTargetContextSerialized.h"
 #include <WebCore/WebMediaSessionManager.h>
 #endif
@@ -1878,7 +1880,7 @@ void WebPageProxy::didAttachToRunningProcess()
     if (RefPtr pageClient = this->pageClient())
         m_fullScreenManager = WebFullScreenManagerProxy::create(*this, protect(pageClient->fullScreenManagerProxyClient()).get());
 #endif
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     ASSERT(!m_playbackSessionManager);
     m_playbackSessionManager = PlaybackSessionManagerProxy::create(*this);
     ASSERT(!m_videoPresentationManager);
@@ -3963,7 +3965,7 @@ void WebPageProxy::activityStateDidChange(OptionSet<ActivityState> mayHaveChange
 void WebPageProxy::viewDidLeaveWindow()
 {
     closeOverlayedViews();
-#if ENABLE(VIDEO_PRESENTATION_MODE) && !PLATFORM(APPLETV)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && !PLATFORM(APPLETV) && PLATFORM(COCOA)
     // When leaving the current page, close the video fullscreen.
     // FIXME: On tvOS, modally presenting the AVPlayerViewController when entering fullscreen causes
     // the web view to become invisible, resulting in us exiting fullscreen as soon as we entered it.
@@ -5215,7 +5217,7 @@ void WebPageProxy::processNextQueuedMouseEvent()
     internals().coalescedMouseEvents.clear();
 }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 void WebPageProxy::processNextQueuedGestureEvent()
 {
     if (!hasRunningProcess())
@@ -5813,7 +5815,7 @@ TrackingType WebPageProxy::touchEventTrackingType(const WebTouchEvent& touchStar
 
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 void WebPageProxy::sendGestureEvent(FrameIdentifier frameID, Ref<NativeWebGestureEvent>&& event)
 {
     sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::EventDispatcher::GestureEvent(frameID, webPageIDInProcess(processContainingFrame(frameID)), WTF::move(event)), [protectedThis = Ref { *this }](IPC::Connection* connection, std::optional<WebEventType>&& eventType, bool handled, std::optional<WebCore::RemoteUserInputEventData>&& remoteUserInputEventData) {
@@ -13023,7 +13025,7 @@ void WebPageProxy::exitFullscreenImmediately()
         manager->close();
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (RefPtr manager = videoPresentationManager())
         manager->requestHideAndExitFullscreen();
 #endif
@@ -13034,7 +13036,7 @@ void WebPageProxy::fullscreenMayReturnToInline()
     m_uiClient->fullscreenMayReturnToInline(this);
 }
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 bool WebPageProxy::canEnterFullscreen()
 {
@@ -14502,7 +14504,7 @@ void WebPageProxy::setFullScreenClientForTesting(std::unique_ptr<WebFullScreenMa
 }
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 VideoPresentationManagerProxy* WebPageProxy::videoPresentationManager()
 {
@@ -15683,7 +15685,7 @@ void WebPageProxy::remoteFrameMouseEventTimedOut()
     mouseEventHandlingCompleted(false, std::nullopt);
 }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 void WebPageProxy::gestureEventHandlingCompleted(std::optional<WebEventType> eventType, bool handled, std::optional<RemoteUserInputEventData> remoteUserInputEventData)
 {
     if (remoteUserInputEventData) {
@@ -16266,7 +16268,7 @@ void WebPageProxy::resetState(ResetStateReason resetStateReason)
     internals().resolvedFixedContainerEdges = { };
     internals().fixedContainerEdgeSamplingFrames.clear();
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (RefPtr playbackSessionManager = std::exchange(m_playbackSessionManager, nullptr))
         playbackSessionManager->invalidate();
 
@@ -16287,7 +16289,7 @@ void WebPageProxy::resetState(ResetStateReason resetStateReason)
 
     internals().allowsLayoutViewportHeightExpansion = true;
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     if (RefPtr pageClient = this->pageClient())
         protect(pageClient->mediaSessionManager())->removeAllPlaybackTargetPickerClients(internals());
 #endif
@@ -16444,7 +16446,7 @@ void WebPageProxy::resetStateAfterProcessExited(ProcessTerminationReason termina
 
     m_pendingLearnOrIgnoreWordMessageCount = 0;
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     internals().droppedGestureEventCount = 0;
     internals().gestureEventQueue.clear();
 #endif
@@ -16473,7 +16475,7 @@ void WebPageProxy::resetStateAfterProcessExited(ProcessTerminationReason termina
         protectedPageLoadState->reset(transaction);
     }
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     internals().currentFullscreenVideoSessionIdentifier = std::nullopt;
 #endif
 
@@ -19367,7 +19369,7 @@ void WebPageProxy::videosInElementFullscreenChanged()
 
 bool WebPageProxy::hasActiveVideoForControlsManager() const
 {
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     RefPtr playbackSessionManager = m_playbackSessionManager;
     return playbackSessionManager && playbackSessionManager->controlsManagerInterface();
 #else
@@ -19377,7 +19379,7 @@ bool WebPageProxy::hasActiveVideoForControlsManager() const
 
 void WebPageProxy::requestControlledElementID() const
 {
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     if (RefPtr playbackSessionManager = m_playbackSessionManager)
         playbackSessionManager->requestControlledElementID();
 #endif
@@ -19393,7 +19395,7 @@ void WebPageProxy::handleControlledElementIDResponse(const String& identifier) c
 
 bool WebPageProxy::isPlayingVideoInPictureInPicture() const
 {
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     RefPtr videoPresentationManager = m_videoPresentationManager;
     return videoPresentationManager && videoPresentationManager->isPlayingVideoInPictureInPicture();
 #else
@@ -19549,7 +19551,7 @@ void WebPageProxy::performSwitchHapticFeedback()
         pageClient->performSwitchHapticFeedback();
 }
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
 
 void WebPageProxy::addPlaybackTargetPickerClient(PlaybackTargetClientContextIdentifier contextId)
 {

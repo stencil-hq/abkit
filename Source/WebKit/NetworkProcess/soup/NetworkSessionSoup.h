@@ -28,7 +28,9 @@
 #include "NetworkSession.h"
 #include "SoupCookiePersistentStorageType.h"
 #include "WebPageProxyIdentifier.h"
+#include <wtf/Function.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/text/CString.h>
 
 typedef struct _SoupSession SoupSession;
 
@@ -40,6 +42,7 @@ struct SoupNetworkProxySettings;
 
 namespace WebKit {
 
+class DataTaskLoad;
 class NetworkSocketChannel;
 class WebSocketTask;
 struct NetworkSessionCreationParameters;
@@ -57,8 +60,14 @@ public:
 
     WebCore::SoupNetworkSession& soupNetworkSession() const { return *m_networkSession; }
     SoupSession* soupSession() const;
+    // The soup session a request with the given stored-credentials policy is sent on. On Darwin a
+    // request that does not use stored credentials goes on a separate session, so that it can never
+    // share a connection with one that does, as CFNetwork does on the Cocoa ports.
+    SoupSession* soupSessionForStoredCredentialsPolicy(WebCore::StoredCredentialsPolicy) const;
+    WebCore::SoupNetworkSession& soupNetworkSessionForStoredCredentialsPolicy(WebCore::StoredCredentialsPolicy) const;
 
     void setCookiePersistentStorage(const String& storagePath, SoupCookiePersistentStorageType);
+    void setAcceptLanguages(const UTF8CString&) const;
 
     void setPersistentCredentialStorageEnabled(bool enabled) { m_persistentCredentialStorageEnabled = enabled; }
     bool persistentCredentialStorageEnabled() const { return m_persistentCredentialStorageEnabled; }
@@ -70,9 +79,18 @@ public:
 private:
     RefPtr<WebSocketTask> createWebSocketTask(WebPageProxyIdentifier, std::optional<WebCore::FrameIdentifier>, std::optional<WebCore::PageIdentifier>, NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol, const WebCore::ClientOrigin&, bool, bool, OptionSet<WebCore::AdvancedPrivacyProtections>, WebCore::StoredCredentialsPolicy, WebCore::IsInitiatedByWorker) final;
     void clearCredentials(WallTime) final;
+    void dataTaskWithRequest(WebPageProxyIdentifier, WebCore::ResourceRequest&&, const std::optional<WebCore::SecurityOriginData>& topOrigin, CompletionHandler<void(DataTaskIdentifier)>&&) final;
+    void cancelDataTask(DataTaskIdentifier) final;
+
+    void forEachSoupNetworkSession(NOESCAPE const Function<void(WebCore::SoupNetworkSession&)>&) const;
 
     const std::unique_ptr<WebCore::SoupNetworkSession> m_networkSession;
+#if OS(DARWIN)
+    // Sessions that do not carry cookies or credentials and pool their own connections.
+    const std::unique_ptr<WebCore::SoupNetworkSession> m_networkSessionWithoutCredentials;
+#endif
     bool m_persistentCredentialStorageEnabled { true };
+    HashMap<DataTaskIdentifier, Ref<DataTaskLoad>> m_dataTaskLoads;
 };
 
 } // namespace WebKit

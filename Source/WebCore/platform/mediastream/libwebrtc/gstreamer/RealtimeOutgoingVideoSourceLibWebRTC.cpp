@@ -97,13 +97,26 @@ void RealtimeOutgoingVideoSourceLibWebRTC::videoFrameAvailable(VideoFrame& video
     GRefPtr writableSample = adoptGRef(gst_sample_make_writable(sample.leakRef()));
     gst_sample_set_segment(writableSample.get(), nullptr);
     GST_TRACE("Sending video frame with caps %" GST_PTR_FORMAT, gst_sample_get_caps(writableSample.get()));
+#if OS(DARWIN)
+    // libwebrtc's VideoToolbox encoders take every native buffer for one of their own.
+    auto buffer = GStreamerVideoFrameLibWebRTC::create(WTF::move(writableSample))->ToI420();
+    if (!buffer)
+        return;
+    sendFrame(WTF::move(buffer), colorSpace);
+#else
     sendFrame(GStreamerVideoFrameLibWebRTC::create(WTF::move(writableSample)), colorSpace);
+#endif
 }
 
 webrtc::scoped_refptr<webrtc::VideoFrameBuffer> RealtimeOutgoingVideoSourceLibWebRTC::createBlackFrame(size_t width, size_t height)
 {
     GST_TRACE("Creating black video frame");
 
+#if OS(DARWIN)
+    auto frame = webrtc::I420Buffer::Create(width, height);
+    webrtc::I420Buffer::SetBlack(frame.get());
+    return frame;
+#else
     GstVideoInfo info;
     gst_video_info_set_format(&info, GST_VIDEO_FORMAT_RGB, width, height);
 
@@ -116,6 +129,7 @@ webrtc::scoped_refptr<webrtc::VideoFrameBuffer> RealtimeOutgoingVideoSourceLibWe
     }
 
     return GStreamerVideoFrameLibWebRTC::create(gst_sample_new(buffer.get(), caps.get(), nullptr, nullptr));
+#endif
 }
 
 #undef GST_CAT_DEFAULT

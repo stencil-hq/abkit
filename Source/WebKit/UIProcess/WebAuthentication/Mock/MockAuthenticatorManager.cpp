@@ -70,6 +70,7 @@ void MockAuthenticatorManager::respondReceivedInternal(Respond&& respond, bool s
 
 void MockAuthenticatorManager::filterTransports(TransportSet& transports) const
 {
+#if PLATFORM(COCOA)
     if (!m_testConfiguration.nfc)
         transports.remove(WebCore::AuthenticatorTransport::Nfc);
     if (!m_testConfiguration.local)
@@ -77,6 +78,10 @@ void MockAuthenticatorManager::filterTransports(TransportSet& transports) const
     if (!m_testConfiguration.ccid)
         transports.remove(WebCore::AuthenticatorTransport::SmartCard);
     transports.remove(WebCore::AuthenticatorTransport::Ble);
+#else
+    // The mock services stand in for the Cocoa transport services and exist only where those do.
+    transports.clear();
+#endif
 }
 
 void MockAuthenticatorManager::validateHidExpectedCommands()

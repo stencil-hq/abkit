@@ -68,7 +68,7 @@
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
 #include <wtf/MachSendRight.h>
 #include <wtf/RetainPtr.h>
 
@@ -869,13 +869,13 @@ struct InstanceDescriptor {
     // Runs a work item on the thread that the instance calls back on. Empty: the work items wait
     // for processEvents().
     Function<void(Function<void()>&&)> scheduleWork;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     // The task that owns the resources the instance allocates.
     std::optional<MachSendRight> webProcessResourceOwner;
 #endif
 };
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
 // A canvas surface, backed by the render buffers of a compositor.
 struct PresentationContextDescriptor {
     // Called once, with the functions that the compositor calls back: one with the IOSurfaces of the
@@ -933,7 +933,7 @@ struct ImageCopyTextureTagged {
     bool premultipliedAlpha { false };
 };
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
 // https://gpuweb.github.io/gpuweb/#dictdef-gpuexternaltexturedescriptor, with the pixel buffer of the
 // video source.
 struct ExternalTextureDescriptor {
@@ -1438,7 +1438,7 @@ public:
     virtual RefPtr<Buffer> createBuffer(const BufferDescriptor&) = 0;
     virtual RefPtr<Texture> createTexture(const TextureDescriptor&) = 0;
     virtual RefPtr<Sampler> createSampler(const SamplerDescriptor&) = 0;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     virtual RefPtr<ExternalTexture> importExternalTexture(const ExternalTextureDescriptor&) = 0;
 #endif
     virtual RefPtr<BindGroupLayout> createBindGroupLayout(const BindGroupLayoutDescriptor&) = 0;
@@ -1481,7 +1481,7 @@ public:
 
     virtual void destroy() = 0;
     virtual void undestroy() = 0;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     // Makes the external texture show the frame in the pixel buffer.
     virtual void updateExternalTexture(CVPixelBufferRef) = 0;
 #endif
@@ -1498,7 +1498,7 @@ public:
 
     // Completes with nullptr when no adapter is available.
     virtual void requestAdapter(const RequestAdapterOptions&, CompletionHandler<void(RefPtr<Adapter>&&)>&&) = 0;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     virtual RefPtr<PresentationContext> createPresentationContext(const PresentationContextDescriptor&) = 0;
 #endif
     virtual void setLabel(String&&) = 0;
@@ -1531,7 +1531,7 @@ public:
     virtual Seconds lastFrameGPUCost() const = 0;
     // The time the last present waited for an in-flight frame to finish.
     virtual Seconds lastFramePresentStall() const = 0;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     // The contents of a render buffer. isIOSurfaceSupportedFormat is false when its format cannot be
     // read back that way.
     virtual RetainPtr<CGImageRef> getTextureAsNativeImage(uint32_t bufferIndex, bool& isIOSurfaceSupportedFormat) = 0;
@@ -1569,7 +1569,7 @@ public:
     // onSubmittedWorkDone().
     virtual void writeBuffer(Buffer&, uint64_t bufferOffset, std::span<const uint8_t> data) = 0;
     virtual void writeTexture(const TexelCopyTextureInfo& destination, std::span<const uint8_t> data, const TexelCopyBufferLayout&, const Extent3D& writeSize) = 0;
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     virtual void copyExternalImageToTexture(const ImageCopyExternalImage& source, const ImageCopyTextureTagged& destination, const Extent3D& copySize) = 0;
 #endif
     virtual void setLabel(String&&) = 0;
@@ -1729,7 +1729,7 @@ class XRProjectionLayer : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr
 public:
     virtual ~XRProjectionLayer() = default;
 
-#if PLATFORM(COCOA)
+#if HAVE(WEBGPU_IMPLEMENTATION)
     // Starts a frame in the buffers of the compositor. The rasterization rate map is flattened into
     // the size of the screen and its samples.
     virtual void startFrame(size_t frameIndex, MachSendRight&& colorBuffer, MachSendRight&& depthBuffer, MachSendRight&& completionSyncEvent, size_t reusableTextureIndex, unsigned screenWidth, unsigned screenHeight, Vector<float>&& horizontalSamplesLeft, Vector<float>&& horizontalSamplesRight, Vector<float>&& verticalSamples) = 0;

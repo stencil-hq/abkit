@@ -285,7 +285,7 @@ public:
 
 #if ENABLE(IOS_GESTURE_EVENTS)
     bool dispatchGestureEvent(const PlatformTouchEvent&, const AtomString&, const EventTargetSet&, float, float);
-#elif ENABLE(MAC_GESTURE_EVENTS)
+#elif ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     bool dispatchGestureEvent(const PlatformGestureEvent&, const AtomString&, const EventTargetSet&, float, float);
     WEBCORE_EXPORT HandleUserInputEventResult handleGestureEvent(const PlatformGestureEvent&);
     WEBCORE_EXPORT void didEndMagnificationGesture();
@@ -798,7 +798,7 @@ private:
     bool m_shouldOnlyFireDragOverEvent { false };
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     bool m_hasActiveGesture { false };
 #endif
 

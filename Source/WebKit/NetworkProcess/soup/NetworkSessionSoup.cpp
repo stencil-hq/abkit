@@ -26,6 +26,7 @@
 #include "config.h"
 #include "NetworkSessionSoup.h"
 
+#include "DataTaskLoad.h"
 #include "NetworkProcess.h"
 #include "NetworkSessionCreationParameters.h"
 #include "NetworkStorageSession.h"
@@ -45,6 +46,12 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(NetworkSessionSoup);
 NetworkSessionSoup::NetworkSessionSoup(NetworkProcess& networkProcess, const NetworkSessionCreationParameters& parameters)
     : NetworkSession(networkProcess, parameters)
     , m_networkSession(makeUnique<SoupNetworkSession>(m_sessionID))
+#if OS(DARWIN)
+    // CFNetwork never reuses a connection between a request that uses stored credentials and one
+    // that does not, so a second session, configured exactly like the first, handles the requests
+    // that carry no cookies and no credentials.
+    , m_networkSessionWithoutCredentials(makeUnique<SoupNetworkSession>(m_sessionID))
+#endif
     , m_persistentCredentialStorageEnabled(parameters.persistentCredentialStorageEnabled)
 {
     CheckedPtr storageSession = networkStorageSession();
@@ -57,20 +64,79 @@ NetworkSessionSoup::NetworkSessionSoup(NetworkProcess& networkProcess, const Net
     if (parameters.proxySettings.mode != SoupNetworkProxySettings::Mode::Default)
         setProxySettings(parameters.proxySettings);
 
+    // Only the session that uses credentials gets the cookie jar.
     if (!parameters.cookiePersistentStoragePath.isEmpty())
         setCookiePersistentStorage(parameters.cookiePersistentStoragePath, parameters.cookiePersistentStorageType);
     else
         m_networkSession->setCookieJar(storageSession->cookieStorage());
 
     if (!parameters.hstsStorageDirectory.isEmpty())
-        m_networkSession->setHSTSPersistentStorage(parameters.hstsStorageDirectory);
+        forEachSoupNetworkSession([&](auto& session) { session.setHSTSPersistentStorage(parameters.hstsStorageDirectory); });
 }
 
-NetworkSessionSoup::~NetworkSessionSoup() = default;
+NetworkSessionSoup::~NetworkSessionSoup()
+{
+    for (auto& load : std::exchange(m_dataTaskLoads, { }).values())
+        load->cancel();
+}
+
+void NetworkSessionSoup::dataTaskWithRequest(WebPageProxyIdentifier pageID, ResourceRequest&& request, const std::optional<SecurityOriginData>& topOrigin, CompletionHandler<void(DataTaskIdentifier)>&& completionHandler)
+{
+    auto identifier = DataTaskIdentifier::generate();
+    Ref load = DataTaskLoad::create(*this, identifier, pageID, WTF::move(request), topOrigin, [this, identifier] {
+        m_dataTaskLoads.remove(identifier);
+    });
+    m_dataTaskLoads.add(identifier, load.copyRef());
+
+    // The UI process has to know the task before it hears anything about its load.
+    completionHandler(identifier);
+    load->start();
+}
+
+void NetworkSessionSoup::cancelDataTask(DataTaskIdentifier identifier)
+{
+    if (RefPtr load = m_dataTaskLoads.take(identifier))
+        load->cancel();
+}
 
 SoupSession* NetworkSessionSoup::soupSession() const
 {
     return m_networkSession->soupSession();
+}
+
+void NetworkSessionSoup::forEachSoupNetworkSession(NOESCAPE const Function<void(SoupNetworkSession&)>& function) const
+{
+    function(*m_networkSession);
+#if OS(DARWIN)
+    function(*m_networkSessionWithoutCredentials);
+#endif
+}
+
+SoupSession* NetworkSessionSoup::soupSessionForStoredCredentialsPolicy(StoredCredentialsPolicy storedCredentialsPolicy) const
+{
+#if OS(DARWIN)
+    if (storedCredentialsPolicy != StoredCredentialsPolicy::Use)
+        return m_networkSessionWithoutCredentials->soupSession();
+#else
+    UNUSED_PARAM(storedCredentialsPolicy);
+#endif
+    return m_networkSession->soupSession();
+}
+
+SoupNetworkSession& NetworkSessionSoup::soupNetworkSessionForStoredCredentialsPolicy(StoredCredentialsPolicy storedCredentialsPolicy) const
+{
+#if OS(DARWIN)
+    if (storedCredentialsPolicy != StoredCredentialsPolicy::Use)
+        return *m_networkSessionWithoutCredentials;
+#else
+    UNUSED_PARAM(storedCredentialsPolicy);
+#endif
+    return *m_networkSession;
+}
+
+void NetworkSessionSoup::setAcceptLanguages(const UTF8CString& languages) const
+{
+    forEachSoupNetworkSession([&](auto& session) { session.setAcceptLanguages(languages); });
 }
 
 void NetworkSessionSoup::setCookiePersistentStorage(const String& storagePath, SoupCookiePersistentStorageType storageType)
@@ -104,6 +170,12 @@ RefPtr<WebSocketTask> NetworkSessionSoup::createWebSocketTask(WebPageProxyIdenti
     if (!soupMessage)
         return nullptr;
 
+#if OS(DARWIN)
+    // CFNetwork runs a WebSocket task at its default priority whatever the request says, and the
+    // handshake Safari sends states that priority.
+    soup_message_set_priority(soupMessage.get(), SOUP_MESSAGE_PRIORITY_NORMAL);
+#endif
+
     if (request.url().protocolIs("wss"_s)) {
         g_signal_connect(soupMessage.get(), "accept-certificate", G_CALLBACK(+[](SoupMessage* message, GTlsCertificate* certificate, GTlsCertificateFlags errors,  NetworkSessionSoup* session) -> gboolean {
             if (DeprecatedGlobalSettings::allowsAnySSLCertificate())
@@ -122,17 +194,17 @@ RefPtr<WebSocketTask> NetworkSessionSoup::createWebSocketTask(WebPageProxyIdenti
 
 void NetworkSessionSoup::setIgnoreTLSErrors(bool ignoreTLSErrors)
 {
-    m_networkSession->setIgnoreTLSErrors(ignoreTLSErrors);
+    forEachSoupNetworkSession([&](auto& session) { session.setIgnoreTLSErrors(ignoreTLSErrors); });
 }
 
 void NetworkSessionSoup::allowSpecificHTTPSCertificateForHost(const CertificateInfo& certificateInfo, const String& host)
 {
-    m_networkSession->allowSpecificHTTPSCertificateForHost(certificateInfo, host);
+    forEachSoupNetworkSession([&](auto& session) { session.allowSpecificHTTPSCertificateForHost(certificateInfo, host); });
 }
 
 void NetworkSessionSoup::setProxySettings(const SoupNetworkProxySettings& settings)
 {
-    m_networkSession->setProxySettings(settings);
+    forEachSoupNetworkSession([&](auto& session) { session.setProxySettings(settings); });
 }
 
 } // namespace WebKit

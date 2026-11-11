@@ -45,7 +45,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(Instance);
 
 static NSArray<id<MTLDevice>>* getDevices()
 {
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
 #else
     NSMutableArray<id<MTLDevice>> *devices = [NSMutableArray array];
@@ -178,7 +178,7 @@ static NSArray<id<MTLDevice>> *sortedDevices(NSArray<id<MTLDevice>> *devices, st
         return devices;
     switch (*powerPreference) {
     case WebGPU::PowerPreference::LowPower:
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
         return [devices sortedArrayWithOptions:NSSortStable usingComparator:^NSComparisonResult (id<MTLDevice> obj1, id<MTLDevice> obj2)
         {
             ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -193,7 +193,7 @@ static NSArray<id<MTLDevice>> *sortedDevices(NSArray<id<MTLDevice>> *devices, st
         return devices;
 #endif
     case WebGPU::PowerPreference::HighPerformance:
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
         return [devices sortedArrayWithOptions:NSSortStable usingComparator:^NSComparisonResult (id<MTLDevice> obj1, id<MTLDevice> obj2)
         {
             ALLOW_DEPRECATED_DECLARATIONS_BEGIN

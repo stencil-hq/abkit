@@ -85,7 +85,7 @@ class LocalDOMWindow final
     , public ContextDestructionObserver
     , public WindowOrWorkerGlobalScope
     , public Supplementable<LocalDOMWindow>
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
     , public PushSubscriptionOwner
 #endif
     {
@@ -391,7 +391,7 @@ public:
 
     CloseWatcherManager& closeWatcherManager();
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
     PushManager& pushManager();
 #endif
 
@@ -432,14 +432,14 @@ private:
 
     void processPostMessage(JSC::JSGlobalObject&, Ref<SecurityOrigin>&&, const MessageWithMessagePorts&, RefPtr<WindowProxy>&&, RefPtr<SecurityOrigin>&&);
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
     bool isActive() const final { return true; }
 
     void subscribeToPushService(const Vector<uint8_t>& applicationServerKey, DOMPromiseDeferred<IDLInterface<PushSubscription>>&&) final;
     void unsubscribeFromPushService(std::optional<PushSubscriptionIdentifier>, DOMPromiseDeferred<IDLBoolean>&&) final;
     void getPushSubscription(DOMPromiseDeferred<IDLNullable<IDLInterface<PushSubscription>>>&&) final;
     void getPushPermissionState(DOMPromiseDeferred<IDLEnumeration<PushPermissionState>>&&) final;
-#endif // ENABLE(DECLARATIVE_WEB_PUSH)
+#endif // ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
 
     bool m_shouldPrintWhenLoaded { false };
     bool m_suspendedForDocumentSuspension { false };
@@ -537,7 +537,7 @@ private:
 
     const RefPtr<CookieStore> m_cookieStore;
 
-#if ENABLE(DECLARATIVE_WEB_PUSH)
+#if ENABLE(DECLARATIVE_WEB_PUSH) || ENABLE(WINDOW_PUSH_MANAGER)
     const std::unique_ptr<PushManager> m_pushManager;
 #endif
 

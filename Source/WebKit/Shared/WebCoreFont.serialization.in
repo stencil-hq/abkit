@@ -73,6 +73,9 @@ header: <WebCore/FontPlatformData.h>
     bool isSyntheticBold;
     bool isSyntheticOblique;
     WebCore::FontMetricsOverrides metricsOverrides;
+#if USE(SKIA)
+    float trackingSize;
+#endif
 }
 
 #if !USE(CORE_TEXT)

@@ -26,6 +26,7 @@
 // https://webidl.spec.whatwg.org/#idl-QuotaExceededError
 
 [
+    EnabledBySetting=QuotaExceededErrorEnabled,
     Exposed=*,
     Serializable
 ] interface QuotaExceededError : DOMException {

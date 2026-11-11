@@ -295,6 +295,14 @@ private:
 
     void decidePolicyForMediaKeySystemPermissionRequest(WebPageProxy&, API::SecurityOrigin&, const WTF::String& keySystem, CompletionHandler<void(bool)>&& completionHandler) final
     {
+#if PLATFORM(WPE) && OS(DARWIN)
+        // Safari lets a page use the W3C reference ClearKey CDM without asking; its keys are not
+        // secret, and this port advertises no other key system, so nobody is asked here either.
+        if (keySystem == "org.w3.clearkey"_s) {
+            completionHandler(true);
+            return;
+        }
+#endif
         auto permissionRequest = adoptGRef(webkitMediaKeySystemPermissionRequestCreate(MediaKeySystemPermissionRequest::create(keySystem, WTF::move(completionHandler))));
         webkitWebViewMakePermissionRequest(m_webView, WEBKIT_PERMISSION_REQUEST(permissionRequest.get()));
     }

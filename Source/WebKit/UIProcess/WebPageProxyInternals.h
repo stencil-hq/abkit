@@ -104,7 +104,7 @@
 #include "VisibleContentRectUpdateInfo.h"
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
 #include <WebCore/WebMediaSessionManagerClient.h>
 #endif
 
@@ -206,7 +206,7 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #if ENABLE(SPEECH_SYNTHESIS)
     , WebCore::PlatformSpeechSynthesizerClient
 #endif
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     , WebCore::WebMediaSessionManagerClient
 #endif
     , ProcessActivityGroupContext
@@ -386,7 +386,7 @@ public:
 
     RefPtr<WebColorPicker> colorPicker;
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     Deque<Ref<NativeWebGestureEvent>> gestureEventQueue;
     unsigned droppedGestureEventCount { 0 };
 #endif
@@ -445,7 +445,7 @@ public:
     WebCore::FixedContainerEdges resolvedFixedContainerEdges;
     HashMap<WebCore::FrameIdentifier, std::optional<WebCore::FixedContainerEdges>> fixedContainerEdgeSamplingFrames;
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     std::optional<PlaybackSessionContextIdentifier> currentFullscreenVideoSessionIdentifier;
 #endif
 
@@ -568,7 +568,7 @@ public:
     void voicesDidChange() final;
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     // WebMediaSessionManagerClient
     void setPlaybackTarget(WebCore::PlaybackTargetClientContextIdentifier, Ref<WebCore::MediaPlaybackTarget>&&) final;
     void externalOutputDeviceAvailableDidChange(WebCore::PlaybackTargetClientContextIdentifier, bool) final;

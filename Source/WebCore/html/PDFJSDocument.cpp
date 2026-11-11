@@ -246,7 +246,7 @@ void PDFJSDocument::injectStyleAndContentScript()
     ASSERT(contentDocument->head());
     Ref link = HTMLLinkElement::create(HTMLNames::linkTag, *contentDocument, false);
     link->setAttribute(relAttr, "stylesheet"_s);
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || (PLATFORM(WPE) && OS(DARWIN))
     link->setAttribute(hrefAttr, "webkit-pdfjs-viewer://pdfjs/extras/cocoa/style.css"_s);
 #elif PLATFORM(GTK) || PLATFORM(WPE)
     link->setAttribute(hrefAttr, "webkit-pdfjs-viewer://pdfjs/extras/adwaita/style.css"_s);

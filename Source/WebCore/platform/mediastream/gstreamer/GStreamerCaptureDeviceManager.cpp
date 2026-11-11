@@ -231,6 +231,16 @@ std::optional<GStreamerCaptureDevice> GStreamerCaptureDeviceManager::captureDevi
     else
         identifier = makeString(nodeName, ", "_s, deviceClass.span(), ", "_s, deviceClass.span());
 
+#if OS(DARWIN)
+    // Core Audio and AVFoundation give each device an identifier that stays when it is renamed and
+    // tells two devices of one model apart. An input and an output of one device share it.
+    auto uniqueId = gstStructureGetString(properties.get(), "unique-id"_s);
+    if (uniqueId.isEmpty())
+        uniqueId = gstStructureGetString(properties.get(), "avf.unique_id"_s);
+    if (!uniqueId.isEmpty())
+        identifier = makeString(uniqueId, ", "_s, deviceClass.span());
+#endif
+
     bool isMock = false;
     if (auto persistentId = gstStructureGetString(properties.get(), "persistent-id"_s)) {
         identifier = persistentId.span();

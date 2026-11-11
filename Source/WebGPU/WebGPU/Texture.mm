@@ -2824,7 +2824,7 @@ NODELETE static MTLStorageMode storageMode(bool deviceHasUnifiedMemory, bool sup
     if (deviceHasUnifiedMemory)
         return MTLStorageModeShared;
 
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     return MTLStorageModeManaged;
     ALLOW_DEPRECATED_DECLARATIONS_END

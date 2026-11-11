@@ -23,19 +23,22 @@
 
 #if ENABLE(MEDIA_STREAM) && USE(GSTREAMER)
 
-#include "DesktopPortal.h"
 #include "DisplayCaptureManager.h"
 #include "GRefPtrGStreamer.h"
 #include "GStreamerCaptureDevice.h"
 #include "GStreamerCapturer.h"
 #include "GStreamerVideoCapturer.h"
 #include "GUniquePtrGStreamer.h"
-#include "PipeWireCaptureDevice.h"
-#include "PipeWireCaptureDeviceManager.h"
 #include "RealtimeMediaSourceCenter.h"
 #include "RealtimeMediaSourceFactory.h"
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
+
+#if !OS(DARWIN)
+#include "DesktopPortal.h"
+#include "PipeWireCaptureDevice.h"
+#include "PipeWireCaptureDeviceManager.h"
+#endif
 
 namespace WebCore {
 
@@ -112,16 +115,23 @@ public:
 
     static VideoCaptureFactory& videoFactory();
 
+#if !OS(DARWIN)
     void teardown() final
     {
         GStreamerCaptureDeviceManager::teardown();
         m_pipewireCaptureDeviceManager = nullptr;
     }
+#endif
 
 private:
+#if OS(DARWIN)
+    // Cameras come from the device monitor (GStreamer's AVFoundation device provider), as microphones do.
+    GStreamerVideoCaptureDeviceManager() = default;
+#else
     GStreamerVideoCaptureDeviceManager();
     void computeCaptureDevices(CompletionHandler<void()>&&) final;
     RefPtr<PipeWireCaptureDeviceManager> m_pipewireCaptureDeviceManager;
+#endif
 };
 
 class GStreamerDisplayCaptureDeviceManager final : public DisplayCaptureManager {
@@ -132,10 +142,12 @@ public:
     void computeCaptureDevices(CompletionHandler<void()>&&) final;
     CaptureSourceOrError createDisplayCaptureSource(const CaptureDevice&, MediaDeviceHashSalts&&, const MediaConstraints*);
 
+#if !OS(DARWIN)
     enum PipeWireOutputType {
         Monitor = 1 << 0,
         Window = 1 << 1
     };
+#endif
 
     void stopSource(const String& persistentID);
 
@@ -148,8 +160,10 @@ private:
 
     Vector<CaptureDevice> m_devices;
 
+#if !OS(DARWIN)
     HashMap<String, std::unique_ptr<PipeWireNodeData>> m_sessions;
     RefPtr<DesktopPortalScreenCast> m_portal;
+#endif
 };
 
 } // namespace WebCore

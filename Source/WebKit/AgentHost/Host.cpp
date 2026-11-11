@@ -33,6 +33,10 @@
 #include <cstring>
 #include <glib/gstdio.h>
 
+#if defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
 namespace AgentHost {
 
 Responder::Responder(std::weak_ptr<Transport> transport, const char* channel, std::string&& id)
@@ -98,8 +102,9 @@ static void removeTree(const char* path)
     g_remove(path);
 }
 
-Host::Host(std::string&& dataDirectory, std::function<void(int)>&& quit)
+Host::Host(std::string&& dataDirectory, std::string&& inspectorAddress, std::function<void(int)>&& quit)
     : m_dataDirectory(std::move(dataDirectory))
+    , m_inspectorAddress(std::move(inspectorAddress))
     , m_quit(std::move(quit))
 {
     GChars token(g_uuid_string_random());
@@ -110,6 +115,11 @@ Host::~Host() = default;
 
 bool Host::start(int input, int output)
 {
+    // The engine starts its remote inspector servers from this address, and only then: the host names it,
+    // nothing is started without it.
+    if (!m_inspectorAddress.empty())
+        g_setenv("WEBKIT_INSPECTOR_HTTP_SERVER", m_inspectorAddress.c_str(), TRUE);
+
     // The engine has to be set up before the first JavaScriptCore context (Json's) exists: started the other way
     // round, this process never hears of its helper processes and no page loads. Making any WebKit object does
     // it, and the context is the first one made.
@@ -129,6 +139,8 @@ bool Host::start(int input, int output)
     m_display = GRef<WPEDisplay>::adopt(createDisplay());
     if (!m_display)
         return false;
+    // No appearance asked for yet: the one the pages see is the system's, as in Safari.
+    followSystemAppearance();
     m_transport = std::make_shared<Transport>(input, output, [this](std::string&& payload) {
         handleFrame(std::move(payload));
     }, [this](const char* error) {
@@ -546,6 +558,22 @@ void Host::setDarkAppearance(bool dark)
         g_warning("the appearance did not change: %s", error ? error->message : "no reason given");
         g_clear_error(&error);
     }
+}
+
+void Host::followSystemAppearance()
+{
+#if defined(__APPLE__)
+    // Safari takes the Mac's appearance from the global AppleInterfaceStyle preference: the string "Dark" in
+    // dark mode, unset in light mode.
+    CFPropertyListRef style = CFPreferencesCopyAppValue(CFSTR("AppleInterfaceStyle"), kCFPreferencesAnyApplication);
+    bool dark = style && CFGetTypeID(style) == CFStringGetTypeID() && CFEqual(style, CFSTR("Dark"));
+    if (style)
+        CFRelease(style);
+    setDarkAppearance(dark);
+#else
+    // No system appearance to follow: the engine's default, light.
+    setDarkAppearance(false);
+#endif
 }
 
 } // namespace AgentHost

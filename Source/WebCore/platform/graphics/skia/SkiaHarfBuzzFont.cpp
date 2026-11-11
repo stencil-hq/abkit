@@ -30,6 +30,8 @@
 #include "FontCache.h"
 #include "FontCascadeInlines.h"
 #include "FontPlatformData.h"
+#include "FontTrackingSkia.h"
+#include "FontVariableAdvancesSkia.h"
 #include "NotImplemented.h"
 #include "SkiaHarfBuzzFontCache.h"
 #include <wtf/unicode/CharacterNames.h>
@@ -124,11 +126,56 @@ static HbUniquePtr<hb_face_t> createHarfBuzzFace(SkTypeface& typeface)
     }, &typeface, nullptr));
 }
 
+// The tracking table is applied to the advances this font hands out, the same for every way text is
+// measured, so HarfBuzz must not find the table and apply it a second time to what it shapes.
+static HbUniquePtr<hb_face_t> faceWithoutTrackingTable(HbUniquePtr<hb_face_t>&& face)
+{
+    static constexpr hb_tag_t trackingTag = HB_TAG('t', 'r', 'a', 'k');
+    HbUniquePtr<hb_blob_t> table(hb_face_reference_table(face.get(), trackingTag));
+    if (!hb_blob_get_length(table.get()))
+        return WTF::move(face);
+
+    unsigned index = hb_face_get_index(face.get());
+    unsigned unitsPerEm = hb_face_get_upem(face.get());
+    unsigned glyphCount = hb_face_get_glyph_count(face.get());
+    HbUniquePtr<hb_face_t> result(hb_face_create_for_tables([](hb_face_t*, hb_tag_t tag, void* userData) -> hb_blob_t* {
+        if (tag == trackingTag)
+            return nullptr;
+        return hb_face_reference_table(static_cast<hb_face_t*>(userData), tag);
+    }, face.release(), [](void* userData) {
+        hb_face_destroy(static_cast<hb_face_t*>(userData));
+    }));
+    hb_face_set_index(result.get(), index);
+    hb_face_set_upem(result.get(), unitsPerEm);
+    hb_face_set_glyph_count(result.get(), glyphCount);
+    return result;
+}
+
 SkiaHarfBuzzFont::SkiaHarfBuzzFont(SkTypeface& typeface)
     : m_uniqueID(typeface.uniqueID())
     , m_isColorBitmapFont(FontPlatformData::skiaTypefaceHasAnySupportedColorTable(typeface))
 {
-    auto hbFace = createHarfBuzzFace(typeface);
+#if OS(DARWIN)
+    if (m_isColorBitmapFont) {
+        SkString familyName;
+        typeface.getFamilyName(&familyName);
+        m_isAppleColorEmoji = familyName.equals("Apple Color Emoji") || familyName.equals(".Apple Color Emoji UI");
+    }
+#endif
+
+    // Like Core Text, only for fonts that also describe their styles in a 'STAT' table, and for the
+    // Mac's emoji font: older fonts carry tracking tables that nothing ever applied to running text.
+    static constexpr SkFontTableTag styleAttributesTag = SkSetFourByteTag('S', 'T', 'A', 'T');
+    if (m_isAppleColorEmoji || typeface.getTableSize(styleAttributesTag))
+        m_tracking = FontTracking::create(typeface);
+
+#if OS(DARWIN)
+    m_unitsPerEm = typeface.getUnitsPerEm();
+    if (m_unitsPerEm)
+        m_variableAdvances = FontVariableAdvances::create(typeface);
+#endif
+
+    auto hbFace = faceWithoutTrackingTable(createHarfBuzzFace(typeface));
     HbUniquePtr<hb_font_t> hbFont(hb_font_create(hbFace.get()));
 
     if (int axisCount = typeface.getVariationDesignPosition({ }); axisCount > 0) {
@@ -155,11 +202,14 @@ static inline hb_position_t skScalarToHarfBuzzPosition(SkScalar value)
 
 hb_font_t* SkiaHarfBuzzFont::scaledFont(const FontPlatformData& fontPlatformData)
 {
-    float size = fontPlatformData.size();
+    // The size glyphs are drawn at, which is not always the size of the text.
+    float size = fontPlatformData.skFont().getSize();
     auto scale = skScalarToHarfBuzzPosition(size);
     hb_font_set_scale(m_font.get(), scale, scale);
     hb_font_set_ptem(m_font.get(), size);
     m_scaledFont = fontPlatformData.skFont();
+    m_scaledAdvanceAdjustment = fontPlatformData.advanceAdjustment();
+    m_hasWholePixelAdvances = fontPlatformData.hasWholePixelAdvances();
     m_isColorBitmapFont = fontPlatformData.isColorBitmapFont();
     return m_font.get();
 }
@@ -194,12 +244,20 @@ std::optional<hb_codepoint_t> SkiaHarfBuzzFont::glyph(hb_codepoint_t unicode, st
     return std::nullopt;
 }
 
+SkScalar SkiaHarfBuzzFont::glyphAdvance(const SkFont& font, SkGlyphID glyph, float adjustment, bool inWholePixels) const
+{
+    // Skia's advance for an instance of a variable font is a whole number of design units.
+    SkScalar advance = m_variableAdvances ? m_variableAdvances->advance(glyph) * font.getSize() * font.getScaleX() / m_unitsPerEm : font.getWidth(glyph);
+    if (advance)
+        advance += adjustment;
+    if (inWholePixels)
+        advance = SkScalarRoundToInt(advance);
+    return advance;
+}
+
 hb_position_t SkiaHarfBuzzFont::glyphWidth(hb_codepoint_t glyph)
 {
-    SkScalar width = m_scaledFont.getWidth(glyph);
-    if (!m_scaledFont.isSubpixel())
-        width = SkScalarRoundToInt(width);
-    return skScalarToHarfBuzzPosition(width);
+    return skScalarToHarfBuzzPosition(glyphAdvance(m_scaledFont, glyph, m_scaledAdvanceAdjustment, m_hasWholePixelAdvances));
 }
 
 void SkiaHarfBuzzFont::glyphWidths(unsigned count, const hb_codepoint_t* glyphs, unsigned glyphStride, hb_position_t* advances, unsigned advanceStride)
@@ -213,10 +271,17 @@ void SkiaHarfBuzzFont::glyphWidths(unsigned count, const hb_codepoint_t* glyphs,
     }
 
     Vector<SkScalar, 256> widths(count);
-    m_scaledFont.getWidths(skGlyphs.span(), widths.mutableSpan());
-    if (!m_scaledFont.isSubpixel()) {
+    if (m_variableAdvances) {
         for (unsigned i = 0; i < count; ++i)
-            widths[i] = SkScalarRoundToInt(widths[i]);
+            widths[i] = glyphAdvance(m_scaledFont, skGlyphs[i], m_scaledAdvanceAdjustment, m_hasWholePixelAdvances);
+    } else {
+        m_scaledFont.getWidths(skGlyphs.span(), widths.mutableSpan());
+        for (unsigned i = 0; i < count; ++i) {
+            if (widths[i])
+                widths[i] += m_scaledAdvanceAdjustment;
+            if (m_hasWholePixelAdvances)
+                widths[i] = SkScalarRoundToInt(widths[i]);
+        }
     }
 
     for (unsigned i = 0; i < count; ++i) {

@@ -26,9 +26,11 @@
 #include "config.h"
 #include "FontCache.h"
 
+#include "BundledRuntime.h"
 #include "Font.h"
 #include "FontCustomPlatformData.h"
 #include "FontDescription.h"
+#include "FontVariationsSkia.h"
 #include "StyleFontSizeFunctions.h"
 #include <wtf/Assertions.h>
 #include <wtf/text/CString.h>
@@ -56,6 +58,10 @@ namespace WebCore {
 
 void FontCache::platformInit()
 {
+#if PLATFORM(WPE) && OS(DARWIN)
+    // fontconfig reads its configuration on first use, which is after this.
+    useBundledRuntimePathsIfPresent();
+#endif
 }
 
 SkFontMgr& FontCache::fontManager() const
@@ -102,10 +108,16 @@ static SkFontStyle skiaFontStyle(const FontDescription& fontDescription)
 
     SkFontStyle::Slant skSlant = SkFontStyle::kUpright_Slant;
     if (auto fontStyleSlope = fontDescription.fontStyleSlope()) {
+#if OS(MACOS)
+        // As on a Mac: a slant too slight to count as italic is set in the upright face.
+        if (isItalic(fontStyleSlope))
+            skSlant = SkFontStyle::kItalic_Slant;
+#else
         if (fontStyleSlope.value() > normalItalicValue() && fontStyleSlope.value() <= italicThreshold())
             skSlant = SkFontStyle::kItalic_Slant;
         else if (fontStyleSlope.value() > italicThreshold())
             skSlant = SkFontStyle::kOblique_Slant;
+#endif
     }
 
     return SkFontStyle(skWeight, skWidth, skSlant);
@@ -116,14 +128,24 @@ static std::pair<bool, bool> computeSynthesisProperties(const SkTypeface& typefa
     if (FontPlatformData::skiaTypefaceHasAnySupportedColorTable(typeface))
         return { false, false };
 
+    bool typefaceIsBold = typeface.isBold();
+#if OS(DARWIN)
+    // fontconfig answers a request for a bold that a family lacks with the regular face and a note
+    // to embolden it, and Skia then calls the face bold. On a Mac WebCore has to know that such a
+    // bold is synthetic, because synthetic bold there also makes every advance wider.
+    static constexpr SkFontTableTag os2Tag = SkSetFourByteTag('O', 'S', '/', '2');
+    std::array<uint8_t, 2> weightClass;
+    if (typefaceIsBold && typeface.getTableData(os2Tag, 4, weightClass.size(), weightClass.data()) == weightClass.size())
+        typefaceIsBold = (weightClass[0] << 8 | weightClass[1]) >= SkFontStyle::kSemiBold_Weight;
+#endif
     bool allowsSyntheticBold = fontDescription.hasAutoFontSynthesisWeight() && !synthesisOptions.contains(FontLookupOptions::DisallowBoldSynthesis);
-    bool syntheticBold = allowsSyntheticBold && isFontWeightBold(fontDescription.weight()) && !typeface.isBold();
+    bool syntheticBold = allowsSyntheticBold && isFontWeightBold(fontDescription.weight()) && !typefaceIsBold;
     bool allowsSyntheticOblique = fontDescription.allowsItalicOrObliqueFontSynthesisStyle() && !synthesisOptions.contains(FontLookupOptions::DisallowObliqueSynthesis);
     bool syntheticOblique = allowsSyntheticOblique && isItalic(fontDescription.fontStyleSlope()) && !typeface.isItalic();
     return { syntheticBold, syntheticOblique };
 }
 
-RefPtr<Font> FontCache::systemFallbackForCharacterCluster(const FontDescription& description, const Font&, IsForPlatformFont, PreferColoredFont preferColoredFont, StringView stringView)
+RefPtr<Font> FontCache::systemFallbackForCharacterCluster(const FontDescription& description, const Font& originalFont, IsForPlatformFont, PreferColoredFont preferColoredFont, StringView stringView)
 {
     auto codePoints = stringView.codePoints();
     auto codePointsIterator = codePoints.begin();
@@ -145,6 +167,21 @@ RefPtr<Font> FontCache::systemFallbackForCharacterCluster(const FontDescription&
 #endif
     if (!typeface)
         return nullptr;
+
+#if OS(MACOS)
+    // In text set in one of the Mac's interface fonts, emoji come from the interface variant of the
+    // emoji font, whose glyphs stand further apart.
+    if (auto originalFamily = originalFont.platformData().familyName(); originalFamily.startsWith('.') || originalFamily == "System Font"_s) {
+        SkString fallbackFamily;
+        typeface->getFamilyName(&fallbackFamily);
+        if (fallbackFamily.equals("Apple Color Emoji")) {
+            if (auto interfaceEmoji = fontManager().matchFamilyStyle(".Apple Color Emoji UI", typeface->fontStyle()))
+                typeface = WTF::move(interfaceEmoji);
+        }
+    }
+#else
+    UNUSED_PARAM(originalFont);
+#endif
 
     auto features = computeFeatures(description, { });
     auto [syntheticBold, syntheticOblique] = computeSynthesisProperties(*typeface, description, { });
@@ -213,8 +250,25 @@ static bool isSystemUIFamilyFont(const String& family)
         || family == "system-ui"_s
 #if OS(MACOS)
         || family == "-apple-system"_s
+        || family == "-apple-menu"_s
+        || family == "-apple-status-bar"_s
+        || family == "-apple-system-monospaced-numbers"_s
 #endif
         || family == "ui-sans-serif"_s;
+}
+#endif
+
+#if OS(MACOS)
+// The other interface fonts of a Mac, under the names fontconfig knows them by.
+static ASCIILiteral macInterfaceFontFamily(const String& family)
+{
+    if (family == "ui-serif"_s)
+        return ".New York"_s;
+    if (family == "ui-monospace"_s)
+        return ".SF NS Mono"_s;
+    if (family == "ui-rounded"_s)
+        return ".SF NS Rounded"_s;
+    return { };
 }
 #endif
 
@@ -223,6 +277,10 @@ static String getFamilyNameStringFromFamily(const String& family)
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
     if (isSystemUIFamilyFont(family))
         return SystemSettings::singleton().defaultSystemFont();
+#endif
+#if OS(MACOS)
+    if (auto interfaceFamily = macInterfaceFontFamily(family); !interfaceFamily.isNull())
+        return interfaceFamily;
 #endif
 
     // If we're creating a fallback font (e.g. "-webkit-monospace"), convert the name into
@@ -409,52 +467,138 @@ Vector<hb_feature_t> FontCache::computeFeatures(const FontDescription& fontDescr
 static bool isUnsupportedFamilyFont(const AtomString& family)
 {
 #if OS(MACOS)
-    // On a Mac these are names of the system font, to this engine as to every other browser there.
-    UNUSED_PARAM(family);
-    return false;
+    // `-apple-system` names the system font on a Mac, to this engine as to every other browser
+    // there. The fonts whose names start with a dot are the system's own: a page reaches them
+    // through `system-ui` and the `ui-` families, never by name.
+    return family.startsWith('.');
 #else
     return family == "-apple-system"
         || family == "-apple-system-font";
 #endif
 }
 
-// `font-optical-sizing: auto` for an installed variable font: the face is drawn at the optical size
-// of the text when it has that axis. Without this a font such as the Mac's system font keeps the
-// shapes of its largest size, and small text comes out narrower than its designers drew it.
-static sk_sp<SkTypeface> typefaceAtOpticalSize(sk_sp<SkTypeface>&& typeface, const FontDescription& fontDescription, float size)
+// An installed variable font as Core Text sets it up for a style: every axis the font has follows the
+// style or the page's `font-variation-settings`, the way the axes of a web font do.
+struct InstalledFontInstance {
+    sk_sp<SkTypeface> typeface;
+    // The text size the font is spaced for when that is not the size of the text.
+    float trackingSize { 0 };
+    // Whether an axis of the font gives the weight, or the slant, the style asks for.
+    bool hasWeightAxis { false };
+    bool hasSlopeAxis { false };
+};
+
+static InstalledFontInstance instantiateInstalledFont(sk_sp<SkTypeface>&& typeface, const FontDescription& fontDescription, float size)
 {
-    if (fontDescription.opticalSizing() != FontOpticalSizing::Auto)
-        return WTF::move(typeface);
+    auto axes = defaultFontVariationValues(*typeface);
+    if (axes.isEmpty())
+        return { WTF::move(typeface) };
 
-    int axisCount = typeface->getVariationDesignParameters({ });
-    if (axisCount <= 0)
-        return WTF::move(typeface);
-    Vector<SkFontParameters::Variation::Axis> axes(axisCount);
-    if (typeface->getVariationDesignParameters(axes.mutableSpan()) <= 0)
-        return WTF::move(typeface);
-
-    static constexpr SkFourByteTag opticalSizeTag = SkSetFourByteTag('o', 'p', 's', 'z');
-    auto axis = std::ranges::find(axes, opticalSizeTag, &SkFontParameters::Variation::Axis::tag);
-    if (axis == axes.end())
-        return WTF::move(typeface);
-
-    // The other axes stay where the match for the requested style put them.
+    // The axes this code does not set stay where the match for the requested style put them.
     Vector<SkFontArguments::VariationPosition::Coordinate> position;
     if (int count = typeface->getVariationDesignPosition({ }); count > 0) {
         position.grow(count);
         if (typeface->getVariationDesignPosition(position.mutableSpan()) <= 0)
             position.clear();
     }
-    position.removeAllMatching([](auto& coordinate) {
-        return coordinate.axis == opticalSizeTag;
-    });
-    position.append({ opticalSizeTag, std::clamp(size, axis->min, axis->max) });
+    auto original = position;
 
-    SkFontArguments arguments;
-    arguments.setVariationDesignPosition({ position.span().data(), static_cast<int>(position.size()) });
-    if (auto sized = typeface->makeClone(arguments))
-        return sized;
-    return WTF::move(typeface);
+    auto apply = [&](const FontTag& tag, float value) {
+        auto axis = axes.find(tag);
+        if (axis == axes.end())
+            return;
+        auto skiaTag = SkSetFourByteTag(tag[0], tag[1], tag[2], tag[3]);
+        position.removeAllMatching([&](auto& coordinate) {
+            return coordinate.axis == skiaTag;
+        });
+        position.append({ skiaTag, axis->value.clamp(value) });
+    };
+
+    // Fonts older than OpenType variations (TrueType GX) count weight and width around 1, not on the
+    // CSS scales; the conversions are the ones WebCore uses with Core Text.
+    static constexpr SkFontTableTag styleAttributesTag = SkSetFourByteTag('S', 'T', 'A', 'T');
+    bool usesCSSScales = typeface->getTableSize(styleAttributesTag);
+    float weight = fontDescription.weight();
+    float width = fontDescription.width();
+    float slope = fontDescription.fontStyleSlope().value_or(normalItalicValue());
+    if (!usesCSSScales) {
+        weight = (weight + 109.3f) / 523.7f;
+        if (width <= 125)
+            width /= 100;
+        else if (width <= 150)
+            width = (width + 125) / 200;
+        else
+            width = (width + 400) / 400;
+        slope /= 300;
+    }
+    apply(FontVariationAxisTag::wght, weight);
+    apply(FontVariationAxisTag::wdth, width);
+    if (fontDescription.fontStyleAxis() == FontStyleAxis::ital)
+        apply(FontVariationAxisTag::ital, 1);
+    else {
+        // The 'slnt' axis is positive counter-clockwise; a CSS oblique angle is positive clockwise.
+        apply(FontVariationAxisTag::slnt, -slope);
+    }
+
+    // Optical sizing. On `auto` the font is drawn at the optical size of the text unless the page
+    // sets that axis itself. On `none` it is drawn and spaced as at its default optical size at
+    // every size of text, and Core Text takes a setting that only repeats the automatic value as
+    // no setting at all. `text-rendering: optimizeLegibility` turns optical sizing on regardless.
+    float trackingSize = 0;
+    auto opticalSizeAxis = axes.find(FontVariationAxisTag::opsz);
+    bool sizesOptically = fontDescription.opticalSizing() == FontOpticalSizing::Auto || fontDescription.textRenderingMode() == TextRenderingMode::OptimizeLegibility;
+    if (opticalSizeAxis != axes.end()) {
+        if (sizesOptically)
+            apply(FontVariationAxisTag::opsz, size);
+        else {
+            apply(FontVariationAxisTag::opsz, opticalSizeAxis->value.defaultValue);
+            trackingSize = opticalSizeAxis->value.defaultValue;
+        }
+    }
+
+    // One more thing Core Text does on `none`: for text no larger than the smallest optical size of
+    // the font, it takes no setting at all unless the settings move the optical size.
+    bool takesSettings = true;
+    if (!sizesOptically && opticalSizeAxis != axes.end() && size <= opticalSizeAxis->value.minimumValue) {
+        takesSettings = std::ranges::any_of(fontDescription.variationSettings(), [&](auto& variation) {
+            return variation.tag() == FontVariationAxisTag::opsz && opticalSizeAxis->value.clamp(variation.value()) != opticalSizeAxis->value.minimumValue;
+        });
+    }
+    for (auto& variation : fontDescription.variationSettings()) {
+        if (!takesSettings)
+            break;
+        if (!sizesOptically && variation.tag() == FontVariationAxisTag::opsz && opticalSizeAxis != axes.end() && opticalSizeAxis->value.clamp(variation.value()) == opticalSizeAxis->value.clamp(size))
+            continue;
+        apply(variation.tag(), variation.value());
+    }
+
+    InstalledFontInstance instance;
+    instance.trackingSize = trackingSize;
+    // Core Text does not see the weight of an instance of the older fonts, so WebCore emboldens
+    // their bold on top of the axis.
+    instance.hasWeightAxis = usesCSSScales && axes.contains(FontVariationAxisTag::wght);
+    instance.hasSlopeAxis = axes.contains(FontVariationAxisTag::slnt) || axes.contains(FontVariationAxisTag::ital);
+
+    auto valueOf = [](const auto& coordinates, SkFourByteTag tag) -> std::optional<float> {
+        for (auto& coordinate : coordinates) {
+            if (coordinate.axis == tag)
+                return coordinate.value;
+        }
+        return std::nullopt;
+    };
+    bool changed = std::ranges::any_of(position, [&](auto& coordinate) {
+        return valueOf(original, coordinate.axis) != coordinate.value;
+    });
+    if (changed) {
+        SkFontArguments arguments;
+        arguments.setVariationDesignPosition({ position.span().data(), static_cast<int>(position.size()) });
+        if (auto clone = typeface->makeClone(arguments)) {
+            instance.typeface = WTF::move(clone);
+            return instance;
+        }
+    }
+    instance.typeface = WTF::move(typeface);
+    return instance;
 }
 
 std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDescription& fontDescription, const AtomString& family, const FontCreationContext& fontCreationContext, OptionSet<FontLookupOptions> options)
@@ -467,11 +611,32 @@ std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDe
     if (!typeface)
         return nullptr;
 
+#if OS(MACOS)
+    // The italic of the Mac's system font has no width axis. Core Text answers a request for a
+    // condensed or expanded italic with the upright face at that width.
+    if (skFontStyle.slant() != SkFontStyle::kUpright_Slant && fontDescription.width() != normalWidthValue() && familyName != family.string() && !defaultFontVariationValues(*typeface).contains(FontVariationAxisTag::wdth)) {
+        if (auto upright = fontManager().matchFamilyStyle(familyName.utf8().legacyCStringPointer(), SkFontStyle(skFontStyle.weight(), skFontStyle.width(), SkFontStyle::kUpright_Slant)); upright && defaultFontVariationValues(*upright).contains(FontVariationAxisTag::wdth))
+            typeface = WTF::move(upright);
+    }
+#endif
+
     auto size = fontDescription.adjustedSizeForFontFace(fontCreationContext.sizeAdjust());
-    typeface = typefaceAtOpticalSize(WTF::move(typeface), fontDescription, size);
+    auto instance = instantiateInstalledFont(WTF::move(typeface), fontDescription, size);
+    typeface = WTF::move(instance.typeface);
     auto features = computeFeatures(fontDescription, fontCreationContext);
+#if OS(MACOS)
+    if (family == "-apple-system-monospaced-numbers"_s)
+        features.append({ HB_TAG('t', 'n', 'u', 'm'), 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END });
+#endif
     auto [syntheticBold, syntheticOblique] = computeSynthesisProperties(*typeface, fontDescription, options);
+    // An axis gives the weight or the slant that was asked for; nothing is left to imitate.
+    if (instance.hasWeightAxis)
+        syntheticBold = false;
+    if (instance.hasSlopeAxis)
+        syntheticOblique = false;
     FontPlatformData platformData(WTF::move(typeface), size, syntheticBold, syntheticOblique, fontDescription.orientation(), fontDescription.widthVariant(), fontDescription.textRenderingMode(), WTF::move(features), fontCreationContext.metricsOverrides());
+    if (instance.trackingSize)
+        platformData.setTrackingSize(instance.trackingSize);
 
     platformData.updateSizeWithFontSizeAdjust(fontDescription.fontSizeAdjust(), fontDescription.usedSize());
     auto platformDataUniquePtr = makeUnique<FontPlatformData>(platformData);

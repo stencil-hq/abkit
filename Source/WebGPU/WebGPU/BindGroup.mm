@@ -694,7 +694,7 @@ Device::ExternalTextureData Device::createExternalTextureFromPixelBuffer(CVPixel
                 textureDescriptor.swizzle = *firstPlaneSwizzle;
             textureDescriptor.mipmapLevelCount = 1;
             textureDescriptor.sampleCount = 1;
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
             ALLOW_DEPRECATED_DECLARATIONS_BEGIN
             textureDescriptor.storageMode = hasUnifiedMemory() ? MTLStorageModeShared : MTLStorageModeManaged;
             ALLOW_DEPRECATED_DECLARATIONS_END

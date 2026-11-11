@@ -30,7 +30,9 @@
 
 #include "APIUIClient.h"
 #include "AuthenticatorManager.h"
+#if PLATFORM(COCOA)
 #include "LocalService.h"
+#endif
 #include "Logging.h"
 #include "RelatedOriginsValidator.h"
 #include "WebAuthenticationFlags.h"
@@ -184,6 +186,11 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
                 protectedThis->performRequest(WTF::move(data), WTF::move(handler));
                 return;
             }
+#elif PLATFORM(WPE)
+            if (!authenticatorManager->isMock() && !authenticatorManager->isVirtual()) {
+                protectedThis->performRequest(WTF::move(data), WTF::move(handler));
+                return;
+            }
 #else
             if (data.parentOrigin && !authenticatorManager->isMock() && !authenticatorManager->isVirtual()) {
                 handler({ }, (AuthenticatorAttachment)0, ExceptionData { ExceptionCode::NotAllowedError, "The origin of the document is not the same as its ancestors."_s });
@@ -269,7 +276,11 @@ void WebAuthenticatorCoordinatorProxy::cancel(CompletionHandler<void()>&& comple
 
 void WebAuthenticatorCoordinatorProxy::isUserVerifyingPlatformAuthenticatorAvailable(IPC::Connection&, IPC::Untrusted<SecurityOriginData>&&, QueryCompletionHandler&& handler)
 {
+#if PLATFORM(COCOA)
     handler(LocalService::isAvailable());
+#else
+    handler(false);
+#endif
 }
 
 void WebAuthenticatorCoordinatorProxy::isConditionalMediationAvailable(IPC::Connection&, IPC::Untrusted<SecurityOriginData>&&, QueryCompletionHandler&& handler)

@@ -41,10 +41,25 @@ set(WPEAgentHost_PRIVATE_LIBRARIES
 if (APPLE)
     # Frames go to the client as IOSurfaces, over Mach messages.
     list(APPEND WPEAgentHost_PRIVATE_LIBRARIES "-framework IOSurface")
+    # The Mac's appearance is read from the global preferences.
+    list(APPEND WPEAgentHost_PRIVATE_LIBRARIES "-framework CoreFoundation")
 endif ()
 
 WEBKIT_EXECUTABLE_DECLARE(WPEAgentHost)
 WEBKIT_EXECUTABLE(WPEAgentHost)
+
+if (APPLE)
+    # WPEAgentView puts the host's presented blocks in windows. It is a client of the host like any
+    # other, in a process of its own: it links nothing of the engine.
+    add_executable(WPEAgentView View/WPEAgentView.m)
+    target_compile_options(WPEAgentView PRIVATE -fobjc-arc)
+    target_link_libraries(WPEAgentView PRIVATE
+        "-framework AppKit"
+        "-framework Carbon"
+        "-framework IOSurface"
+        "-framework QuartzCore"
+    )
+endif ()
 
 # The host loads its web process extension from "extensions" beside its own executable.
 add_library(WPEAgentHostExtension MODULE Extension/AgentHostExtension.cpp)

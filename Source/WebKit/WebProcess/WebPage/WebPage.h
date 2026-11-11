@@ -133,7 +133,7 @@
 #include <WebCore/LinkDecorationFilteringData.h>
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include <WebKitAdditions/PlatformGestureEventMac.h>
 #endif
 
@@ -772,7 +772,7 @@ public:
     void videoControlsManagerDidChange();
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     VideoPresentationManager& videoPresentationManager();
 
     void startPlayingPredominantVideo(CompletionHandler<void(bool)>&&);
@@ -2781,7 +2781,7 @@ private:
 
     void setShouldDispatchFakeMouseMoveEvents(bool dispatch) { m_shouldDispatchFakeMouseMoveEvents = dispatch; }
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     void playbackTargetSelected(WebCore::PlaybackTargetClientContextIdentifier, MediaPlaybackTargetContextSerialized&&) const;
     void playbackTargetAvailabilityDidChange(WebCore::PlaybackTargetClientContextIdentifier, bool);
     void setShouldPlayToPlaybackTarget(WebCore::PlaybackTargetClientContextIdentifier, bool);
@@ -3120,7 +3120,7 @@ private:
     const RefPtr<RemoteWebInspectorUI> m_remoteInspectorUI;
     const std::unique_ptr<PageInspectorTarget> m_inspectorTarget;
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     const RefPtr<PlaybackSessionManager> m_playbackSessionManager;
     const RefPtr<VideoPresentationManager> m_videoPresentationManager;
 #endif

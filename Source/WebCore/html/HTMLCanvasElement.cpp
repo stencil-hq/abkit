@@ -779,7 +779,7 @@ ExceptionOr<UncachedString> HTMLCanvasElement::toDataURL(const String& mimeType,
     if (document->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Canvas))
         return UncachedString { encodeDataURL(createImageForNoiseInjection(), encodingMIMEType, quality) };
 
-#if USE(CG)
+#if USE(CG) || (USE(SKIA) && OS(DARWIN))
     // Try to get ImageData first, as that may avoid lossy conversions.
     if (auto imageData = getImageData())
         return UncachedString { encodeDataURL(imageData->byteArrayPixelBuffer().get(), encodingMIMEType, quality) };
@@ -817,7 +817,7 @@ ExceptionOr<void> HTMLCanvasElement::toBlob(Ref<BlobCallback>&& callback, const 
     Vector<uint8_t> blobData;
     if (document->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Canvas))
         blobData = encodeData(createImageForNoiseInjection(), encodingMIMEType, quality);
-#if USE(CG)
+#if USE(CG) || (USE(SKIA) && OS(DARWIN))
     else if (auto imageData = getImageData())
         blobData = encodeData(imageData->byteArrayPixelBuffer().get(), encodingMIMEType, quality);
 #endif

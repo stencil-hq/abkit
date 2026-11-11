@@ -1113,7 +1113,15 @@ PeerConnection::AddTransceiver(MediaType media_type,
     parameters.encodings.push_back({});
   }
 
-  if (media_type == MediaType::VIDEO && !has_scale_resolution_down_by) {
+#if defined(WEBRTC_WEBKIT_BUILD) && defined(__APPLE__)
+  // Safari's libwebrtc gives the scales to the encodings the page passed and
+  // none to the entry created above, which getParameters() shows.
+  const bool assign_default_scales = !init.send_encodings.empty();
+#else
+  const bool assign_default_scales = true;
+#endif
+  if (media_type == MediaType::VIDEO && !has_scale_resolution_down_by &&
+      assign_default_scales) {
     double scale_resolution_down_by = 1.0;
     for (auto encoding = parameters.encodings.rbegin();
          encoding != parameters.encodings.rend(); ++encoding) {

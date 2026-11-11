@@ -27,6 +27,7 @@
 
 #if USE(SKIA)
 
+#include "DashArray.h"
 #include "GraphicsContext.h"
 #include "SkiaRecordingResult.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
@@ -124,6 +125,12 @@ public:
 
     void drawSkiaText(const sk_sp<SkTextBlob>&, SkScalar, SkScalar, bool, bool);
 
+#if PLATFORM(WPE) && OS(DARWIN)
+    // Draws one glyph run rasterised by Core Text, as Safari's canvas does. Returns false when the
+    // run cannot be rasterised that way, so the caller draws it with Skia.
+    bool drawGlyphsWithCoreText(const FontBase&, std::span<const GlyphBufferGlyph>, std::span<const GlyphBufferAdvance>, const FloatPoint&, FontSmoothingMode);
+#endif
+
 private:
     enum class ContextMode : uint8_t {
         PaintingMode,
@@ -137,6 +144,10 @@ private:
 
     void setupFillSource(SkPaint&);
     void setupStrokeSource(SkPaint&);
+
+#if PLATFORM(WPE) && OS(DARWIN)
+    void drawCoreTextGlyphs(const sk_sp<SkImage>&, const SkRect& deviceBounds, bool isColorBitmap, bool enableAntialias);
+#endif
 
     void saveLayer(float, CompositeMode);
     void restoreLayer();
@@ -175,6 +186,11 @@ private:
             SkPaint::Cap cap { SkPaint::kButt_Cap };
             SkPaint::Join join { SkPaint::kMiter_Join };
             sk_sp<SkPathEffect> dash;
+#if PLATFORM(WPE) && OS(DARWIN)
+            // Kept so CoreGraphics can stroke the same pattern (Skia's SkPathEffect is opaque).
+            DashArray dashArray;
+            float dashOffset { 0 };
+#endif
         } stroke;
 
         // Layer-specific (only meaningful when isLayer is true).

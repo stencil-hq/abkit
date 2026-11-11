@@ -77,7 +77,7 @@ void FontDescription::setComputedLocale(const AtomString& computedLocale)
     m_usedLocale = m_script == USCRIPT_HAN ? AtomString { userPreferredChineseLocale() } : m_computedLocale;
 }
 
-#if !PLATFORM(COCOA)
+#if !PLATFORM(COCOA) && !(OS(MACOS) && USE(SKIA))
 AtomString FontDescription::platformResolveGenericFamily(UScriptCode, const AtomString&, const AtomString&)
 {
     return nullAtom();

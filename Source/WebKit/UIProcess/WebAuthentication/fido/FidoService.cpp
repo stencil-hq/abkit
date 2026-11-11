@@ -26,7 +26,8 @@
 #include "config.h"
 #include "FidoService.h"
 
-#if ENABLE(WEB_AUTHN)
+// The service hands the devices its transports find to CtapAuthenticator, which only the Cocoa ports build.
+#if ENABLE(WEB_AUTHN) && PLATFORM(COCOA)
 
 #include "CtapAuthenticator.h"
 #include "CtapDriver.h"
@@ -95,4 +96,4 @@ void FidoService::continueAfterGetInfo(CtapDriver& inputDriver, Vector<uint8_t>&
 
 #undef CTAP_RELEASE_LOG
 
-#endif // ENABLE(WEB_AUTHN)
+#endif // ENABLE(WEB_AUTHN) && PLATFORM(COCOA)

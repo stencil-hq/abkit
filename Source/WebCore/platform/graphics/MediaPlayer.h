@@ -346,6 +346,7 @@ public:
     virtual void mediaPlayerVideoLayerSizeDidChange(const FloatSize&) { }
 
     virtual bool isGStreamerHolePunchingEnabled() const { return false; }
+    virtual bool isAudioOutputEnabled() const { return false; }
 
     virtual PlatformVideoTarget mediaPlayerVideoTarget() const { return nullptr; }
 
@@ -681,6 +682,7 @@ public:
 #if USE(GSTREAMER)
     void simulateAudioInterruption();
     bool isGStreamerHolePunchingEnabled();
+    bool isAudioOutputEnabled();
 #if USE(COORDINATED_GRAPHICS)
     void setPlatformLayerBufferProxy(Ref<CoordinatedPlatformLayerBufferProxy>&&);
     RefPtr<CoordinatedPlatformLayerBufferProxy> platformLayerBufferProxy() const;

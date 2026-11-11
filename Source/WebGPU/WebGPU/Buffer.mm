@@ -113,7 +113,7 @@ NODELETE static MTLStorageMode storageMode(bool deviceHasUnifiedMemory, OptionSe
 {
     if (deviceHasUnifiedMemory)
         return MTLStorageModeShared;
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (usage.contains(WebGPU::BufferUsage::MapRead) || usage.contains(WebGPU::BufferUsage::MapWrite) || usage.contains(WebGPU::BufferUsage::Index))
         return MTLStorageModeManaged;
@@ -193,7 +193,7 @@ Buffer::Buffer(id<MTLBuffer> buffer, uint64_t initialSize, OptionSet<WebGPU::Buf
     , m_state(initialState)
     , m_mappingRange(initialMappingRange)
     , m_device(device)
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     , m_mappedAtCreation(m_state == State::MappedAtCreation)
 #endif
 {
@@ -471,7 +471,7 @@ void Buffer::unmap()
     decrementBufferMapCount();
     indirectBufferInvalidated();
 
-#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
+#if CPU(X86_64) && (OS(MACOS) || PLATFORM(MACCATALYST))
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (m_buffer.storageMode == MTLStorageModeManaged) {
         if (m_mappedAtCreation)
@@ -639,7 +639,7 @@ void Buffer::clearIndexBufferForCommandBuffer(CommandBuffer& commandBuffer)
 
     queue->clearBuffer(m_buffer);
     queue->finalizeBlitCommandEncoder();
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (m_buffer.storageMode == MTLStorageModeManaged)
         [m_buffer didModifyRange:NSMakeRange(0, m_buffer.length)];

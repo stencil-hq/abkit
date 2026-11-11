@@ -26,12 +26,39 @@
 
 namespace WebCore {
 
+#if OS(MACOS)
+// What the system font keywords of CSS (`font: caption` and the others) mean on a Mac: the system
+// font at the sizes AppKit gives its controls, under the family names Safari reports for them.
+auto SystemFontDatabase::platformSystemFontShorthandInfo(FontShorthand fontShorthand) -> SystemFontShorthandInfo
+{
+    AtomString systemFamily { "system-ui"_s };
+    switch (fontShorthand) {
+    case FontShorthand::Menu:
+        return { AtomString { "-apple-menu"_s }, 13, normalWeightValue() };
+    case FontShorthand::StatusBar:
+        return { AtomString { "-apple-status-bar"_s }, 10, normalWeightValue() };
+    case FontShorthand::SmallCaption:
+    case FontShorthand::WebkitSmallControl:
+        return { systemFamily, 11, normalWeightValue() };
+    case FontShorthand::WebkitMiniControl:
+        return { systemFamily, 9, normalWeightValue() };
+    case FontShorthand::Caption:
+    case FontShorthand::Icon:
+    case FontShorthand::MessageBox:
+    case FontShorthand::WebkitControl:
+        return { systemFamily, 13, normalWeightValue() };
+    }
+    ASSERT_NOT_REACHED();
+    return { systemFamily, 13, normalWeightValue() };
+}
+#else
 auto SystemFontDatabase::platformSystemFontShorthandInfo(FontShorthand) -> SystemFontShorthandInfo
 {
     auto& systemSettings = SystemSettings::singleton();
     auto systemFontFamily = systemSettings.fontFamily();
     return { systemFontFamily ? AtomString(*systemFontFamily) : WebKitFontFamilyNames::standardFamily, systemSettings.fontSize().value_or(16), FontSelectionValue(systemSettings.fontWeight().value_or(400)) };
 }
+#endif
 
 void SystemFontDatabase::platformInvalidate()
 {

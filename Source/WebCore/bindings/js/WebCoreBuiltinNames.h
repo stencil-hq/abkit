@@ -49,6 +49,7 @@ namespace WebCore {
     macro(AnimationEffect) \
     macro(AnimationPlaybackEvent) \
     macro(AnimationTimeline) \
+    macro(ApplePayError) \
     macro(ApplePayReferenceSession) \
     macro(ApplePaySession) \
     macro(ApplePaySetup) \
@@ -111,6 +112,7 @@ namespace WebCore {
     macro(Credential) \
     macro(CredentialsContainer) \
     macro(CryptoKey) \
+    macro(CSPViolationReportBody) \
     macro(CSSAnimation) \
     macro(CSSCounterStyleRule) \
     macro(CSSColor) \
@@ -173,6 +175,7 @@ namespace WebCore {
     macro(DecompressionStreamDecoder) \
     macro(DecompressionStreamTransform) \
     macro(DelayNode) \
+    macro(DeprecationReportBody) \
     macro(DeviceMotionEvent) \
     macro(DeviceOrientationEvent) \
     macro(DevicePosture) \
@@ -379,6 +382,8 @@ namespace WebCore {
     macro(PushSubscription) \
     macro(PushSubscriptionChangeEvent) \
     macro(PushSubscriptionOptions) \
+    macro(Report) \
+    macro(ReportBody) \
     macro(ReportingObserver) \
     macro(ResizeObserver) \
     macro(ResizeObserverEntry) \
@@ -449,6 +454,7 @@ namespace WebCore {
     macro(StorageManagerFileSystem) \
     macro(Subscriber) \
     macro(SubtleCrypto) \
+    macro(TestReportBody) \
     macro(TextDecoderStream) \
     macro(TextDecoderStreamDecoder) \
     macro(TextDetector) \

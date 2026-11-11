@@ -28,7 +28,7 @@
 #include <cstdio>
 #include <cstring>
 
-// WPEAgentHost [--data-dir DIR]
+// WPEAgentHost [--data-dir DIR] [--inspector HOST:PORT]
 //
 // Runs headless web views and is driven over its standard streams: requests
 // on standard input, answers on standard output, both as frames of a 4-byte
@@ -38,15 +38,31 @@
 int main(int argc, char** argv)
 {
     std::string dataDirectory;
+    std::string inspectorAddress;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--data-dir") && i + 1 < argc)
             dataDirectory = argv[++i];
         else if (!strncmp(argv[i], "--data-dir=", 11))
             dataDirectory = argv[i] + 11;
+        else if (!strcmp(argv[i], "--inspector") && i + 1 < argc)
+            inspectorAddress = argv[++i];
+        else if (!strncmp(argv[i], "--inspector=", 12))
+            inspectorAddress = argv[i] + 12;
         else {
-            fprintf(stderr, "usage: %s [--data-dir DIR]\n", argv[0]);
+            fprintf(stderr, "usage: %s [--data-dir DIR] [--inspector HOST:PORT]\n", argv[0]);
             return 64;
         }
+    }
+    if (!inspectorAddress.empty()) {
+        // The remote inspector binds the given address only: a port alone is the loopback Mac, never
+        // every interface.
+        auto separator = inspectorAddress.rfind(':');
+        if (separator == std::string::npos) {
+            fprintf(stderr, "%s: --inspector needs HOST:PORT\n", argv[0]);
+            return 64;
+        }
+        if (separator == 0)
+            inspectorAddress.insert(0, "127.0.0.1");
     }
 
     // From here on only the host writes to the stream its parent reads.
@@ -63,7 +79,7 @@ int main(int argc, char** argv)
 
     GMainLoop* loop = g_main_loop_new(nullptr, FALSE);
     int status = 0;
-    AgentHost::Host host(std::move(dataDirectory), [loop, &status](int exitStatus) {
+    AgentHost::Host host(std::move(dataDirectory), std::move(inspectorAddress), [loop, &status](int exitStatus) {
         status = exitStatus;
         g_main_loop_quit(loop);
     });

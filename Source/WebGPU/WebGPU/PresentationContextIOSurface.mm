@@ -33,7 +33,9 @@
 #import <wtf/MonotonicTime.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
+#if PLATFORM(COCOA)
 #import <wtf/spi/cocoa/IOTypesSPI.h>
+#endif
 
 namespace WebGPU::Metal {
 
@@ -277,7 +279,7 @@ void PresentationContextIOSurface::configure(const WebGPU::CanvasConfiguration& 
 
     MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:Texture::pixelFormat(effectiveFormat) width:width height:height mipmapped:NO];
     textureDescriptor.usage = Texture::usage(apiTextureDescriptor.usage, effectiveFormat);
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 #if ENABLE(WEBGPU_BY_DEFAULT)
     textureDescriptor.storageMode = device->hasUnifiedMemory() ? MTLStorageModeShared : MTLStorageModeManaged;

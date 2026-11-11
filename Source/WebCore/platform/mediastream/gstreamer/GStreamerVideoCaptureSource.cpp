@@ -32,6 +32,13 @@
 #include "PipeWireCaptureDeviceManager.h"
 #include <wtf/text/MakeString.h>
 
+#if OS(DARWIN)
+#include "ColorSpace.h"
+#include "GraphicsContext.h"
+#include "ImageBuffer.h"
+#include "ImageUtilities.h"
+#endif
+
 namespace WebCore {
 
 GST_DEBUG_CATEGORY(webkit_video_capture_source_debug);
@@ -60,6 +67,7 @@ private:
     CaptureDeviceManager& videoCaptureDeviceManager() final { return GStreamerVideoCaptureDeviceManager::singleton(); }
 };
 
+#if !OS(DARWIN)
 GStreamerVideoCaptureDeviceManager::GStreamerVideoCaptureDeviceManager()
     : GStreamerCaptureDeviceManager()
 {
@@ -71,10 +79,15 @@ void GStreamerVideoCaptureDeviceManager::computeCaptureDevices(CompletionHandler
     m_devices.clear();
     m_pipewireCaptureDeviceManager->computeCaptureDevices(WTF::move(callback));
 }
+#endif
 
 CaptureSourceOrError GStreamerVideoCaptureDeviceManager::createVideoCaptureSource(const CaptureDevice& device, MediaDeviceHashSalts&& hashSalts, const MediaConstraints* constraints)
 {
+#if OS(DARWIN)
+    return GStreamerVideoCaptureSource::create(String { device.persistentId() }, WTF::move(hashSalts), constraints);
+#else
     return m_pipewireCaptureDeviceManager->createCaptureSource(device, WTF::move(hashSalts), constraints);
+#endif
 }
 
 class GStreamerDisplayCaptureSourceFactory final : public DisplayCaptureFactory {
@@ -96,7 +109,12 @@ CaptureSourceOrError GStreamerVideoCaptureSource::create(String&& deviceID, Medi
         return CaptureSourceOrError({ WTF::move(errorMessage), MediaAccessDenialReason::HardwareError });
     }
 
-    auto source = adoptRef(*new GStreamerVideoCaptureSource(WTF::move(*device), WTF::move(hashSalts)));
+    return create(WTF::move(*device), WTF::move(hashSalts), constraints);
+}
+
+CaptureSourceOrError GStreamerVideoCaptureSource::create(GStreamerCaptureDevice&& device, MediaDeviceHashSalts&& hashSalts, const MediaConstraints* constraints)
+{
+    auto source = adoptRef(*new GStreamerVideoCaptureSource(WTF::move(device), WTF::move(hashSalts)));
     if (constraints) {
         if (auto result = source->applyConstraints(*constraints))
             return CaptureSourceOrError(CaptureSourceError { result->invalidConstraint });
@@ -141,9 +159,9 @@ GStreamerVideoCaptureSource::GStreamerVideoCaptureSource(const PipeWireCaptureDe
 GStreamerVideoCaptureSource::GStreamerVideoCaptureSource(GStreamerCaptureDevice&& device, MediaDeviceHashSalts&& hashSalts)
     : RealtimeVideoCaptureSource(device, WTF::move(hashSalts), { })
     , m_capturer(adoptRef(*new GStreamerVideoCapturer(WTF::move(device))))
-    , m_deviceType(CaptureDevice::DeviceType::Camera)
 {
     initializeVideoCaptureSourceDebugCategory();
+    m_deviceType = m_capturer->deviceType();
     m_capturer->addObserver(*this);
 
     auto& singleton = GStreamerVideoCaptureDeviceManager::singleton();
@@ -236,6 +254,12 @@ void GStreamerVideoCaptureSource::startProducingData()
         if (!self->isProducingData() || self->muted())
             return;
         self->dispatchVideoFrameToObservers(videoFrame, { });
+#if OS(DARWIN)
+        {
+            Locker locker { self->m_lastFrameLock };
+            self->m_lastFrame = WTF::move(videoFrame);
+        }
+#endif
     });
 
     m_capturer->start();
@@ -371,6 +395,36 @@ void GStreamerVideoCaptureSource::applyFrameRateAndZoomWithPreset(double request
     setIntrinsicSize(m_currentPreset->size());
     m_capturer->setFrameRate(requestedFrameRate);
 }
+
+#if OS(DARWIN)
+
+// ImageCapture.takePhoto() answers with the most recent frame of the live capture, encoded as
+// JPEG, so a page gets real camera pixels and the bytes ImageIO produces, as it does in Safari.
+Ref<TakePhotoNativePromise> GStreamerVideoCaptureSource::takePhotoInternal(PhotoSettings&&)
+{
+    RefPtr<VideoFrame> frame;
+    {
+        Locker locker { m_lastFrameLock };
+        frame = m_lastFrame;
+    }
+
+    if (!frame)
+        return TakePhotoNativePromise::createAndReject("Failed to capture photo"_s);
+
+    auto imageBuffer = ImageBuffer::create(frame->rotatedSize(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, ColorSpace::SRGB(), PixelFormat::BGRA8);
+    if (!imageBuffer)
+        return TakePhotoNativePromise::createAndReject("Failed to capture photo"_s);
+
+    imageBuffer->context().drawVideoFrame(*frame, { { }, imageBuffer->backendSize() }, ShouldDiscardAlpha::No, { frame->orientation() });
+
+    auto data = encodeData(WTF::move(imageBuffer), "image/jpeg"_s, std::nullopt);
+    if (data.isEmpty())
+        return TakePhotoNativePromise::createAndReject("Failed to encode photo"_s);
+
+    return TakePhotoNativePromise::createAndResolve(std::make_pair(WTF::move(data), "image/jpeg"_s));
+}
+
+#endif // OS(DARWIN)
 
 #undef GST_CAT_DEFAULT
 

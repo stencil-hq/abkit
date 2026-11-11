@@ -43,6 +43,9 @@
 #if PLATFORM(COCOA)
 typedef struct CF_BRIDGED_TYPE(id) __CVBuffer *CVPixelBufferRef;
 typedef struct CGAffineTransform CGAffineTransform;
+#elif OS(DARWIN)
+// WebGPU's Metal backend takes a video frame as a CVPixelBuffer on every Darwin port.
+typedef struct CF_BRIDGED_TYPE(id) __CVBuffer *CVPixelBufferRef;
 #endif
 
 namespace WebCore {
@@ -133,7 +136,7 @@ public:
 #if USE(GSTREAMER)
     virtual bool isGStreamer() const { return false; }
 #endif
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || OS(DARWIN)
     virtual CVPixelBufferRef pixelBuffer() const { return nullptr; };
 #endif
     WEBCORE_EXPORT virtual void setOwnershipIdentity(const ProcessIdentity&) { }

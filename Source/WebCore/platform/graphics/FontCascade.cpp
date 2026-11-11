@@ -539,6 +539,11 @@ bool FontCascade::hasValidAverageCharWidth() const
     // Internal fonts on macOS and iOS also have an invalid entry in the table for avgCharWidth.
     if (primaryFontIsSystemFont())
         return false;
+#elif OS(MACOS) && USE(SKIA)
+    // The same fonts, as this port finds them: the system's own families start with a dot, and the
+    // system font itself goes by this name.
+    if (auto primaryFamily = primaryFont().platformData().familyName(); primaryFamily.startsWith('.') || primaryFamily == "System Font"_s)
+        return false;
 #endif
 
     static constexpr SortedArraySet set { WTF::toArray<ComparableASCIILiteral>({

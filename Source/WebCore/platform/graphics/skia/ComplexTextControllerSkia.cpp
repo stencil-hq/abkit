@@ -27,6 +27,7 @@
 
 #include "FontCascadeInlines.h"
 #include "FontFeatureValues.h"
+#include "FontInlines.h"
 #include "FontTaggedSettings.h"
 #include "HbUniquePtr.h"
 #include "SurrogatePairAwareTextIterator.h"
@@ -88,6 +89,29 @@ ComplexTextController::ComplexTextRun::ComplexTextRun(hb_buffer_t* buffer, const
         m_glyphOrigins[i] = { offsetX, offsetY };
     }
     WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+
+#if OS(DARWIN)
+    // Kerning next to a space. Core Text takes the kerning of a pair off the advance of its first
+    // glyph. HarfBuzz splits the kerning of a 'kern' table between the two glyphs of the pair and
+    // moves the second one back by its share. A space always gets its own advance in the end, so
+    // with the split half of the kerning before a space is lost and half of the kerning after a
+    // space is kept, where on a Mac it is all of the first and none of the second. Text measured
+    // in one piece, as on a canvas, is only as wide as on a Mac once the shares are put back.
+    if (m_isLTR && m_font->platformData().size() && m_font->platformData().orientation() == FontOrientation::Horizontal) {
+        auto spaceGlyph = m_font->spaceGlyph();
+        for (unsigned i = 0; spaceGlyph && i < m_glyphCount; ++i) {
+            if (m_glyphs[i] != spaceGlyph)
+                continue;
+            if (i && m_glyphs[i - 1] != spaceGlyph)
+                m_baseAdvances[i - 1].setWidth(m_baseAdvances[i - 1].width() + m_glyphOrigins[i].x());
+            m_glyphOrigins[i].setX(0);
+            if (i + 1 < m_glyphCount && m_glyphs[i + 1] != spaceGlyph) {
+                m_baseAdvances[i + 1].setWidth(m_baseAdvances[i + 1].width() - m_glyphOrigins[i + 1].x());
+                m_glyphOrigins[i + 1].setX(0);
+            }
+        }
+    }
+#endif
     m_initialAdvance = toFloatSize(m_glyphOrigins[0]);
 }
 

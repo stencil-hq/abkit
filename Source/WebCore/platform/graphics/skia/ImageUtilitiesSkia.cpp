@@ -26,7 +26,8 @@
 #include "config.h"
 #include "ImageUtilities.h"
 
-#if USE(SKIA)
+// Darwin encodes with ImageIO (ImageUtilitiesSkiaDarwin.cpp).
+#if USE(SKIA) && !OS(DARWIN)
 #include "GLContext.h"
 #include "MIMETypeRegistry.h"
 #include "NativeImage.h"
@@ -148,4 +149,4 @@ Vector<uint8_t> platformEncodeData(const NativeImage& nativeImage, const String&
 
 } // namespace WebCore
 
-#endif // USE(SKIA)
+#endif // USE(SKIA) && !OS(DARWIN)

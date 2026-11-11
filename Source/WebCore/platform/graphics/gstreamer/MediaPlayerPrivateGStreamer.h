@@ -82,6 +82,10 @@ typedef struct _GstMpegtsSection GstMpegtsSection;
 typedef struct _GstStreamVolume GstStreamVolume;
 typedef struct _GstVideoInfo GstVideoInfo;
 
+#if OS(DARWIN)
+enum class WebKitWebSrcRequestStyle : uint8_t;
+#endif
+
 namespace WebCore {
 
 class BitmapTexture;
@@ -392,6 +396,13 @@ protected:
     const Ref<MainThreadNotifier<MainThreadNotification>> m_notifier;
     ThreadSafeWeakPtr<MediaPlayer> m_player;
     String m_referrer;
+
+#if OS(DARWIN)
+    // See WebKitWebSrcRequestStyle (WebKitWebSourceGStreamer.h). One identifier names all the requests of this player.
+    WebKitWebSrcRequestStyle systemRequestStyle() const;
+    WebKitWebSrcRequestStyle m_systemRequestStyle { };
+    String m_playbackSessionIdentifier;
+#endif
     mutable MediaTime m_cachedPosition;
     mutable bool m_isCachedPositionValid { false };
     mutable MediaTime m_cachedDuration;

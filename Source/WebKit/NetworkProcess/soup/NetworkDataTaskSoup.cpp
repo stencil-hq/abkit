@@ -174,13 +174,27 @@ void NetworkDataTaskSoup::createRequest(ResourceRequest&& request, WasBlockingCo
         return;
     }
 
-    restrictRequestReferrerToOriginIfNeeded(m_currentRequest);
+    [[maybe_unused]] bool restrictedReferrer = restrictRequestReferrerToOriginIfNeeded(m_currentRequest);
 
     m_soupMessage = m_currentRequest.createSoupMessage(m_session->blobRegistry());
     if (!m_soupMessage) {
         scheduleFailure(FailureType::InvalidURL);
         return;
     }
+
+#if defined(SOUP_MESSAGE_SAFARI_HEADER_TABLE_REFILLED)
+    // libsoup writes the headers in Safari's order, which follows from what WebKit does to CFNetwork's
+    // header table. A request with a body reaches Safari's network process with the table the web
+    // process filled, and the two changes the network process makes to such a request, here as there,
+    // make WebKit empty and refill it: the access control checks of a cross-origin fetch and the
+    // referrer restriction above.
+    if (RefPtr body = m_currentRequest.httpBody(); body && !body->isEmpty()) {
+        bool isCrossOriginFetch = m_sourceOrigin && m_currentRequest.httpHeaderField(HTTPHeaderName::SecFetchMode) == "cors"_s
+            && !m_sourceOrigin->isSameOriginAs(SecurityOrigin::create(m_currentRequest.url()));
+        if (restrictedReferrer || isCrossOriginFetch)
+            g_object_set_data(G_OBJECT(m_soupMessage.get()), SOUP_MESSAGE_SAFARI_HEADER_TABLE_REFILLED, GINT_TO_POINTER(1));
+    }
+#endif
 
 #if HAVE(SOUP_COMPRESSION_DICTIONARY_SUPPORT)
     // libsoup writes Available-Dictionary and Dictionary-ID, extends Accept-Encoding, and asks for
@@ -222,10 +236,13 @@ void NetworkDataTaskSoup::createRequest(ResourceRequest&& request, WasBlockingCo
     else
         g_signal_connect(m_soupMessage.get(), "hsts-enforced", G_CALLBACK(hstsEnforced), this);
 
+#if !defined(SOUP_WRITES_SAFARI_REQUEST_HEADERS)
     // Make sure we have an Accept header for subresources; some sites want this to serve some of their subresources.
+    // A libsoup that writes requests as Safari does adds it itself, where CFNetwork puts it.
     auto* requestHeaders = soup_message_get_request_headers(m_soupMessage.get());
     if (!soup_message_headers_get_one(requestHeaders, "Accept"))
         soup_message_headers_append(requestHeaders, "Accept", "*/*");
+#endif
 
     g_signal_connect(m_soupMessage.get(), "got-headers", G_CALLBACK(gotHeadersCallback), this);
     g_signal_connect(m_soupMessage.get(), "wrote-body-data", G_CALLBACK(wroteBodyDataCallback), this);
@@ -287,13 +304,13 @@ void NetworkDataTaskSoup::resume()
     if (m_soupMessage && !m_cancellable) {
         m_cancellable = adoptGRef(g_cancellable_new());
         if (m_shouldPreconnectOnly == PreconnectOnly::Yes) {
-            soup_session_preconnect_async(static_cast<NetworkSessionSoup&>(*m_session).soupSession(), m_soupMessage.get(), RunLoopSourcePriority::AsyncIONetwork, m_cancellable.get(),
+            soup_session_preconnect_async(soupSession(), m_soupMessage.get(), RunLoopSourcePriority::AsyncIONetwork, m_cancellable.get(),
                 reinterpret_cast<GAsyncReadyCallback>(preconnectCallback), protectedThis.leakRef());
         } else {
             // We need to protect cancellable here, because soup_session_send_async uses it after emitting SoupSession::request-queued, and we
             // might cancel the operation in a feature callback emitted on request-queued, for example hsts-enforced.
             GRefPtr<GCancellable> protectCancellable(m_cancellable);
-            soup_session_send_async(static_cast<NetworkSessionSoup&>(*m_session).soupSession(), m_soupMessage.get(), RunLoopSourcePriority::AsyncIONetwork, m_cancellable.get(),
+            soup_session_send_async(soupSession(), m_soupMessage.get(), RunLoopSourcePriority::AsyncIONetwork, m_cancellable.get(),
                 reinterpret_cast<GAsyncReadyCallback>(sendRequestCallback), new SendRequestData({ m_soupMessage, WTF::move(protectedThis) }));
             if (!g_cancellable_is_cancelled(protectCancellable.get()) && !m_networkLoadMetrics.fetchStart) {
                 auto* metrics = soup_message_get_metrics(m_soupMessage.get());
@@ -320,7 +337,7 @@ void NetworkDataTaskSoup::resume()
         else if (m_multipartInputStream)
             requestNextPartCallback(m_multipartInputStream.get(), pendingResult.get(), protectedThis.leakRef());
         else if (m_soupMessage) {
-            sendRequestCallback(static_cast<NetworkSessionSoup&>(*m_session).soupSession(), pendingResult.get(),
+            sendRequestCallback(soupSession(), pendingResult.get(),
                 static_cast<SendRequestData*>(g_object_steal_data(G_OBJECT(pendingResult.get()), "wk-send-request-data")));
         } else if (m_file) {
             if (m_response.expectedContentLength() == -1)
@@ -564,7 +581,7 @@ bool NetworkDataTaskSoup::acceptCertificate(GTlsCertificate* certificate, GTlsCe
 {
     ASSERT(m_soupMessage);
     URL url = soupURIToURL(soup_message_get_uri(m_soupMessage.get()));
-    auto error = static_cast<NetworkSessionSoup&>(*m_session).soupNetworkSession().checkTLSErrors(url, certificate, tlsErrors);
+    auto error = soupNetworkSession().checkTLSErrors(url, certificate, tlsErrors);
     if (!error)
         return true;
 
@@ -607,6 +624,16 @@ void NetworkDataTaskSoup::didSniffContent(UTF8CString&& contentType)
 bool NetworkDataTaskSoup::persistentCredentialStorageEnabled() const
 {
     return static_cast<NetworkSessionSoup&>(*m_session).persistentCredentialStorageEnabled();
+}
+
+SoupSession* NetworkDataTaskSoup::soupSession() const
+{
+    return static_cast<NetworkSessionSoup&>(*m_session).soupSessionForStoredCredentialsPolicy(m_storedCredentialsPolicy);
+}
+
+SoupNetworkSession& NetworkDataTaskSoup::soupNetworkSession() const
+{
+    return static_cast<NetworkSessionSoup&>(*m_session).soupNetworkSessionForStoredCredentialsPolicy(m_storedCredentialsPolicy);
 }
 
 void NetworkDataTaskSoup::applyAuthenticationToRequest(ResourceRequest& request)

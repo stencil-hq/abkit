@@ -180,6 +180,11 @@ add_dependencies(WGSLCore wgsl-types)
 # wgslc executable
 set(wgslc_SOURCES wgslc.cpp)
 set(wgslc_LIBRARIES WGSLCore)
+if (JavaScriptCore_LIBRARY_TYPE STREQUAL "OBJECT")
+    # WGSLCore's link interface names JavaScriptCore, which brings no objects
+    # where it and the libraries under it are object libraries.
+    set(wgslc_FRAMEWORKS JavaScriptCore WTF bmalloc)
+endif ()
 WEBKIT_EXECUTABLE_DECLARE(wgslc)
 # Before WEBKIT_EXECUTABLE(), which reads the bundle properties.
 if (WEBKIT_SDK_IS_IOS_FAMILY)

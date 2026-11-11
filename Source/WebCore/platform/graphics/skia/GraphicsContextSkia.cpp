@@ -31,6 +31,7 @@
 #include "ColorSpaceSkia.h"
 #include "FloatRect.h"
 #include "FloatRoundedRect.h"
+#include "FontRasterizationSkiaDarwin.h"
 #include "FontRenderOptions.h"
 #include "GLContext.h"
 #include "ImageBuffer.h"
@@ -41,6 +42,7 @@
 #include "Pattern.h"
 #include "PlatformDisplay.h"
 #include "ProcessCapabilities.h"
+#include "SkiaCoreGraphicsPathCoverage.h"
 #include "SkiaImageAtlasLayoutBuilder.h"
 #include "SkiaPaintingEngine.h"
 #include "SkiaRecordingResult.h"
@@ -57,6 +59,7 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkPoint3.h>
 #include <skia/core/SkRRect.h>
 #include <skia/core/SkRegion.h>
+#include <skia/core/SkSamplingOptions.h>
 #include <skia/core/SkSurface.h>
 #include <skia/core/SkTileMode.h>
 #include <skia/effects/SkImageFilters.h>
@@ -484,6 +487,36 @@ bool GraphicsContextSkia::drawPathAsSingleElement(const Path& path, SkPaint& pai
     return handled;
 }
 
+#if PLATFORM(WPE) && OS(DARWIN)
+static CGLineCap toCoreGraphicsLineCap(SkPaint::Cap cap)
+{
+    switch (cap) {
+    case SkPaint::kButt_Cap:
+        return kCGLineCapButt;
+    case SkPaint::kRound_Cap:
+        return kCGLineCapRound;
+    case SkPaint::kSquare_Cap:
+        return kCGLineCapSquare;
+    default:
+        return kCGLineCapButt;
+    }
+}
+
+static CGLineJoin toCoreGraphicsLineJoin(SkPaint::Join join)
+{
+    switch (join) {
+    case SkPaint::kMiter_Join:
+        return kCGLineJoinMiter;
+    case SkPaint::kRound_Join:
+        return kCGLineJoinRound;
+    case SkPaint::kBevel_Join:
+        return kCGLineJoinBevel;
+    default:
+        return kCGLineJoinMiter;
+    }
+}
+#endif
+
 void GraphicsContextSkia::fillPath(const Path& path)
 {
     if (path.isEmpty())
@@ -494,6 +527,19 @@ void GraphicsContextSkia::fillPath(const Path& path)
 
     SkPaint paint = createFillPaint();
     setupFillSource(paint);
+
+#if PLATFORM(WPE) && OS(DARWIN)
+    // A canvas fill's edge coverage comes from CoreGraphics, as in Safari, while Skia paints the
+    // colour, shader, alpha and blend mode. A pattern's image may be one only the GPU can sample,
+    // which the coverage layer could not paint, so patterns keep the path below, as do shadows,
+    // page painting and the other ports.
+    if (m_renderingPurpose == RenderingPurpose::Canvas && !hasDropShadow() && !fillBrush().pattern()) {
+        CoreGraphicsCoverageParameters parameters;
+        parameters.fillRule = state().fillRule();
+        if (drawPathWithCoreGraphicsCoverage(m_canvas, path, paint, false, parameters))
+            return;
+    }
+#endif
 
     if (drawPathAsSingleElement(path, paint))
         return;
@@ -520,6 +566,20 @@ void GraphicsContextSkia::strokePath(const Path& path)
 
     SkPaint strokePaint = createStrokePaint();
     setupStrokeSource(strokePaint);
+
+#if PLATFORM(WPE) && OS(DARWIN)
+    if (m_renderingPurpose == RenderingPurpose::Canvas && !hasDropShadow() && !strokeBrush().pattern()) {
+        CoreGraphicsCoverageParameters parameters;
+        parameters.lineWidth = strokePaint.getStrokeWidth();
+        parameters.lineCap = toCoreGraphicsLineCap(strokePaint.getStrokeCap());
+        parameters.lineJoin = toCoreGraphicsLineJoin(strokePaint.getStrokeJoin());
+        parameters.miterLimit = strokePaint.getStrokeMiter();
+        parameters.dashPattern = m_skiaState.stroke.dashArray.span();
+        parameters.dashOffset = m_skiaState.stroke.dashOffset;
+        if (drawPathWithCoreGraphicsCoverage(m_canvas, path, strokePaint, true, parameters))
+            return;
+    }
+#endif
 
     if (drawPathAsSingleElement(path, strokePaint))
         return;
@@ -698,6 +758,41 @@ void GraphicsContextSkia::clip(const FloatRect& rect)
 
 void GraphicsContextSkia::clipPath(const Path& path, WindRule clipRule)
 {
+#if PLATFORM(WPE) && OS(DARWIN)
+    // A canvas clip's coverage comes from CoreGraphics, as in Safari.
+    if (m_renderingPurpose == RenderingPurpose::Canvas) {
+        CoreGraphicsCoverageParameters parameters;
+        parameters.fillRule = clipRule;
+        PathCoverageClipShader coverage;
+        if (createPathCoverageClipShader(m_canvas, path, parameters, coverage)) {
+            if (!coverage.coversPixels) {
+                recordClipIfNeeded({
+                    .type = ClipRecord::Type::Rect,
+                    .matrix = SkMatrix::I(),
+                    .op = SkClipOp::kIntersect,
+                    .antialias = false,
+                    .rect = SkRect::MakeEmpty(),
+                    .path = { },
+                    .shader = { },
+                });
+                m_canvas.clipRect(SkRect::MakeEmpty(), SkClipOp::kIntersect, false);
+                return;
+            }
+            recordClipIfNeeded({
+                .type = ClipRecord::Type::Shader,
+                .matrix = m_canvas.getTotalMatrix(),
+                .op = SkClipOp::kIntersect,
+                .antialias = true,
+                .rect = { },
+                .path = { },
+                .shader = coverage.shader,
+            });
+            m_canvas.clipShader(WTF::move(coverage.shader), SkClipOp::kIntersect);
+            return;
+        }
+    }
+#endif
+
     auto fillRule = toSkiaFillType(clipRule);
     auto& skiaPath = *path.platformPath();
 
@@ -998,8 +1093,17 @@ void GraphicsContextSkia::setLineDash(const DashArray& dashArray, float dashOffs
 {
     if (!isValidDashArray(dashArray)) {
         m_skiaState.stroke.dash = nullptr;
+#if PLATFORM(WPE) && OS(DARWIN)
+        m_skiaState.stroke.dashArray = { };
+        m_skiaState.stroke.dashOffset = 0;
+#endif
         return;
     }
+
+#if PLATFORM(WPE) && OS(DARWIN)
+    m_skiaState.stroke.dashArray = dashArray;
+    m_skiaState.stroke.dashOffset = dashOffset;
+#endif
 
     if (dashArray.size() % 2 == 1) {
         // Repeat the array to ensure even number of dash array elements, see e.g. 'stroke-dasharray' spec.
@@ -1036,6 +1140,29 @@ void GraphicsContextSkia::setMiterLimit(float miter)
 
 void GraphicsContextSkia::clipOut(const Path& path)
 {
+#if PLATFORM(WPE) && OS(DARWIN)
+    if (m_renderingPurpose == RenderingPurpose::Canvas) {
+        CoreGraphicsCoverageParameters parameters;
+        PathCoverageClipShader coverage;
+        if (createPathCoverageClipShader(m_canvas, path, parameters, coverage)) {
+            // The path covers no pixel, so there is nothing to subtract.
+            if (!coverage.coversPixels)
+                return;
+            recordClipIfNeeded({
+                .type = ClipRecord::Type::Shader,
+                .matrix = m_canvas.getTotalMatrix(),
+                .op = SkClipOp::kDifference,
+                .antialias = true,
+                .rect = { },
+                .path = { },
+                .shader = coverage.shader,
+            });
+            m_canvas.clipShader(WTF::move(coverage.shader), SkClipOp::kDifference);
+            return;
+        }
+    }
+#endif
+
     auto& skiaPath = *path.platformPath();
     skiaPath.toggleInverseFillType();
 
@@ -1331,6 +1458,88 @@ void GraphicsContextSkia::drawSkiaText(const sk_sp<SkTextBlob>& blob, SkScalar x
     if (isVertical)
         m_canvas.restore();
 }
+
+#if PLATFORM(WPE) && OS(DARWIN)
+bool GraphicsContextSkia::drawGlyphsWithCoreText(const FontBase& font, std::span<const GlyphBufferGlyph> glyphs, std::span<const GlyphBufferAdvance> advances, const FloatPoint& position, FontSmoothingMode smoothingMode)
+{
+    if (m_renderingPurpose != RenderingPurpose::Canvas)
+        return false;
+
+    // A bitmap is drawn, so the context has to be the one Skia can upload it into.
+    if (!makeGLContextCurrentIfNeeded())
+        return false;
+
+    CoreTextGlyphRunOptions options;
+    options.deviceMatrix = m_canvas.getTotalMatrix();
+    options.textDrawingMode = textDrawingMode();
+    options.strokeThickness = strokeThickness();
+    options.lineCap = m_skiaState.stroke.cap;
+    options.lineJoin = m_skiaState.stroke.join;
+    options.miterLimit = m_skiaState.stroke.miter;
+    options.lineDash = m_skiaState.stroke.dashArray;
+    options.lineDashOffset = m_skiaState.stroke.dashOffset;
+    options.smoothingMode = smoothingMode;
+    options.shouldSubpixelQuantizeFonts = shouldSubpixelQuantizeFonts();
+
+    // Core Text can only paint a run one colour, which is enough when the brush is a single
+    // colour; with a gradient or an image the run is a mask the brush is composited through.
+    const SourceBrush& brush = options.textDrawingMode.contains(TextDrawingMode::Fill) ? fillBrush() : strokeBrush();
+    if (!brush.hasPatternOrGradient())
+        options.solidColor = brush.color().colorWithAlphaMultipliedBy(alpha());
+
+    auto bitmap = rasterizeGlyphRunWithCoreText(font, glyphs, advances, position, options);
+    if (!bitmap)
+        return false;
+
+    drawCoreTextGlyphs(bitmap->image, bitmap->deviceBounds, bitmap->isColorBitmap, font.enableAntialiasing(smoothingMode));
+    return true;
+}
+
+void GraphicsContextSkia::drawCoreTextGlyphs(const sk_sp<SkImage>& image, const SkRect& deviceBounds, bool isColorBitmap, bool enableAntialias)
+{
+    // image holds device-space pixels, so it is drawn with the canvas transform neutralised, as
+    // drawPathWithCoreGraphicsCoverage draws its coverage.
+    auto drawInDeviceSpace = [&](const SkPaint& paint) {
+        m_canvas.save();
+        m_canvas.setMatrix(SkMatrix::I());
+        m_canvas.drawImageRect(image, deviceBounds, SkSamplingOptions(SkFilterMode::kNearest), &paint);
+        m_canvas.restore();
+    };
+
+    if (textDrawingMode().contains(TextDrawingMode::Fill)) {
+        SkPaint paint = createFillPaint();
+        paint.setStyle(SkPaint::kFill_Style);
+        paint.setAntiAlias(enableAntialias);
+        if (!isColorBitmap) {
+            setupFillSource(paint);
+            // The bitmap is drawn in device space, so a brush that lives in canvas space has to
+            // move there too.
+            if (auto shader = paint.refShader())
+                paint.setShader(shader->makeWithLocalMatrix(m_canvas.getTotalMatrix()));
+        }
+        bool inExtraTransparencyLayer = false;
+        if (hasDropShadow())
+            inExtraTransparencyLayer = drawOutsetShadow(paint, drawInDeviceSpace);
+        drawInDeviceSpace(paint);
+        if (inExtraTransparencyLayer)
+            restoreLayer();
+    }
+
+    if (textDrawingMode().contains(TextDrawingMode::Stroke)) {
+        // The run was stroked while it was rasterised, so the paint only supplies the brush.
+        SkPaint paint = createStrokePaint();
+        paint.setStyle(SkPaint::kFill_Style);
+        paint.setPathEffect(nullptr);
+        paint.setAntiAlias(enableAntialias);
+        if (!isColorBitmap) {
+            setupStrokeSource(paint);
+            if (auto shader = paint.refShader())
+                paint.setShader(shader->makeWithLocalMatrix(m_canvas.getTotalMatrix()));
+        }
+        drawInDeviceSpace(paint);
+    }
+}
+#endif
 
 RenderingMode GraphicsContextSkia::renderingMode() const
 {

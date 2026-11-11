@@ -46,7 +46,6 @@
 #include "NativeImage.h"
 #include "Page.h"
 #include "PlaceholderRenderingContextSource.h"
-#include "PlatformCALayerDelegatedContents.h"
 #include "PlatformDynamicRangeLimit.h"
 #include "PlatformScreen.h"
 #include "RenderBox.h"
@@ -57,8 +56,15 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/ThreadSafeRefCounted.h>
 
+#if USE(CA)
+#include "PlatformCALayerDelegatedContents.h"
+#else
+#include "GPUDisplayBufferDisplayDelegateCoordinated.h"
+#endif
+
 namespace WebCore {
 
+#if USE(CA)
 class GPUDisplayBufferDisplayDelegate final : public GraphicsLayerContentsDisplayDelegate {
 public:
     NODELETE static Ref<GPUDisplayBufferDisplayDelegate> create(bool isOpaque = true, float contentsScale = 1)
@@ -127,6 +133,7 @@ private:
     bool m_isOpaque;
     ContentsFormat m_contentsFormat { ContentsFormat::RGBA8 };
 };
+#endif // USE(CA)
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
 struct ScreenHeadroom {
@@ -508,7 +515,8 @@ RefPtr<ImageBuffer> GPUCanvasContextCocoa::transferToImageBuffer()
     return bufferRef;
 }
 
-#if ENABLE(OFFSCREEN_CANVAS)
+// Elsewhere OffscreenCanvas commits the display buffer to the placeholder as an image buffer.
+#if ENABLE(OFFSCREEN_CANVAS) && PLATFORM(COCOA)
 bool GPUCanvasContextCocoa::commitToPlaceholder(PlaceholderRenderingContextSource& source)
 {
     if (!m_configuration || !m_configuration->lastPresentedFrameIndex)
@@ -541,10 +549,18 @@ static bool equalConfigurations(const auto& a, const auto& b)
 static ColorSpace toWebCoreColorSpace(const PredefinedColorSpace& colorSpace, const GPUCanvasToneMapping& toneMapping)
 {
     switch (colorSpace) {
+#if ENABLE(DESTINATION_COLOR_SPACE_EXTENDED_SRGB)
     case PredefinedColorSpace::SRGB:
         return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? ColorSpace::SRGB() : ColorSpace::ExtendedSRGB();
     case PredefinedColorSpace::SRGBLinear:
         return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? ColorSpace::LinearSRGB() : ColorSpace::ExtendedLinearSRGB();
+#else
+    // Tone mapping is always standard without the extended color spaces: see configure().
+    case PredefinedColorSpace::SRGB:
+        return ColorSpace::SRGB();
+    case PredefinedColorSpace::SRGBLinear:
+        return ColorSpace::LinearSRGB();
+#endif
 #if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
     case PredefinedColorSpace::DisplayP3:
         return toneMapping.mode == GPUCanvasToneMappingMode::Standard ? ColorSpace::DisplayP3() : ColorSpace::ExtendedDisplayP3();
@@ -606,7 +622,9 @@ ExceptionOr<void> GPUCanvasContextCocoa::configure(GPUCanvasConfiguration&& conf
     auto textureFormat = computeTextureFormat(configuration.format, configuration.toneMapping.mode);
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
     // Only use RGBA16F when CALayer HDR is needed.
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
     m_layerContentsDisplayDelegate->setContentsFormat(textureFormat != WebGPU::TextureFormat::Rgba16float ? ContentsFormat::RGBA8 : ContentsFormat::RGBA16F);
+#endif
 #endif
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
@@ -622,6 +640,9 @@ ExceptionOr<void> GPUCanvasContextCocoa::configure(GPUCanvasConfiguration&& conf
         return Exception { ExceptionCode::InvalidStateError, "GPUCanvasContext.configure: Unable to configure."_s };
 
     m_layerContentsDisplayDelegate->setOpaque(configuration.alphaMode == GPUCanvasAlphaMode::Opaque);
+#if !USE(CA)
+    m_layerContentsDisplayDelegate->setColorSpace(toWebCoreColorSpace(configuration.colorSpace, configuration.toneMapping));
+#endif
     m_configuration = {
         configuration.device,
         configuration.format,

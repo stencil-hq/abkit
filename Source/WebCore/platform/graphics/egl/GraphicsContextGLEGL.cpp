@@ -87,13 +87,13 @@ GraphicsContextGLANGLE::~GraphicsContextGLANGLE()
             bool result = EGL_DestroySync(m_displayObj, sync);
             ASSERT_UNUSED(result, !!result);
         }
-#if PLATFORM(WIN)
+#if PLATFORM(WIN) || !USE(LIBEPOXY)
         EGL_MakeCurrent(m_displayObj, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 #endif
         EGL_DestroyContext(m_displayObj, m_contextObj);
     }
 
-#if !PLATFORM(WIN)
+#if !PLATFORM(WIN) && USE(LIBEPOXY)
     if (m_angleSharingContextObj)
         EGL_DestroyContext(m_displayObj, m_angleSharingContextObj);
 
@@ -306,8 +306,10 @@ bool GraphicsContextGLEGL::platformInitializeContext()
     eglContextAttributes.append(EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM);
     eglContextAttributes.append(EGL_FALSE);
 #if USE(COORDINATED_GRAPHICS)
-    eglContextAttributes.append(EGL_CONTEXT_VIRTUALIZATION_GROUP_ANGLE);
-    eglContextAttributes.append(0);
+    if (GLContext::isExtensionSupported(displayExtensions, "EGL_ANGLE_context_virtualization")) {
+        eglContextAttributes.append(EGL_CONTEXT_VIRTUALIZATION_GROUP_ANGLE);
+        eglContextAttributes.append(0);
+    }
 #endif
 
     if (WTF::contains(unsafeSpan(displayExtensions), "EGL_ANGLE_power_preference"_span)) {
@@ -318,8 +320,14 @@ bool GraphicsContextGLEGL::platformInitializeContext()
     }
     eglContextAttributes.append(EGL_NONE);
 
-#if PLATFORM(WIN)
-    m_contextObj = EGL_CreateContext(m_displayObj, m_configObj, sharedDisplay.angleSharingGLContext(), eglContextAttributes.span().data());
+#if PLATFORM(WIN) || !USE(LIBEPOXY)
+    // The sharing context belongs to the display: this context only shares with it.
+    auto sharingContext = sharedDisplay.angleSharingGLContext();
+    if (sharingContext == EGL_NO_CONTEXT) {
+        LOG(WebGL, "The display has no sharing EGLContext.");
+        return false;
+    }
+    m_contextObj = EGL_CreateContext(m_displayObj, m_configObj, sharingContext, eglContextAttributes.span().data());
 #else
     m_angleSharingContextObj = sharedDisplay.angleSharingGLContext();
     if (m_angleSharingContextObj == EGL_NO_CONTEXT) {

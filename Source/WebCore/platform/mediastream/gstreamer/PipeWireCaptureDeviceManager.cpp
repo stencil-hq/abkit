@@ -18,9 +18,9 @@
  */
 
 #include "config.h"
-#include "PipeWireCaptureDeviceManager.h"
 
-#if ENABLE(MEDIA_STREAM) && USE(GSTREAMER)
+#if ENABLE(MEDIA_STREAM) && USE(GSTREAMER) && !OS(DARWIN)
+#include "PipeWireCaptureDeviceManager.h"
 
 #include "GStreamerCaptureDeviceManager.h"
 #include "GStreamerVideoCaptureSource.h"

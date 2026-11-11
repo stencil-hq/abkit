@@ -118,11 +118,13 @@ void Adapter::requestDevice(const WebGPU::DeviceDescriptor& descriptor, Completi
 
 void Adapter::requestDeviceOrError(const WebGPU::DeviceDescriptor& descriptor, CompletionHandler<void(std::expected<Ref<Device>, String>&&)>&& callback)
 {
+#if !USE(SYSTEM_WEBKIT_WEBGPU_PARITY)
     if (m_deviceRequested) {
         callback(makeUnexpected("Adapter can only request one device"_s));
         makeInvalid();
         return;
     }
+#endif
 
     Limits limits { };
 

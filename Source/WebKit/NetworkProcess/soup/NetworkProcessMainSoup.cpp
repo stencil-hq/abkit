@@ -28,6 +28,7 @@
 #include "NetworkProcessMain.h"
 
 #include "AuxiliaryProcessMain.h"
+#include "BundledTLSBackend.h"
 #include "NetworkProcess.h"
 #include "NetworkSession.h"
 
@@ -43,6 +44,9 @@ public:
     {
 #if USE(GCRYPT)
         PAL::GCrypt::initialize();
+#endif
+#if OS(DARWIN)
+        loadBundledTLSBackend();
 #endif
         return true;
     }

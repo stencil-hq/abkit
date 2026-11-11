@@ -85,6 +85,7 @@
 #include "ScriptExecutionContext.h"
 #include "SecurityOrigin.h"
 #include "SerializedScriptValueInternals.h"
+#include "Settings.h"
 #include "SharedBuffer.h"
 #include "TypedArrayPixelBuffer.h"
 #include "WebCodecsEncodedAudioChunk.h"
@@ -3238,9 +3239,17 @@ private:
                 return std::nullopt;
             return value;
         };
-        Ref<DOMException> exception = isQuotaExceededError
+        // Where the QuotaExceededError interface is off, the serialized tag must decode to the
+        // plain DOMException that used to carry only its name.
+        bool quotaExceededErrorEnabled = [&] {
+            if (!isQuotaExceededError)
+                return false;
+            auto* context = executionContext(m_lexicalGlobalObject);
+            return context && context->settingsValues().quotaExceededErrorEnabled;
+        }();
+        Ref<DOMException> exception = quotaExceededErrorEnabled
             ? Ref<DOMException> { QuotaExceededError::create(message->string(), { toOptional(quota), toOptional(requested) }) }
-            : DOMException::create(message->string(), name->string());
+            : DOMException::create(message->string(), isQuotaExceededError ? "QuotaExceededError"_s : name->string());
         JSValue result = getJSValue(exception);
         // Creating the wrapper captured a stack trace of the frame doing the deserializing; replace
         // it with the serialized one so the clone reports the same stack as the original did.

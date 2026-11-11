@@ -36,6 +36,38 @@
 
 namespace WebCore {
 
+#if OS(DARWIN)
+// The Mac's emoji font holds its glyphs as images at a few sizes, and some glyphs have no image at
+// some of them. Core Text then takes the image of another size, and measures the glyph as it does
+// every other. This is the font at a size where every glyph has its image, to tell a glyph that
+// lacks an image at one size from a glyph that has none at all.
+static SkFont appleColorEmojiFontWithEveryImage(const SkFont& font)
+{
+    SkFont result = font;
+    result.setSize(64);
+    return result;
+}
+
+#endif
+
+// Skia gives the box of the pixels a glyph would fill. Core Text gives the box of its outline, and
+// on a Mac that is the box pages are used to seeing in the metrics of a text.
+static SkRect glyphBounds(const FontPlatformData& platformData, SkGlyphID glyph)
+{
+    const auto& font = platformData.skFont();
+#if OS(DARWIN)
+    if (auto path = font.getPath(glyph))
+        return path->computeTightBounds();
+    // A glyph of the Mac's emoji font is an image that fills the em square above the baseline.
+    if (platformData.skiaHarfBuzzFont() && platformData.skiaHarfBuzzFont()->isAppleColorEmoji()) {
+        if (font.getBounds(glyph, nullptr).isEmpty() && appleColorEmojiFontWithEveryImage(font).getBounds(glyph, nullptr).isEmpty())
+            return SkRect::MakeEmpty();
+        return SkRect::MakeLTRB(0, -font.getSize(), font.getSize(), 0);
+    }
+#endif
+    return font.getBounds(glyph, nullptr);
+}
+
 Path Font::platformPathForGlyph(Glyph glyph) const
 {
     const auto& font = m_platformData.skFont();
@@ -51,7 +83,8 @@ FloatRect Font::platformBoundsForGlyph(Glyph glyph) const
         return { };
 
     const auto& font = m_platformData.skFont();
-    SkRect bounds = font.getBounds(glyph, nullptr);
+    SkRect bounds = glyphBounds(m_platformData, glyph);
+    bounds.offset(0, m_platformData.glyphBaselineShift());
     if (!font.isSubpixel()) {
         SkIRect rect;
         bounds.roundOut(&rect);
@@ -69,12 +102,16 @@ Vector<FloatRect, Font::inlineGlyphRunCapacity> Font::platformBoundsForGlyphs(co
 
     Vector<SkRect, inlineGlyphRunCapacity> bounds(glyphs.size());
     const auto& font = m_platformData.skFont();
+#if OS(DARWIN)
+    for (size_t i = 0; i < glyphs.size(); ++i)
+        bounds[i] = glyphBounds(m_platformData, glyphs[i]);
+#else
     font.getBounds(glyphs.span(), bounds.mutableSpan(), nullptr);
+#endif
     return bounds.map<Vector<FloatRect, inlineGlyphRunCapacity>>([&](const auto& boundsRect) -> auto {
+        SkRect returnValue = boundsRect.makeOffset(0, m_platformData.glyphBaselineShift());
         if (font.isSubpixel())
-            return boundsRect;
-
-        SkRect returnValue = boundsRect;
+            return returnValue;
         SkIRect rect;
         returnValue.roundOut(&rect);
         returnValue.set(rect);
@@ -87,14 +124,70 @@ float Font::platformWidthForGlyph(Glyph glyph) const
     if (!m_platformData.size())
         return 0;
 
-    const auto& font = m_platformData.skFont();
-    SkScalar width = font.getWidth(glyph);
-
-    if (!font.isSubpixel())
-        width = SkScalarRoundToInt(width);
-
-    return SkScalarToFloat(width);
+    return SkScalarToFloat(m_platformData.glyphAdvance(glyph));
 }
+
+#if OS(DARWIN)
+static std::optional<int16_t> int16InTable(const SkTypeface& typeface, SkFontTableTag tag, size_t offset)
+{
+    std::array<uint8_t, 2> bytes;
+    if (typeface.getTableData(tag, offset, bytes.size(), bytes.data()) != bytes.size())
+        return std::nullopt;
+    return static_cast<int16_t>(bytes[0] << 8 | bytes[1]);
+}
+
+static constexpr SkFontTableTag os2Tag = SkSetFourByteTag('O', 'S', '/', '2');
+static constexpr SkFontTableTag headTag = SkSetFourByteTag('h', 'e', 'a', 'd');
+static constexpr SkFontTableTag hheaTag = SkSetFourByteTag('h', 'h', 'e', 'a');
+static constexpr SkFontTableTag mathTag = SkSetFourByteTag('M', 'A', 'T', 'H');
+
+// The line metrics of a font as Core Text and the Mac port of WebCore compute them, so that lines of
+// the Mac's fonts are as tall here as in every other browser there. They are not whole pixels.
+static void adjustLineMetricsToMatchCoreText(const SkFont& font, const SkString& familyName, bool isLocal, float& ascent, float& descent, float& lineGap, float& lineSpacing)
+{
+    auto& typeface = *font.getTypeface();
+    int unitsPerEm = typeface.getUnitsPerEm();
+
+    // Core Text takes the metrics from the 'hhea' table even when the 'OS/2' table asks for its own
+    // typographic metrics to be used, which FreeType honours. WebCore makes the one exception of
+    // fonts for mathematical layout, where it uses the typographic metrics too.
+    static constexpr int16_t useTypographicMetrics = 1 << 7;
+    auto selection = int16InTable(typeface, os2Tag, 62);
+    if (unitsPerEm && selection && (*selection & useTypographicMetrics) && !typeface.getTableSize(mathTag)) {
+        auto tableAscent = int16InTable(typeface, hheaTag, 4);
+        auto tableDescent = int16InTable(typeface, hheaTag, 6);
+        auto tableLineGap = int16InTable(typeface, hheaTag, 8);
+        if (tableAscent && tableDescent && tableLineGap && (*tableAscent || *tableDescent)) {
+            float scale = font.getSize() / unitsPerEm;
+            ascent = *tableAscent * scale;
+            descent = -*tableDescent * scale;
+            lineGap = *tableLineGap * scale;
+        }
+    }
+
+    // Times, Helvetica and Courier get the vertical metrics of their Microsoft counterparts, which
+    // are the de facto standard of the web: 15% more, added to the ascent.
+    if (isLocal && (familyName.equals("Times") || familyName.equals("Helvetica") || familyName.equals("Courier")))
+        ascent += std::round((ascent + descent) * 0.15f);
+
+    lineSpacing = lroundf(ascent) + lroundf(descent) + lroundf(lineGap);
+
+    // The Hiragino fonts keep room under the baseline for the underlines of marked text.
+    if (descent < 3 && lineGap >= 3 && familyName.startsWith("Hiragino")) {
+        lineGap -= 3 - descent;
+        descent = 3;
+    }
+}
+
+// The height of a letter above the baseline, measured on its outline as Core Text does.
+static std::optional<float> heightOfCharacter(const FontPlatformData& platformData, SkUnichar character)
+{
+    auto glyph = platformData.skFont().getTypeface()->unicharToGlyph(character);
+    if (!glyph)
+        return std::nullopt;
+    return -glyphBounds(platformData, glyph).top();
+}
+#endif
 
 void FontBase::platformInit()
 {
@@ -105,14 +198,32 @@ void FontBase::platformInit()
     SkFontMetrics metrics;
     font.getMetrics(&metrics);
 
+    SkString familyName;
+    font.getTypeface()->getFamilyName(&familyName);
+
+#if OS(DARWIN)
+    float ascent = -metrics.fAscent;
+    float descent = metrics.fDescent;
+    float lineGap = metrics.fLeading;
+    float lineSpacing = 0;
+    adjustLineMetricsToMatchCoreText(font, familyName, origin() == Origin::Local, ascent, descent, lineGap, lineSpacing);
+
+    // FreeType measures the letter on the pixel grid when the font does not state the height.
+    auto tableVersion = int16InTable(*font.getTypeface(), os2Tag, 0);
+    if (!tableVersion || *tableVersion < 2 || !metrics.fCapHeight)
+        metrics.fCapHeight = heightOfCharacter(m_platformData, 'H').value_or(metrics.fCapHeight);
+    // The x-height is that of the letter itself, whatever the font states.
+    metrics.fXHeight = heightOfCharacter(m_platformData, 'x').value_or(metrics.fXHeight);
+#else
     auto ascent = SkScalarRoundToScalar(-metrics.fAscent);
     auto descent = SkScalarRoundToScalar(metrics.fDescent);
+    auto lineGap = SkScalarToFloat(metrics.fLeading);
+    float lineSpacing = lroundf(ascent) + lroundf(descent) + lroundf(lineGap);
+#endif
     m_fontMetrics.setAscent(ascent);
     m_fontMetrics.setDescent(descent);
-
-    auto lineGap = SkScalarToFloat(metrics.fLeading);
     m_fontMetrics.setLineGap(lineGap);
-    m_fontMetrics.setLineSpacing(lroundf(ascent) + lroundf(descent) + lroundf(lineGap));
+    m_fontMetrics.setLineSpacing(lineSpacing);
 
     m_fontMetrics.setCapHeight(metrics.fCapHeight);
 
@@ -139,8 +250,6 @@ void FontBase::platformInit()
     else
         m_emojiType = NoEmojiGlyphs { };
 
-    SkString familyName;
-    font.getTypeface()->getFamilyName(&familyName);
     if (equalIgnoringASCIICase(familyName.c_str(), "Ahem"_s))
         m_allowsAntialiasing = false;
 }
@@ -149,6 +258,21 @@ void Font::platformCharWidthInit()
 {
     m_avgCharWidth = 0.f;
     m_maxCharWidth = 0.f;
+#if OS(DARWIN)
+    // As the Mac port of WebCore does: the average width the font states for itself, which is what
+    // sizes a text field, and the width of the box around all of its glyphs.
+    const auto& font = m_platformData.skFont();
+    auto& typeface = *font.getTypeface();
+    if (int unitsPerEm = typeface.getUnitsPerEm(); unitsPerEm && m_platformData.size()) {
+        float scale = font.getSize() / unitsPerEm;
+        if (auto averageWidth = int16InTable(typeface, os2Tag, 2))
+            m_avgCharWidth = *averageWidth * scale;
+        auto xMin = int16InTable(typeface, headTag, 36);
+        auto xMax = int16InTable(typeface, headTag, 40);
+        if (xMin && xMax)
+            m_maxCharWidth = (*xMax - *xMin) * scale;
+    }
+#endif
     initCharWidths();
 }
 
@@ -235,11 +359,11 @@ sk_sp<SkTextBlob> FontBase::buildTextBlob(std::span<const GlyphBufferGlyph> glyp
     SkTextBlobBuilder builder;
     const auto& buffer = [&]() {
         if (font.getEdging() == edging)
-            return isVertical ? builder.allocRunPos(font, glyphs.size()) : builder.allocRunPosH(font, glyphs.size(), 0);
+            return isVertical ? builder.allocRunPos(font, glyphs.size()) : builder.allocRunPosH(font, glyphs.size(), m_platformData.glyphBaselineShift());
 
         SkFont copiedFont = font;
         copiedFont.setEdging(edging);
-        return isVertical ? builder.allocRunPos(copiedFont, glyphs.size()) : builder.allocRunPosH(copiedFont, glyphs.size(), 0);
+        return isVertical ? builder.allocRunPos(copiedFont, glyphs.size()) : builder.allocRunPosH(copiedFont, glyphs.size(), m_platformData.glyphBaselineShift());
     }();
 
     auto bufferGlyphs = unsafeMakeSpan<SkGlyphID>(buffer.glyphs, glyphs.size());

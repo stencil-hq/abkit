@@ -227,7 +227,7 @@ using WebCore::PointerID = uint32_t;
 [Nested] enum class WebCore::PlatformMouseEvent::IsTouch : bool
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 [CustomHeader] struct WebKit::WebGestureEventData {
     WebCore::IntPoint position;
     float gestureScale;

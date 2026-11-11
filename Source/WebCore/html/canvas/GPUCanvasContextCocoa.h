@@ -33,9 +33,11 @@
 #include "GPUTexture.h"
 #include "GraphicsLayerContentsDisplayDelegate.h"
 #include "HTMLCanvasElement.h"
-#include "IOSurface.h"
 #include "OffscreenCanvas.h"
+#if USE(CA)
+#include "IOSurface.h"
 #include "PlatformCALayer.h"
+#endif
 #include "WebGPUFramePacer.h"
 #include <wtf/MachSendRight.h>
 #include <wtf/Ref.h>
@@ -79,7 +81,7 @@ public:
     GPUDevice* device() const override { return m_configuration ? m_configuration->device.ptr() : nullptr; }
     ExceptionOr<Ref<GPUTexture>> getCurrentTexture() override;
     RefPtr<ImageBuffer> transferToImageBuffer() override;
-#if ENABLE(OFFSCREEN_CANVAS)
+#if ENABLE(OFFSCREEN_CANVAS) && PLATFORM(COCOA)
     bool commitToPlaceholder(PlaceholderRenderingContextSource&) override;
 #endif
 

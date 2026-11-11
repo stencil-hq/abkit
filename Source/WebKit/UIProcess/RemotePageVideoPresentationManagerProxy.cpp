@@ -26,7 +26,7 @@
 #include "config.h"
 #include "RemotePageVideoPresentationManagerProxy.h"
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
 
 #include "VideoPresentationManagerProxy.h"
 #include "VideoPresentationManagerProxyMessages.h"

@@ -28,7 +28,9 @@
 
 #if ENABLE(WEB_AUTHN)
 #include "DigitalCredentialsCoordinatorMessages.h"
+#if PLATFORM(COCOA)
 #include "DigitalCredentialsRequestValidatorBridge.h"
+#endif
 #include "Logging.h"
 #include "WebPage.h"
 #include "WebProcess.h"
@@ -83,8 +85,16 @@ void DigitalCredentialsCoordinator::showDigitalCredentialsChooser(std::optional<
 
 ExceptionOr<Vector<std::optional<WebCore::ValidatedDigitalCredentialRequest>>> DigitalCredentialsCoordinator::validateAndParseDigitalCredentialRequests(const SecurityOrigin& topOrigin, const Document& document, const Vector<UnvalidatedDigitalCredentialRequest>& unvalidatedRequests)
 {
+#if PLATFORM(COCOA)
     auto results = DigitalCredentials::validateRequests(topOrigin, document, unvalidatedRequests);
     return WTF::move(results);
+#else
+    // Requests are validated by the system's identity document services, which only the Cocoa ports have.
+    UNUSED_PARAM(topOrigin);
+    UNUSED_PARAM(document);
+    UNUSED_PARAM(unvalidatedRequests);
+    return Exception { ExceptionCode::NotSupportedError, "Digital credentials are not supported."_s };
+#endif
 }
 
 void DigitalCredentialsCoordinator::dismissDigitalCredentialsChooser(CompletionHandler<void(bool)>&& completionHandler)

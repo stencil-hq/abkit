@@ -3631,10 +3631,16 @@ static std::pair<float, float> emHeightAscentAndDescent(const FontCascade& font)
 {
     auto& fontMetrics = font.metricsOfPrimaryFont();
     auto ascent = fontMetrics.ascent();
+#if OS(MACOS)
+    // The Safari of this macOS reports the ascent and the descent of the font here, not their
+    // shares of the em, and pages compare these numbers.
+    return { ascent, fontMetrics.descent() };
+#else
     auto height = ascent + fontMetrics.descent();
     auto emHeight = font.fontDescription().computedSize();
     auto emHeightAscent = height > 0 ? emHeight * ascent / height : emHeight;
     return { emHeightAscent, emHeight - emHeightAscent };
+#endif
 }
 
 Ref<TextMetrics> CanvasRenderingContext2DBase::measureTextInternal(const TextRun& textRun)
@@ -3686,9 +3692,31 @@ void CanvasRenderingContext2DBase::updateStateTransform(const AffineTransform& t
 
 FloatPoint CanvasRenderingContext2DBase::textOffset(float width, TextDirection direction)
 {
-    auto [emHeightAscent, emHeightDescent] = emHeightAscentAndDescent(protect(protect(fontProxy())->fontCascade()));
-
     FloatPoint offset;
+
+#if OS(MACOS)
+    // The Safari of this macOS sets text against the whole-pixel ascent and descent of the font,
+    // and that is where the text of a canvas ends up for each `textBaseline`.
+    RefPtr proxy = fontProxy();
+    auto& fontMetrics = proxy->metricsOfPrimaryFont();
+    switch (state().textBaseline) {
+    case TopTextBaseline:
+    case HangingTextBaseline:
+        offset.setY(fontMetrics.intAscent());
+        break;
+    case BottomTextBaseline:
+    case IdeographicTextBaseline:
+        offset.setY(-fontMetrics.intDescent());
+        break;
+    case MiddleTextBaseline:
+        offset.setY(fontMetrics.intHeight() / 2 - fontMetrics.intDescent());
+        break;
+    case AlphabeticTextBaseline:
+    default:
+        break;
+    }
+#else
+    auto [emHeightAscent, emHeightDescent] = emHeightAscentAndDescent(protect(protect(fontProxy())->fontCascade()));
 
     switch (state().textBaseline) {
     case TopTextBaseline:
@@ -3706,6 +3734,7 @@ FloatPoint CanvasRenderingContext2DBase::textOffset(float width, TextDirection d
     default:
         break;
     }
+#endif
 
     bool isRTL = direction == TextDirection::RTL;
     auto align = state().textAlign;

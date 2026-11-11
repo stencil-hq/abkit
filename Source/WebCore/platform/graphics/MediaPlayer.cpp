@@ -1842,6 +1842,11 @@ bool MediaPlayer::isGStreamerHolePunchingEnabled()
     return protect(client())->isGStreamerHolePunchingEnabled();
 }
 
+bool MediaPlayer::isAudioOutputEnabled()
+{
+    return protect(client())->isAudioOutputEnabled();
+}
+
 #if USE(COORDINATED_GRAPHICS)
 void MediaPlayer::setPlatformLayerBufferProxy(Ref<CoordinatedPlatformLayerBufferProxy>&& proxy)
 {

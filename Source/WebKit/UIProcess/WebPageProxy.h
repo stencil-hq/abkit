@@ -977,7 +977,7 @@ public:
     void setFullscreenClient(std::unique_ptr<API::FullscreenClient>&&);
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     PlaybackSessionManagerProxy* playbackSessionManager() { return m_playbackSessionManager.get(); }
     NODELETE VideoPresentationManagerProxy* videoPresentationManager();
     void setMockVideoPresentationModeEnabled(bool);
@@ -1624,7 +1624,7 @@ public:
     void dispatchPendingCharEvents(const NativeWebKeyboardEvent&);
 #endif
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     void sendGestureEvent(WebCore::FrameIdentifier, Ref<NativeWebGestureEvent>&&);
     void handleGestureEvent(Ref<NativeWebGestureEvent>&&);
     void processNextQueuedGestureEvent();
@@ -2401,7 +2401,7 @@ public:
     void statusBarWasTapped();
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY) && PLATFORM(COCOA)
     void addPlaybackTargetPickerClient(WebCore::PlaybackTargetClientContextIdentifier);
     void removePlaybackTargetPickerClient(WebCore::PlaybackTargetClientContextIdentifier);
     void showPlaybackTargetPicker(WebCore::PlaybackTargetClientContextIdentifier, const WebCore::FloatRect& rectInMainFrameView, bool hasVideo);
@@ -2723,7 +2723,7 @@ public:
     void exitExternalPlayback();
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     NODELETE bool canEnterFullscreen();
     void enterFullscreen();
 
@@ -3150,7 +3150,7 @@ public:
 
     void hasActiveNowPlayingSessionChanged(bool);
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     void playPredominantOrNowPlayingMediaSession(CompletionHandler<void(bool)>&&);
     void pauseNowPlayingMediaSession(CompletionHandler<void(bool)>&&);
 #endif
@@ -3675,7 +3675,7 @@ private:
     void remoteFrameMouseEventTimedOut();
     void mouseMoveWasHandledInFrame(WebCore::FrameIdentifier);
     void keyEventHandlingCompleted(bool handled);
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     void gestureEventHandlingCompleted(std::optional<WebEventType>, bool handled, std::optional<WebCore::RemoteUserInputEventData>);
 #endif
     void didUpdateRenderingAfterCommittingLoad();
@@ -3908,7 +3908,7 @@ private:
     void setUpHighlightsObserver();
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     void updateFullscreenVideoTextRecognition();
     bool tryToSendCommandToActiveControlledVideo(WebCore::PlatformMediaSessionRemoteControlCommandType);
 #endif
@@ -4169,7 +4169,7 @@ private:
     std::unique_ptr<API::FullscreenClient> m_fullscreenClient;
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
+#if ENABLE(VIDEO_PRESENTATION_MODE) && PLATFORM(COCOA)
     RefPtr<PlaybackSessionManagerProxy> m_playbackSessionManager;
     RefPtr<VideoPresentationManagerProxy> m_videoPresentationManager;
     bool m_mockVideoPresentationModeEnabled { false };
@@ -4595,7 +4595,7 @@ private:
     size_t m_suspendMediaPlaybackCounter { 0 };
 
     size_t m_deferredMouseEvents { 0 };
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     size_t m_deferredGestureEvents { 0 };
 #endif
 

@@ -27,7 +27,7 @@
 #include "config.h"
 #include "NetworkMDNSRegister.h"
 
-#if ENABLE(WEB_RTC) && USE(GLIB)
+#if ENABLE(WEB_RTC) && USE_AVAHI_MDNS
 
 #include "NetworkConnectionToWebProcess.h"
 #include <WebCore/MDNSRegisterError.h>
@@ -171,4 +171,4 @@ void NetworkMDNSRegister::registerMDNSName(WebCore::ScriptExecutionContextIdenti
 
 } // namespace WebKit
 
-#endif // ENABLE(WEB_RTC) && USE(GLIB)
+#endif // ENABLE(WEB_RTC) && USE_AVAHI_MDNS

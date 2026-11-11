@@ -72,15 +72,52 @@ static inline GstAudioInfo libwebrtcAudioFormat(int sampleRate, size_t channelCo
     return info;
 }
 
+// The adapter is cut at any frame count and the converter is given one block of frames, which
+// only interleaved audio allows. Web Audio's tracks carry one plane per channel.
+static GRefPtr<GstBuffer> interleavedCopy(GstBuffer* buffer, const GstAudioInfo& info)
+{
+    GstAudioBuffer planes;
+    if (!gst_audio_buffer_map(&planes, &info, buffer, GST_MAP_READ))
+        return nullptr;
+
+    size_t frames = GST_AUDIO_BUFFER_N_SAMPLES(&planes);
+    size_t bytesPerSample = GST_AUDIO_INFO_BPS(&info);
+    size_t channels = GST_AUDIO_BUFFER_N_PLANES(&planes);
+    GRefPtr interleaved = adoptGRef(gst_buffer_new_and_alloc(frames * channels * bytesPerSample));
+    {
+        GstMappedBuffer map(interleaved, GST_MAP_WRITE);
+        auto destination = map.mutableSpan<uint8_t>();
+        for (size_t channel = 0; channel < channels; ++channel) {
+            auto source = unsafeMakeSpan(static_cast<const uint8_t*>(GST_AUDIO_BUFFER_PLANE_DATA(&planes, channel)), frames * bytesPerSample);
+            for (size_t frame = 0; frame < frames; ++frame)
+                memcpySpan(destination.subspan((frame * channels + channel) * bytesPerSample, bytesPerSample), source.subspan(frame * bytesPerSample, bytesPerSample));
+        }
+    }
+    gst_audio_buffer_unmap(&planes);
+    return interleaved;
+}
+
 void RealtimeOutgoingAudioSourceLibWebRTC::audioSamplesAvailable(const MediaTime&, const PlatformAudioData& audioData, const AudioStreamDescription& streamDescription, size_t /* sampleCount */)
 {
     DisableMallocRestrictionsForCurrentThreadScope disableMallocRestrictions;
     auto data = static_cast<const GStreamerAudioData&>(audioData);
     auto desc = static_cast<const GStreamerAudioStreamDescription&>(streamDescription);
 
+    auto inputInfo = desc.getInfo();
+    bool isPlanar = GST_AUDIO_INFO_LAYOUT(&inputInfo) == GST_AUDIO_LAYOUT_NON_INTERLEAVED;
+    GST_AUDIO_INFO_LAYOUT(&inputInfo) = GST_AUDIO_LAYOUT_INTERLEAVED;
+
+    GRefPtr<GstBuffer> inputBuffer;
+    if (isPlanar)
+        inputBuffer = interleavedCopy(gst_sample_get_buffer(data.getSample().get()), desc.getInfo());
+    else
+        inputBuffer = gst_sample_get_buffer(data.getSample().get());
+    if (!inputBuffer)
+        return;
+
     {
         Locker locker { m_sampleConverterLock };
-        if (m_sampleConverter && !gst_audio_info_is_equal(&m_inputStreamDescription, &desc.getInfo())) {
+        if (m_sampleConverter && !gst_audio_info_is_equal(&m_inputStreamDescription, &inputInfo)) {
             GST_DEBUG("Audio format changed, clearing audio buffers cache and sample converter");
             {
                 Locker locker { m_adapterLock };
@@ -90,7 +127,7 @@ void RealtimeOutgoingAudioSourceLibWebRTC::audioSamplesAvailable(const MediaTime
         }
 
         if (!m_sampleConverter) {
-            m_inputStreamDescription = desc.getInfo();
+            m_inputStreamDescription = inputInfo;
             m_outputStreamDescription = libwebrtcAudioFormat(LibWebRTCAudioFormat::sampleRate, desc.numberOfChannels());
 #ifndef GST_DISABLE_GST_DEBUG
             GRefPtr inputCaps = adoptGRef(gst_audio_info_to_caps(&m_inputStreamDescription));
@@ -104,9 +141,7 @@ void RealtimeOutgoingAudioSourceLibWebRTC::audioSamplesAvailable(const MediaTime
 
     {
         Locker locker { m_adapterLock };
-        const auto& sample = data.getSample();
-        auto* buffer = gst_sample_get_buffer(sample.get());
-        gst_adapter_push(m_adapter.get(), gst_buffer_ref(buffer));
+        gst_adapter_push(m_adapter.get(), inputBuffer.leakRef());
     }
 
     LibWebRTCProvider::signalingThread().BlockingCall([protectedThis = protect(*this)] {

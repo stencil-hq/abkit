@@ -400,6 +400,26 @@ void Queue::waitForAllCommitedWorkToComplete()
     } while (commandBuffer);
 }
 
+#if !ENABLE(GPU_PROCESS)
+// Without a GPU process this is the web process, which has to outlive a failure of the GPU. The
+// page's device is lost instead, as it is in a web process whose GPU process crashed.
+template<unsigned errorCode>
+static void crashGPUProcess(const RefPtr<Device>&, NSError* error, NSError* underlyingError)
+{
+    // The caller goes on to lose the device.
+    WTFLogAlways("Encountered fatal command buffer error %@, underlying error %@", error, underlyingError); // NOLINT
+}
+
+static void crashGPUProcess(const RefPtr<Device>& device, NSString *error)
+{
+    WTFLogAlways("Encountered fatal GPU error %@", error); // NOLINT
+    if (!device)
+        return;
+    device->getQueue()->scheduleWork([device] {
+        device->loseTheDevice(WebGPU::DeviceLostReason::Unknown);
+    });
+}
+#else
 template<unsigned errorCode>
 [[noreturn]] void crashGPUProcess(const RefPtr<Device>& device, NSError* error, NSError* underlyingError)
 {
@@ -416,6 +436,7 @@ template<unsigned errorCode>
         device->loseTheDevice(WebGPU::DeviceLostReason::Unknown);
     RELEASE_ASSERT_NOT_REACHED();
 }
+#endif // !ENABLE(GPU_PROCESS)
 
 void Queue::commitMTLCommandBuffer(id<MTLCommandBuffer> commandBuffer)
 {
@@ -445,7 +466,7 @@ void Queue::commitMTLCommandBuffer(id<MTLCommandBuffer> commandBuffer)
                     loseTheDevice = false;
                 else {
                     RefPtr device = protectedThis->m_device.get();
-#define makeCase(N) case N: crashGPUProcess<N>(device, error, underlyingError);
+#define makeCase(N) case N: crashGPUProcess<N>(device, error, underlyingError); break
                     switch (underlyingError.code) {
                         makeCase(9); // kIOGPUCommandBufferCallbackErrorInvalidResource = 9,
                         makeCase(10); // kIOGPUCommandBufferCallbackErrorInvalidInput = 10,
@@ -611,7 +632,7 @@ bool Queue::validateWriteBuffer(const Buffer& buffer, uint64_t bufferOffset, siz
 
 void Queue::synchronizeResourceAndWait(id<MTLBuffer> buffer)
 {
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (buffer.storageMode != MTLStorageModeManaged)
         return;
@@ -724,7 +745,7 @@ void Queue::writeBuffer(Buffer& buffer, uint64_t bufferOffset, std::span<uint8_t
         case MTLStorageModeShared:
             SUPPRESS_UNCOUNTED_ARG memcpySpan(borrow(buffer)->getBufferContents().subspan(bufferOffset, data.size()), data);
             return;
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         case MTLStorageModeManaged:
             SUPPRESS_UNCOUNTED_ARG memcpySpan(borrow(buffer)->getBufferContents().subspan(bufferOffset, data.size()), data);
@@ -1294,7 +1315,7 @@ void Queue::writeTexture(const WebGPU::TexelCopyTextureInfo& destination, std::s
     if (isIdle() && options == MTLBlitOptionNone && !clearWasNeeded) {
         switch (mtlTexture.storageMode) {
         case MTLStorageModeShared:
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         case MTLStorageModeManaged:
         ALLOW_DEPRECATED_DECLARATIONS_END
@@ -2097,7 +2118,7 @@ void Queue::copyExternalImageToTexture(const WebGPU::ImageCopyExternalImage& sou
 
         auto *sourceTextureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:sourcePixelFormat width:surfaceWidth height:surfaceHeight mipmapped:NO];
         sourceTextureDescriptor.usage = MTLTextureUsageShaderRead;
-#if PLATFORM(MAC) || PLATFORM(MACCATALYST)
+#if OS(MACOS) || PLATFORM(MACCATALYST)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 #if ENABLE(WEBGPU_BY_DEFAULT)
         sourceTextureDescriptor.storageMode = device->hasUnifiedMemory() ? MTLStorageModeShared : MTLStorageModeManaged;
