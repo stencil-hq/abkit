@@ -118,6 +118,11 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
     if (settings.hardwareAccelerationEnabled()) {
         WebProcess::singleton().initializePlatformDisplayIfNeeded();
         WebProcess::singleton().initializeVulkanIfNeeded();
+    } else {
+        // Compositing draws with GL, and without hardware acceleration there
+        // is no display to draw with: the page draws itself into shared
+        // memory, as GTK's do with acceleration off.
+        settings.setAcceleratedCompositingEnabled(false);
     }
 #endif
     settings.setForceCompositingMode(store.getBoolValueForKey(WebPreferencesKey::forceCompositingModeKey()));
