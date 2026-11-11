@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(APPLE_PAY)
+#if ENABLE(APPLE_PAY) || ENABLE(APPLE_PAY_ERROR)
 
 #include <WebCore/ApplePayErrorCode.h>
 #include <WebCore/ApplePayErrorContactField.h>
@@ -79,4 +79,4 @@ private:
 
 } // namespace WebCore
 
-#endif
+#endif // ENABLE(APPLE_PAY) || ENABLE(APPLE_PAY_ERROR)

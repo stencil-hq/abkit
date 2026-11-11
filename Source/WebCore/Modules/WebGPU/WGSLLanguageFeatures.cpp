@@ -35,8 +35,11 @@ void WGSLLanguageFeatures::initializeSetLike(DOMSetAdapter& set) const
     set.add<IDLDOMString>("packed_4x8_integer_dot_product"_s);
     set.add<IDLDOMString>("pointer_composite_access"_s);
     set.add<IDLDOMString>("readonly_and_readwrite_storage_textures"_s);
+#if !(PLATFORM(WPE) && OS(DARWIN))
+    // Not in the system's WebKit, which the port presents itself as there.
     set.add<IDLDOMString>("subgroup_id"_s);
     set.add<IDLDOMString>("subgroup_uniformity"_s);
+#endif
     set.add<IDLDOMString>("texture_formats_tier1"_s);
     set.add<IDLDOMString>("unrestricted_pointer_parameters"_s);
 }

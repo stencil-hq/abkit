@@ -24,13 +24,13 @@
  */
 
 [
-    Conditional=APPLE_PAY
+    Conditional=APPLE_PAY|APPLE_PAY_ERROR
 ] enum ApplePayErrorDomain {
     "disbursement",
 };
 
 [
-    Conditional=APPLE_PAY,
+    Conditional=APPLE_PAY|APPLE_PAY_ERROR,
     Exposed=Window
 ] interface ApplePayError {
     constructor(ApplePayErrorCode errorCode, optional ApplePayErrorContactField contactField, optional DOMString message = "", optional ApplePayErrorDomain? domain = null);

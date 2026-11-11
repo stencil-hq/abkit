@@ -38,6 +38,7 @@
 #include "PlatformSpeechSynthesisVoice.h"
 #include "PlatformSpeechSynthesizer.h"
 #include "ScriptTrackingPrivacyCategory.h"
+#include "Settings.h"
 #include "SpeechSynthesisErrorEvent.h"
 #include "SpeechSynthesisEvent.h"
 #include "SpeechSynthesisUtterance.h"
@@ -89,6 +90,14 @@ void SpeechSynthesis::setPlatformSynthesizer(Ref<PlatformSpeechSynthesizer>&& sy
     speakingErrorOccurred();
     m_isPaused = false;
     m_speechSynthesisClient = nullptr;
+}
+
+bool SpeechSynthesis::isAudioOutputEnabled() const
+{
+    // The engine plays at the same pace into a sink that drops the samples when the page may not be heard.
+    if (auto* document = dynamicDowncast<Document>(scriptExecutionContext()))
+        return document->settings().audioOutputEnabled();
+    return true;
 }
 
 void SpeechSynthesis::voicesDidChange()

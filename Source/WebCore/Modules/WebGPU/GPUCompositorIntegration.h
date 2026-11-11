@@ -45,7 +45,7 @@ public:
         return adoptRef(*new GPUCompositorIntegration(WTF::move(backing)));
     }
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || HAVE(WEBGPU_IMPLEMENTATION)
     uint32_t recreateRenderBuffers(int width, int height, WebCore::ColorSpace&&, WebCore::AlphaPremultiplication, ::WebGPU::TextureFormat, ::WebGPU::Device&) const;
     void prepareForDisplay(uint32_t frameIndex, CompletionHandler<void(MachSendRight&& displayBuffer, std::optional<uint32_t> replacedRenderBufferIndex)>&&);
 #endif

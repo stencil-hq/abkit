@@ -28,7 +28,7 @@
 
 namespace WebCore {
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || HAVE(WEBGPU_IMPLEMENTATION)
 uint32_t GPUCompositorIntegration::recreateRenderBuffers(int width, int height, WebCore::ColorSpace&& destinationColorSpace, WebCore::AlphaPremultiplication alphaMode, WebGPU::TextureFormat textureFormat, WebGPU::Device& device) const
 {
     return m_backing->recreateRenderBuffers(width, height, WTF::move(destinationColorSpace), alphaMode, textureFormat, device);

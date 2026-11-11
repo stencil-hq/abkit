@@ -29,23 +29,64 @@
 #if HAVE(WEBGPU_IMPLEMENTATION)
 
 #include "WebGPUDevice.h"
+#include "WebGPUWorkQueue.h"
 #include <CoreFoundation/CoreFoundation.h>
-#include <WebCore/IOSurface.h>
+#include <WebCore/GraphicsContext.h>
+#include <WebCore/ImageBuffer.h>
 #include <WebCore/NativeImage.h>
 #include <WebCore/WebGPUCppAPI.h>
-#include <pal/spi/cg/CoreGraphicsSPI.h>
+#include <wtf/Box.h>
 #include <wtf/TZoneMallocInlines.h>
+#if HAVE(IOSURFACE)
+#include <WebCore/IOSurface.h>
+#include <pal/spi/cg/CoreGraphicsSPI.h>
+#endif
 #include <wtf/spi/cocoa/IOSurfaceSPI.h>
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebGPUCompositorIntegrationImpl);
 
-WebGPUCompositorIntegrationImpl::WebGPUCompositorIntegrationImpl()
+WebGPUCompositorIntegrationImpl::WebGPUCompositorIntegrationImpl(WebGPUWorkQueue* workQueue)
+    : m_workQueue(workQueue)
 {
 }
 
 WebGPUCompositorIntegrationImpl::~WebGPUCompositorIntegrationImpl() = default;
+
+void WebGPUCompositorIntegrationImpl::prepareForDisplay(uint32_t frameIndex, CompletionHandler<void(MachSendRight&&, std::optional<uint32_t>)>&& completionHandler)
+{
+    if (RefPtr presentationContext = m_presentationContext)
+        presentationContext->present(frameIndex);
+
+    MachSendRight displayBuffer;
+    std::optional<uint32_t> replacedRenderBufferIndex;
+    if (frameIndex < m_renderBuffers.size()) {
+#if HAVE(IOSURFACE)
+        displayBuffer = m_renderBuffers[frameIndex]->createSendRight();
+#else
+        displayBuffer = MachSendRight::adopt(IOSurfaceCreateMachPort(m_renderBuffers[frameIndex].get()));
+#endif
+        uint32_t nextFrameIndex = (frameIndex + 1) % m_renderBuffers.size();
+        if (nextFrameIndex != frameIndex && replaceRenderBufferIfInUse(nextFrameIndex))
+            replacedRenderBufferIndex = nextFrameIndex;
+    }
+
+    RefPtr workQueue = m_workQueue;
+    if (!workQueue) {
+        m_onSubmittedWorkScheduledCallback([completionHandler = WTF::move(completionHandler), displayBuffer = WTF::move(displayBuffer), replacedRenderBufferIndex] mutable {
+            completionHandler(WTF::move(displayBuffer), replacedRenderBufferIndex);
+        });
+        return;
+    }
+    auto isScheduled = Box<bool>::create(false);
+    m_onSubmittedWorkScheduledCallback([isScheduled, completionHandler = WTF::move(completionHandler), displayBuffer = WTF::move(displayBuffer), replacedRenderBufferIndex] mutable {
+        completionHandler(WTF::move(displayBuffer), replacedRenderBufferIndex);
+        *isScheduled = true;
+    });
+    workQueue->runWorkUntil([&] { return *isScheduled; }, 3_s);
+}
+
 
 Seconds WebGPUCompositorIntegrationImpl::lastFrameGPUCost() const
 {
@@ -72,7 +113,7 @@ void WebGPUCompositorIntegrationImpl::updateContentsHeadroom(float headroom)
 #endif
 }
 
-#if PLATFORM(COCOA)
+#if HAVE(IOSURFACE)
 uint32_t WebGPUCompositorIntegrationImpl::recreateRenderBuffers(int width, int height, WebCore::ColorSpace&& colorSpace, WebCore::AlphaPremultiplication alphaMode, WebGPU::TextureFormat textureFormat, WebGPU::Device& device)
 {
     m_renderBuffers.clear();
@@ -120,25 +161,6 @@ uint32_t WebGPUCompositorIntegrationImpl::recreateRenderBuffers(int width, int h
     m_renderBuffersWereRecreatedCallback(renderBuffers.span());
 
     return m_renderBuffers.size();
-}
-
-void WebGPUCompositorIntegrationImpl::prepareForDisplay(uint32_t frameIndex, CompletionHandler<void(MachSendRight&&, std::optional<uint32_t>)>&& completionHandler)
-{
-    if (RefPtr presentationContext = m_presentationContext)
-        presentationContext->present(frameIndex);
-
-    MachSendRight displayBuffer;
-    std::optional<uint32_t> replacedRenderBufferIndex;
-    if (frameIndex < m_renderBuffers.size()) {
-        displayBuffer = m_renderBuffers[frameIndex]->createSendRight();
-        uint32_t nextFrameIndex = (frameIndex + 1) % m_renderBuffers.size();
-        if (nextFrameIndex != frameIndex && replaceRenderBufferIfInUse(nextFrameIndex))
-            replacedRenderBufferIndex = nextFrameIndex;
-    }
-
-    m_onSubmittedWorkScheduledCallback([completionHandler = WTF::move(completionHandler), displayBuffer = WTF::move(displayBuffer), replacedRenderBufferIndex] mutable {
-        completionHandler(WTF::move(displayBuffer), replacedRenderBufferIndex);
-    });
 }
 
 bool WebGPUCompositorIntegrationImpl::replaceRenderBufferIfInUse(uint32_t index)
@@ -219,9 +241,19 @@ void WebGPUCompositorIntegrationImpl::withDisplayBufferAsNativeImage(uint32_t bu
     });
 }
 
-void WebGPUCompositorIntegrationImpl::paintCompositedResultsToCanvas(WebCore::ImageBuffer&, uint32_t)
+#endif // HAVE(IOSURFACE)
+
+void WebGPUCompositorIntegrationImpl::paintCompositedResultsToCanvas(WebCore::ImageBuffer& imageBuffer, uint32_t bufferIndex)
 {
-    ASSERT_NOT_REACHED();
+    // What the GPU process does for RemoteCompositorIntegrationProxy, for a canvas in the instance's process.
+    withDisplayBufferAsNativeImage(bufferIndex, [&](WebCore::NativeImage* image) {
+        if (!image)
+            return;
+        auto& context = imageBuffer.context();
+        GraphicsContextStateSaver stateSaver(context);
+        context.setImageInterpolationQuality(InterpolationQuality::DoNotInterpolate);
+        context.drawNativeImage(*image, FloatRect({ }, imageBuffer.backendSize()), FloatRect({ }, image->size()), { CompositeOperator::Copy });
+    });
 }
 
 } // namespace WebCore

@@ -48,7 +48,7 @@ interface GPUTexture {
 
     // Typed any rather than GPUTextureViewDimension because the value has to be undefined outside of
     // compatibility mode, and a nullable enumeration would read as null instead.
-    readonly attribute any textureBindingViewDimension;
+    [EnabledBySetting=WebGPUNewerAPIEnabled] readonly attribute any textureBindingViewDimension;
 };
 GPUTexture includes GPUObjectBase;
 

@@ -39,6 +39,9 @@ class ProcessIdentity;
 // Runs a work item on the thread that the WebGPU objects call back on.
 using WebGPUScheduleWorkFunction = Function<void(Function<void()>&&)>;
 WEBCORE_EXPORT RefPtr<WebGPUIntegration> createWebGPUIntegration(WebGPUScheduleWorkFunction&&, const ProcessIdentity*);
+// WebGPU in the process and on the thread of its caller. The function schedules on that thread's
+// run loop; the thread also runs the work while a canvas waits for a frame (see WebGPUWorkQueue).
+WEBCORE_EXPORT RefPtr<WebGPUIntegration> createInProcessWebGPUIntegration(WebGPUScheduleWorkFunction&&);
 
 } // namespace WebCore
 

@@ -41,6 +41,7 @@
 #include "MediaStrategy.h"
 #include "PlatformStrategies.h"
 #include "ScriptExecutionContext.h"
+#include "Settings.h"
 #include "WorkerRunLoop.h"
 #include <wtf/MainThread.h>
 #include <wtf/MediaTime.h>
@@ -120,11 +121,12 @@ void DefaultAudioDestinationNode::createDestination()
 {
     ALWAYS_LOG(LOGIDENTIFIER, "contextSampleRate = ", sampleRate(), ", hardwareSampleRate = ", AudioDestination::hardwareSampleRate());
     ASSERT(!m_destination);
+    RefPtr document = context().document();
     m_destination = platformStrategies()->mediaStrategy()->createAudioDestination({ *this, m_inputDeviceId, m_numberOfInputChannels, channelCount(), sampleRate()
 #if PLATFORM(IOS_FAMILY)
         , protect(context())->sceneIdentifier()
 #endif
-        , m_outputDevicePersistentId, m_outputSinkIsSilent
+        , m_outputDevicePersistentId, m_outputSinkIsSilent, document && document->settings().audioOutputEnabled()
         });
 }
 
