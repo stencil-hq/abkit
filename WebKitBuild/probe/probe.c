@@ -2,7 +2,10 @@
    the embedder's own (as Stencil's host subclasses them), loading argv[1]
    at 1280x800 and writing the first frame after the load finishes to
    argv[2] as a PPM, with the page's title on stdout. Exits 0 once written,
-   1 on a load failure or after 30 s. */
+   1 on a load failure or after 30 s.
+   PROBE_SIZE=WxH sizes the view; PROBE_SCRIPT runs that JavaScript after
+   the load and writes the first frame at least half a second after it
+   finished instead (to see repaints, not only the first paint). */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +17,9 @@
 static const char* output;
 static GMainLoop* loop;
 static gboolean loaded;
+static gboolean armed;
 static int status = 1;
+static int width = 1280, height = 800;
 
 /* The embedder's view: takes each buffer the web process rendered. */
 #define PROBE_TYPE_VIEW (probe_view_get_type())
@@ -81,7 +86,7 @@ static gboolean probe_view_render_buffer(WPEView* view, WPEBuffer* buffer, const
     (void)error;
     static int frames;
     frames++;
-    if (loaded && status) {
+    if (armed && status) {
         write_frame(buffer);
         /* PROBE_HOLD keeps the page up (to watch its process die). */
         if (!status && !g_getenv("PROBE_HOLD"))
@@ -126,8 +131,8 @@ static WPEView* probe_display_create_view(WPEDisplay* display)
     WPEToplevel* toplevel = g_object_new(WPE_TYPE_TOPLEVEL_HEADLESS, "display", display, NULL);
     wpe_view_set_toplevel(view, toplevel);
     g_object_unref(toplevel);
-    wpe_toplevel_resized(toplevel, 1280, 800);
-    wpe_view_resized(view, 1280, 800);
+    wpe_toplevel_resized(toplevel, width, height);
+    wpe_view_resized(view, width, height);
     wpe_view_map(view);
     return view;
 }
@@ -143,6 +148,30 @@ static void probe_display_init(ProbeDisplay* display)
     (void)display;
 }
 
+static gboolean arm(gpointer data)
+{
+    (void)data;
+    armed = TRUE;
+    return G_SOURCE_REMOVE;
+}
+
+static void script_done(GObject* object, GAsyncResult* result, gpointer data)
+{
+    (void)data;
+    GError* error = NULL;
+    JSCValue* value = webkit_web_view_evaluate_javascript_finish(WEBKIT_WEB_VIEW(object), result, &error);
+    if (!value) {
+        fprintf(stderr, "probe: script failed: %s\n", error->message);
+        g_clear_error(&error);
+    } else {
+        char* text = jsc_value_to_string(value);
+        fprintf(stderr, "probe: script returned %s\n", text);
+        g_free(text);
+        g_object_unref(value);
+    }
+    g_timeout_add(500, arm, NULL);
+}
+
 static void load_changed(WebKitWebView* view, WebKitLoadEvent event, gpointer data)
 {
     (void)data;
@@ -151,6 +180,11 @@ static void load_changed(WebKitWebView* view, WebKitLoadEvent event, gpointer da
         printf("title: %s\n", webkit_web_view_get_title(view));
         fflush(stdout);
         loaded = TRUE;
+        const char* script = g_getenv("PROBE_SCRIPT");
+        if (script)
+            webkit_web_view_evaluate_javascript(view, script, -1, NULL, NULL, NULL, script_done, NULL);
+        else
+            armed = TRUE;
     }
 }
 
@@ -187,6 +221,11 @@ int main(int argc, char** argv)
         return 2;
     }
     output = argv[2];
+    const char* size = g_getenv("PROBE_SIZE");
+    if (size && sscanf(size, "%dx%d", &width, &height) != 2) {
+        fprintf(stderr, "probe: PROBE_SIZE is WxH, not %s\n", size);
+        return 2;
+    }
     GError* error = NULL;
     WPEDisplay* display = g_object_new(PROBE_TYPE_DISPLAY, NULL);
     if (!wpe_display_connect(display, &error)) {
