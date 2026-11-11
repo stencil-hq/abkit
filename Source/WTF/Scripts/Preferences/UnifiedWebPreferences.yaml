@@ -1977,6 +1977,16 @@ DefaultTextEncodingName:
     WebKitLegacy: '"ISO-8859-1"_str'
     WebCore: '{ }'
 
+DeprecationReportingEnabled:
+  comment: Exposes DeprecationReportBody, which the fork keeps (Modules/reporting) and
+    upstream removed with this setting.
+  type: bool
+  status: testable
+  category: dom
+  humanReadableName: "Deprecation Reporting"
+  humanReadableDescription: "Enable Deprecation Reporting"
+  defaultValue: false
+
 DetachableMediaSourceEnabled:
   type: bool
   status: developer
