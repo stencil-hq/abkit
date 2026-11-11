@@ -78,7 +78,7 @@ jobs:
               if [[ $GITHUB_REF == refs/tags/v* || -z $TARGETS ]]; then
                  build=$(jq -c . <<<"$all")
               else
-                 build=$(jq -c --arg wanted ",${TARGETS// /}," '[.[] | select($wanted | contains("," + .target + ","))]' <<<"$all")
+                 build=$(jq -c --arg wanted ",${TARGETS// /}," '[.[] | select(.target as $t | $wanted | contains("," + $t + ","))]' <<<"$all")
                  [[ $build != '[]' ]] || { echo "::error::no target named in '$TARGETS'"; exit 1; }
               fi
               echo "build={\"include\":$build}" >>"$GITHUB_OUTPUT"
