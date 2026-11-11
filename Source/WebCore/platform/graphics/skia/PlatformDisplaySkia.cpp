@@ -346,8 +346,16 @@ private:
         // lookup which is a slow-path in certain tiled GPUs (such as Vivante/etnaviv). Since we
         // don't use any mipmapping, it's safe to disable that, and avoid performance hits.
         options.fSharpenMipmappedTextures = false;
+        // Windows runs a thread's thread_local destructors under the loader
+        // lock, so a pool joining its threads there waits for threads that
+        // cannot exit without that lock: the exiting thread deadlocked with
+        // them, and every later library load or thread exit with it (the web
+        // process then hung in eglTerminate when its UI process went away).
+        // There Skia does that work on the calling thread instead.
+#if !OS(WINDOWS)
         thread_local std::unique_ptr<SkExecutor> s_executor = SkExecutor::MakeFIFOThreadPool(2);
         options.fExecutor = s_executor.get();
+#endif
         if (auto bytes = glyphCacheTextureMaximumBytes())
             options.fGlyphCacheTextureMaximumBytes = *bytes;
 
