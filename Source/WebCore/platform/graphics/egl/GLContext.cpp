@@ -507,7 +507,8 @@ bool GLContext::makeCurrentImpl()
 {
     ASSERT(m_context);
     auto display = m_display.get();
-    return display ? eglMakeCurrent(display->eglDisplay(), m_surface, m_surface, m_context) : false;
+    auto surface = m_drawSurface ? m_drawSurface : m_surface;
+    return display ? eglMakeCurrent(display->eglDisplay(), surface, surface, m_context) : false;
 }
 
 bool GLContext::unmakeCurrentImpl()
@@ -536,7 +537,8 @@ bool GLContext::makeContextCurrent()
         context->unmakeCurrentImpl();
 
     auto display = m_display.get();
-    if (display && eglMakeCurrent(display->eglDisplay(), m_surface, m_surface, m_context)) {
+    auto surface = m_drawSurface ? m_drawSurface : m_surface;
+    if (display && eglMakeCurrent(display->eglDisplay(), surface, surface, m_context)) {
         didMakeContextCurrent();
         return true;
     }
@@ -572,11 +574,26 @@ GLContext* GLContext::current()
 
 void GLContext::swapBuffers()
 {
-    if (m_surface == EGL_NO_SURFACE)
+    auto surface = m_drawSurface ? m_drawSurface : m_surface;
+    if (surface == EGL_NO_SURFACE)
         return;
 
     if (auto display = m_display.get())
-        eglSwapBuffers(display->eglDisplay(), m_surface);
+        eglSwapBuffers(display->eglDisplay(), surface);
+}
+
+bool GLContext::setDrawSurface(EGLSurface surface)
+{
+    if (m_drawSurface == surface)
+        return true;
+
+    m_drawSurface = surface;
+    if (!isCurrent())
+        return true;
+
+    auto display = m_display.get();
+    auto current = m_drawSurface ? m_drawSurface : m_surface;
+    return display && eglMakeCurrent(display->eglDisplay(), current, current, m_context);
 }
 
 GCGLContext GLContext::platformContext() const
@@ -734,7 +751,7 @@ EGLConfig GLContext::eglConfig() const
 
 EGLSurface GLContext::eglSurface() const
 {
-    return m_surface;
+    return m_drawSurface ? m_drawSurface : m_surface;
 }
 
 EGLContext GLContext::eglContext() const

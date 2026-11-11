@@ -48,6 +48,10 @@
 #include <wtf/FileSystem.h>
 #endif
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+#include "IOSurfaceChannel.h"
+#endif
+
 namespace WebKit {
 
 #if OS(WINDOWS)
@@ -144,6 +148,12 @@ void webkitInitialize()
 
 #if OS(WINDOWS)
         loadGIOModules();
+#endif
+
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+        // Before any web process starts, so that its frames can be IOSurfaces.
+        if (!IOSurfaceChannel::listen())
+            g_warning("Cannot receive IOSurfaces from web processes: their frames will be read back to shared memory");
 #endif
 
         SkGraphics::Init();

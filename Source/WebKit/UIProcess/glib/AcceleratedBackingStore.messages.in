@@ -33,6 +33,10 @@ messages -> AcceleratedBackingStore {
     DidCreateAndroidBuffer(WebKit::RendererBufferIdentifier id, RefPtr<AHardwareBuffer> androidBuffer)
 #endif
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+    DidCreateIOSurfaceBuffer(WebKit::RendererBufferIdentifier id)
+#endif
+
     DidDestroyBuffer(WebKit::RendererBufferIdentifier id)
     Frame(WebKit::RendererBufferIdentifier id, Vector<WebCore::IntRect, 1> damage, UnixFileDescriptor syncFD)
 

@@ -134,6 +134,22 @@ list(APPEND WebKit_SERIALIZATION_IN_FILES
     Shared/soup/WebCoreArgumentCodersSoup.serialization.in
 )
 
+if (APPLE)
+    # Frames are IOSurfaces, whose Mach send rights cross from the web
+    # process to the UI process over a Mach port of their own.
+    list(APPEND WebKit_SOURCES
+        Shared/darwin/IOSurfaceChannel.cpp
+    )
+    list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBKIT_DIR}/Shared/darwin"
+    )
+    list(APPEND WebKit_LIBRARIES
+        "-framework CoreGraphics"
+        "-framework IOSurface"
+        bsm
+    )
+endif ()
+
 if (WIN32)
     # The processes are launched and talk as the Win port's do: named pipes
     # and duplicated handles, where Unix has sockets and descriptors.

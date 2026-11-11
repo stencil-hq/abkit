@@ -61,6 +61,10 @@
 #include <wpe/WPEView.h>
 #include <wpe/WPEViewAccessible.h>
 
+#ifdef __APPLE__
+#include <wpe/WPEBufferIOSurface.h>
+#endif
+
 #ifdef WPE_PLATFORM_BUFFER_ANDROID
 #include <wpe/WPEBufferAndroid.h>
 #endif

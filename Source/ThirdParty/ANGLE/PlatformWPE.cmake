@@ -20,6 +20,9 @@ if (is_win)
         ANGLE_ENABLE_SHARE_CONTEXT_LOCK=1
         ANGLE_FORCE_CONTEXT_CHECK_EVERY_CALL=1
     )
+    # The web process presents into its embedder's window: with a flip-model
+    # swap chain at most one frame ahead (see NativeWindow11Win32.cpp).
+    list(APPEND ANGLE_DEFINITIONS ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN=1)
     return ()
 endif ()
 

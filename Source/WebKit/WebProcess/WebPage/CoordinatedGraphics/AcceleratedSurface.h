@@ -68,12 +68,21 @@ typedef void *EGLImage;
 struct wpe_renderer_backend_egl_target;
 #endif
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+typedef struct __IOSurface* IOSurfaceRef;
+#endif
+
+#if (OS(DARWIN) || OS(WINDOWS)) && ENABLE(WPE_PLATFORM)
+typedef void* EGLSurface;
+#endif
+
 namespace WTF {
 class RunLoop;
 }
 
 namespace WebCore {
 class BitmapTexture;
+class GLContext;
 class GLFence;
 class ShareableBitmap;
 class ShareableBitmapHandle;
@@ -155,6 +164,12 @@ public:
     void visibilityDidChange(bool);
     void backgroundColorDidChange();
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    // Called, on the compositing run loop, when the surface wants a frame
+    // although the page has not changed (its frames now go elsewhere).
+    void setFrameRequestHandler(Function<void()>&& handler) { m_frameRequestHandler = WTF::move(handler); }
+#endif
+
 private:
     AcceleratedSurface(WebPage&, Function<void()>&& frameCompleteHandler, RenderingPurpose);
 
@@ -170,6 +185,9 @@ private:
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
 
     void releaseBuffer(RendererBufferIdentifier, WTF::UnixFileDescriptor&&);
+#endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    void setNativeWindow(uint64_t);
 #endif
     void frameDone();
     void releaseUnusedBuffersTimerFired();
@@ -195,6 +213,14 @@ private:
 
         virtual void sync(bool) { }
         virtual void setReleaseFenceFD(UnixFileDescriptor&&) { }
+
+        // Whether something outside the process still reads the target's
+        // pixels (the window server, a released IOSurface).
+        virtual bool isInUse() const { return false; }
+
+        // Whether the target still holds its last frame when it is next
+        // drawn into (so only what changed since needs repainting).
+        virtual bool keepsContents() const { return true; }
 
         SkSurface* skiaSurface() const { return m_skiaSurface.get(); }
 
@@ -326,6 +352,29 @@ private:
         const Ref<WebCore::ShareableBitmap> m_bitmap;
     };
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+    // Renders into an IOSurface (bound as a texture through ANGLE's
+    // EGL_ANGLE_iosurface_client_buffer) that the UI process hands to the
+    // embedder as is: no read back, no copy.
+    class RenderTargetIOSurface final : public RenderTargetShareableBuffer {
+    public:
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&);
+        RenderTargetIOSurface(AcceleratedSurface&, const WebCore::IntSize&, IOSurfaceRef);
+        ~RenderTargetIOSurface();
+
+    private:
+        bool initialize();
+        bool supportsExplicitSync() const override { return false; }
+        void sync(bool) override;
+        bool isInUse() const override;
+
+        IOSurfaceRef m_ioSurface { nullptr };
+        EGLSurface m_pbuffer { nullptr };
+        unsigned m_texture { 0 };
+        unsigned m_textureTarget { 0 };
+    };
+#endif
+
     class RenderTargetTexture final : public RenderTargetShareableBuffer {
     public:
         static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&);
@@ -357,6 +406,27 @@ private:
     };
 #endif
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    // Presents with a swap chain of the web process's own into a window the
+    // UI process made for it inside the embedder's: no buffer leaves the
+    // process.
+    class RenderTargetWindow final : public RenderTarget {
+    public:
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&, uint64_t window);
+        RenderTargetWindow(AcceleratedSurface&, const WebCore::IntSize&, WebCore::GLContext&, EGLSurface);
+        ~RenderTargetWindow();
+
+    private:
+        void willRenderFrame() override;
+        void sendFrame(Vector<WebCore::IntRect, 1>&&) override;
+        bool keepsContents() const override { return false; }
+
+        WebCore::GLContext& m_context;
+        EGLSurface m_eglSurface { nullptr };
+        bool m_presentedOnce { false };
+    };
+#endif
+
     class SwapChain {
         WTF_MAKE_NONCOPYABLE(SwapChain);
     public:
@@ -370,6 +440,12 @@ private:
 #endif
             SharedMemory,
             Texture,
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+            IOSurface,
+#endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+            NativeWindow,
+#endif
 #endif
 #if USE(WPE_RENDERER)
             WPEBackend
@@ -404,6 +480,12 @@ private:
         uint64_t window();
 #endif
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+        // Presents into `window` from the next frame on, or with none goes
+        // back to buffers. Whether anything changed.
+        bool setNativeWindow(uint64_t window);
+#endif
+
     private:
         // FIXME: Allow configuring the initial buffer count, e.g. for triple buffering.
         static constexpr unsigned s_initialBuffers = 2;
@@ -413,6 +495,13 @@ private:
 
         const CheckedRef<AcceleratedSurface> m_surface;
         Type m_type { Type::Invalid };
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+        // The type without a window to present into.
+        Type m_bufferType { Type::Invalid };
+        uint64_t m_nativeWindow { 0 };
+        // A window no swap chain could be made for.
+        uint64_t m_failedNativeWindow { 0 };
+#endif
         WebCore::IntSize m_size;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_freeTargets;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_lockedTargets;
@@ -493,6 +582,9 @@ private:
     bool m_useExplicitSync { false };
     std::unique_ptr<RunLoop::Timer> m_releaseUnusedBuffersTimer;
     RefPtr<WTF::RunLoop> m_compositingRunLoop;
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    Function<void()> m_frameRequestHandler;
+#endif
 #if ENABLE(DAMAGE_TRACKING)
     SwapChainDamageTracker m_damageTracker;
 #endif

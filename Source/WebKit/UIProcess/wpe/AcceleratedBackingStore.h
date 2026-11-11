@@ -34,6 +34,7 @@
 #include <WebCore/IntRect.h>
 #include <WebCore/IntSize.h>
 #include <wtf/HashMap.h>
+#include <wtf/ProcessID.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/glib/GRefPtr.h>
@@ -89,6 +90,9 @@ private:
 #if OS(ANDROID)
     void didCreateAndroidBuffer(RendererBufferIdentifier, RefPtr<AHardwareBuffer>&&);
 #endif
+#if OS(DARWIN)
+    void didCreateIOSurfaceBuffer(RendererBufferIdentifier);
+#endif
     void didChangeBufferConfiguration(uint32_t bufferCount);
     void didDestroyBuffer(RendererBufferIdentifier);
     void frame(RendererBufferIdentifier, Rects&&, WTF::UnixFileDescriptor&&);
@@ -97,6 +101,10 @@ private:
     void bufferRendered();
     void bufferReleased(WPEBuffer*);
     void toplevelChanged();
+#if OS(WINDOWS)
+    void sendNativeWindow();
+    void sizePresentationWindow();
+#endif
 
     void notifyBufferConfigurationIfNeeded();
 
@@ -111,6 +119,15 @@ private:
     HashMap<RendererBufferIdentifier, GRefPtr<WPEBuffer>> m_buffers;
     HashMap<WPEBuffer*, RendererBufferIdentifier> m_bufferIDs;
     std::optional<unsigned> m_targetBufferCount;
+#if OS(WINDOWS)
+    // The window (an HWND) the web process presents into: made here, inside
+    // the view's native window, one per surface of a web process, since no
+    // process can present into a window another one presented into before.
+    void* m_presentationWindow { nullptr };
+    void* m_presentationParent { nullptr };
+    uint64_t m_presentationSurfaceID { 0 };
+    ProcessID m_presentationProcessID { 0 };
+#endif
 };
 
 } // namespace WebKit

@@ -39,6 +39,15 @@
 #include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GUniquePtr.h>
 
+#if OS(DARWIN)
+#include "IOSurfaceChannel.h"
+#endif
+
+#if OS(WINDOWS)
+#include <cmath>
+#include <windows.h>
+#endif
+
 #if OS(ANDROID)
 #include <drm/drm_fourcc.h>
 #elif USE(LIBDRM)
@@ -86,6 +95,20 @@ AcceleratedBackingStore::AcceleratedBackingStore(WebPageProxy& webPage, WPEView*
         auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
         backingStore.toplevelChanged();
     }), this);
+#if OS(WINDOWS)
+    g_signal_connect(m_wpeView.get(), "notify::native-window", G_CALLBACK(+[](WPEView*, GParamSpec*, gpointer userData) {
+        auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
+        backingStore.sendNativeWindow();
+    }), this);
+    g_signal_connect(m_wpeView.get(), "resized", G_CALLBACK(+[](WPEView*, gpointer userData) {
+        auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
+        backingStore.sizePresentationWindow();
+    }), this);
+    g_signal_connect(m_wpeView.get(), "notify::scale", G_CALLBACK(+[](WPEView*, GParamSpec*, gpointer userData) {
+        auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
+        backingStore.sizePresentationWindow();
+    }), this);
+#endif
 }
 
 AcceleratedBackingStore::~AcceleratedBackingStore()
@@ -95,6 +118,10 @@ AcceleratedBackingStore::~AcceleratedBackingStore()
             legacyMainFrameProcess->removeMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID);
     }
     g_signal_handlers_disconnect_by_data(m_wpeView.get(), this);
+#if OS(WINDOWS)
+    if (m_presentationWindow)
+        ::DestroyWindow(static_cast<HWND>(m_presentationWindow));
+#endif
 }
 
 void AcceleratedBackingStore::updateSurfaceID(uint64_t surfaceID)
@@ -118,8 +145,91 @@ void AcceleratedBackingStore::updateSurfaceID(uint64_t surfaceID)
     if (m_surfaceID && m_webPage) {
         m_legacyMainFrameProcess = m_webPage->legacyMainFrameProcess();
         protect(*m_legacyMainFrameProcess)->addMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID, *this);
+#if OS(WINDOWS)
+        // A new surface (a new page, or a new web process) presents into the
+        // view's window as the last one did.
+        if (wpe_view_get_native_window(m_wpeView.get()))
+            sendNativeWindow();
+#endif
     }
 }
+
+#if OS(WINDOWS)
+// The presentation windows are this thread's (the embedder's), so that it
+// never waits for a web process: they paint nothing (the swap chain of the
+// web process draws them) and leave all input to the window beneath.
+static LRESULT CALLBACK presentationWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message) {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_NCHITTEST:
+        return HTTRANSPARENT;
+    default:
+        return ::DefWindowProcW(window, message, wParam, lParam);
+    }
+}
+
+static HWND createPresentationWindow(HWND parent, int width, int height)
+{
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        WNDCLASSW windowClass { };
+        windowClass.lpfnWndProc = presentationWindowProcedure;
+        windowClass.hInstance = ::GetModuleHandleW(nullptr);
+        windowClass.lpszClassName = L"WPEPresentationWindow";
+        ::RegisterClassW(&windowClass);
+    });
+    auto window = ::CreateWindowExW(WS_EX_NOPARENTNOTIFY, L"WPEPresentationWindow", nullptr, WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_CLIPSIBLINGS,
+        0, 0, width, height, parent, nullptr, ::GetModuleHandleW(nullptr), nullptr);
+    if (window)
+        ::SetWindowPos(window, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    return window;
+}
+
+void AcceleratedBackingStore::sizePresentationWindow()
+{
+    if (!m_presentationWindow)
+        return;
+
+    auto scale = wpe_view_get_scale(m_wpeView.get());
+    int width = std::max(1, static_cast<int>(std::ceil(wpe_view_get_width(m_wpeView.get()) * scale)));
+    int height = std::max(1, static_cast<int>(std::ceil(wpe_view_get_height(m_wpeView.get()) * scale)));
+    ::SetWindowPos(static_cast<HWND>(m_presentationWindow), nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+void AcceleratedBackingStore::sendNativeWindow()
+{
+    if (!m_surfaceID)
+        return;
+
+    // The web process presents its frames into a window of the view's
+    // window, or with none sends them as buffers again; either way from its
+    // next frame, which the change schedules. Without one, the presentation
+    // window stays, showing the last frame.
+    RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get();
+    if (!legacyMainFrameProcess)
+        return;
+
+    uintptr_t window = 0;
+    if (auto* parent = wpe_view_get_native_window(m_wpeView.get())) {
+        auto processID = legacyMainFrameProcess->processID();
+        if (!m_presentationWindow || !::IsWindow(static_cast<HWND>(m_presentationWindow)) || m_presentationParent != parent
+            || m_presentationSurfaceID != m_surfaceID || m_presentationProcessID != processID) {
+            auto* previous = static_cast<HWND>(m_presentationWindow);
+            m_presentationWindow = createPresentationWindow(static_cast<HWND>(parent), 1, 1);
+            m_presentationParent = m_presentationWindow ? parent : nullptr;
+            m_presentationSurfaceID = m_presentationWindow ? m_surfaceID : 0;
+            m_presentationProcessID = m_presentationWindow ? processID : 0;
+            sizePresentationWindow();
+            if (previous)
+                ::DestroyWindow(previous);
+        }
+        window = reinterpret_cast<uintptr_t>(m_presentationWindow);
+    }
+    legacyMainFrameProcess->send(Messages::AcceleratedSurface::SetNativeWindow(window), m_surfaceID);
+}
+#endif
 
 void AcceleratedBackingStore::didChangeBufferConfiguration(uint32_t bufferCount)
 {
@@ -195,6 +305,26 @@ void AcceleratedBackingStore::didCreateAndroidBuffer(RendererBufferIdentifier id
 }
 #endif // OS(ANDROID)
 
+#if OS(DARWIN)
+void AcceleratedBackingStore::didCreateIOSurfaceBuffer(RendererBufferIdentifier id)
+{
+    // The web process sent the surface over the channel before this message.
+    RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get();
+    auto* surface = legacyMainFrameProcess ? IOSurfaceChannel::takeSurface(legacyMainFrameProcess->processID(), id.toUInt64()) : nullptr;
+    if (!surface) {
+        g_warning("The IOSurface of buffer %" PRIu64 " did not arrive", id.toUInt64());
+        return;
+    }
+
+    GRefPtr<WPEBuffer> buffer = adoptGRef(WPE_BUFFER(wpe_buffer_iosurface_new(wpe_view_get_display(m_wpeView.get()), surface)));
+    CFRelease(surface);
+    m_bufferIDs.add(buffer.get(), id);
+    m_buffers.add(id, WTF::move(buffer));
+
+    notifyBufferConfigurationIfNeeded();
+}
+#endif // OS(DARWIN)
+
 void AcceleratedBackingStore::didDestroyBuffer(RendererBufferIdentifier id)
 {
     if (auto buffer = m_buffers.take(id))
@@ -240,6 +370,10 @@ static std::expected<SkImageInfo, String> getImageInfoFromBuffer(const  GRefPtr<
         SkAlphaType alphaType = kPremul_SkAlphaType;
         return SkImageInfo::Make(width, height, kBGRA_8888_SkColorType, alphaType, SkColorSpace::MakeSRGB());
     }
+#if OS(DARWIN)
+    if (WPE_IS_BUFFER_IOSURFACE(buffer.get()))
+        return SkImageInfo::Make(width, height, kBGRA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
+#endif
     return makeUnexpected("Failed to extract snapshot pixel information"_s);
 }
 
