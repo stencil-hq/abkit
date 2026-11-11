@@ -132,9 +132,16 @@ jobs:
               path: .ccache
               key: ccache-${{ matrix.target }}-${{ github.sha }}-${{ github.run_attempt }}
 
+         # A musl engine needs a musl system: the runners lack its ELF interpreter, /lib/ld-musl-*.so.1.
          - name: Smoke test
            if: ${{ !matrix.test }}
-           run: python3 WebKitBuild/smoke-engine.py dist/abkit
+           run: |
+              if [[ ${{ matrix.platform }} == linux-musl ]]; then
+                 docker run --rm --network host -v "$PWD:/w" -w /w alpine:3.22 \
+                    sh -c 'apk add -q python3 && python3 WebKitBuild/smoke-engine.py dist/abkit'
+              else
+                 python3 WebKitBuild/smoke-engine.py dist/abkit
+              fi
 
          - name: Archive
            run: |
