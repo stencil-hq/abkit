@@ -1,0 +1,27 @@
+# The build environment of the musl engines (linux-musl-x64, linux-musl-arm64).
+#
+# Alpine is the musl distribution; the engine takes nothing from the system but musl itself, so it
+# runs on any Alpine whose musl is at least 3.22's (1.2.5). build-deps.sh builds what Alpine has
+# differently from what the engine needs: libsoup with Safari's request, the BoringSSL TLS module
+# and a Mesa whose llvmpipe is linked statically.
+FROM alpine:3.22
+
+ARG LLVM_VERSION=20
+
+# The mirror's name fails to resolve now and then, so the install is retried.
+RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; return 1; } \
+	&& retry apk add --no-cache \
+		clang$LLVM_VERSION lld$LLVM_VERSION llvm$LLVM_VERSION-dev llvm$LLVM_VERSION-static llvm$LLVM_VERSION-gtest \
+		compiler-rt build-base linux-headers cmake samurai ccache pkgconf patchelf file patch xz bzip2 git curl bash \
+		python3 py3-pip perl ruby ruby-dev gperf unifdef bison flex nasm \
+		icu-dev icu-data-full harfbuzz-dev freetype-dev fontconfig-dev libjpeg-turbo-dev libpng-dev libwebp-dev \
+		libxml2-dev libxslt-dev sqlite-dev zlib-dev libepoxy-dev libxkbcommon-dev woff2-dev \
+		libavif-dev libjxl-dev lcms2-dev openssl-dev nghttp2-dev libpsl-dev brotli-dev zstd-dev \
+		glib-dev libffi-dev pcre2-dev expat-dev libdrm-dev xkeyboard-config \
+		gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev \
+		gst-plugins-base gst-plugins-good gst-plugins-bad gst-libav \
+		libevent-dev alsa-lib-dev opus-dev libvpx-dev \
+		libmanette-dev flite-dev \
+		font-dejavu
+
+ENV CC=clang-$LLVM_VERSION CXX=clang++-$LLVM_VERSION LLVM_CONFIG=llvm-config-$LLVM_VERSION

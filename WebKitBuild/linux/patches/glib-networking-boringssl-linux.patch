@@ -1,0 +1,72 @@
+diff -r a/tls/base/gtlssessioncache.c b/tls/base/gtlssessioncache.c
+--- a/tls/base/gtlssessioncache.c
++++ b/tls/base/gtlssessioncache.c
+@@ -213,7 +213,7 @@
+ 
+           if (!session_data)
+             {
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(GIO_BORINGSSL_SAFARI)
+               /* Safari offers a cached TLS 1.2 session to one connection
+                * only, so the cache hands its reference over.
+                */
+diff -r a/tls/openssl/gtlsclientconnection-openssl.c b/tls/openssl/gtlsclientconnection-openssl.c
+--- a/tls/openssl/gtlsclientconnection-openssl.c
++++ b/tls/openssl/gtlsclientconnection-openssl.c
+@@ -36,7 +36,7 @@
+ #include "gtlssessioncache.h"
+ #include "gtlscertificate-openssl.h"
+ #include "gtlsdatabase-openssl.h"
+-#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#ifdef OPENSSL_IS_BORINGSSL
+ #include "SafariClientHello.h"
+ #endif
+ #include <glib/gi18n-lib.h>
+@@ -445,7 +445,7 @@
+ 
+   tls = G_TLS_CONNECTION_BASE (client);
+ 
+-#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#ifdef OPENSSL_IS_BORINGSSL
+   /* Safari resumes TLS 1.2 sessions and never offers a TLS 1.3 ticket. */
+   if (SSL_SESSION_get_protocol_version (sess) >= TLS1_3_VERSION)
+     return 0;
+@@ -514,7 +514,7 @@
+       return FALSE;
+     }
+ 
+-#if defined(__APPLE__) && defined(OPENSSL_IS_BORINGSSL)
++#ifdef OPENSSL_IS_BORINGSSL
+   if (!g_tls_connection_base_is_dtls (G_TLS_CONNECTION_BASE (client)) &&
+       !g_tls_boringssl_configure_safari_client_hello (client->ssl_ctx))
+     {
+diff -r a/tls/openssl/gtlsdatabase-openssl.c b/tls/openssl/gtlsdatabase-openssl.c
+--- a/tls/openssl/gtlsdatabase-openssl.c
++++ b/tls/openssl/gtlsdatabase-openssl.c
+@@ -390,7 +390,26 @@
+ populate_store (X509_STORE  *store,
+                 GError     **error)
+ {
++  /* BoringSSL looks in /etc/ssl/cert.pem and /etc/ssl/certs alone, which not
++   * every distribution fills; the other places they keep their bundle are
++   * looked in too, as Go does.
++   */
++  static const char * const bundles[] = {
++    "/etc/ssl/certs/ca-certificates.crt",
++    "/etc/pki/tls/certs/ca-bundle.crt",
++    "/etc/ssl/ca-bundle.pem",
++    "/etc/pki/tls/cacert.pem",
++    "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
++  };
++  gsize i;
++
+   ERR_clear_error ();
++  if (!g_getenv ("SSL_CERT_FILE"))
++    for (i = 0; i < G_N_ELEMENTS (bundles); i++)
++      if (g_file_test (bundles[i], G_FILE_TEST_EXISTS) &&
++          X509_STORE_load_locations (store, bundles[i], NULL))
++        break;
++  ERR_clear_error ();
+   if (!X509_STORE_set_default_paths (store))
+     {
+       char error_buffer[256];
