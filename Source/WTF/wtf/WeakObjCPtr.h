@@ -27,7 +27,7 @@
 
 #include <wtf/Platform.h>
 
-#if PLATFORM(COCOA)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <objc/runtime.h>
 #include <type_traits>

@@ -31,7 +31,7 @@
 #include <wtf/Platform.h>
 #include <wtf/SwiftBridging.h>
 
-#if PLATFORM(COCOA)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <mach/mach_port.h>
 

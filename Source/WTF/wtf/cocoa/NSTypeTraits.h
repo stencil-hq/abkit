@@ -25,7 +25,7 @@
 
 #ifdef __OBJC__
 #import <Foundation/Foundation.h>
-#elif USE(CF)
+#elif USE(DARWIN_SYSTEM_TYPES)
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 

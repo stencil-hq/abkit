@@ -44,6 +44,10 @@
 #include "AudioSessionIOS.h"
 #endif
 
+#if PLATFORM(WPE) && OS(DARWIN)
+#include "AudioSessionDarwin.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioSession);
@@ -94,6 +98,8 @@ Ref<AudioSession> AudioSession::create()
     return AudioSessionMac::create();
 #elif PLATFORM(IOS_FAMILY)
     return AudioSessionIOS::create();
+#elif PLATFORM(WPE) && OS(DARWIN)
+    return AudioSessionDarwin::create();
 #else
     return AudioSession::create();
 #endif

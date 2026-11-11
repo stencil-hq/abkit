@@ -20,7 +20,8 @@
 
 #include "config.h"
 
-#if USE(GSTREAMER) && ENABLE(WEB_AUDIO)
+// Where the OS has Accelerate, the FFT is vDSP's (FFTFrameCocoa.cpp), as in the system's WebKit.
+#if USE(GSTREAMER) && ENABLE(WEB_AUDIO) && !USE(ACCELERATE)
 
 #include "FFTFrame.h"
 
@@ -127,4 +128,4 @@ int FFTFrame::maxFFTSize()
 
 } // namespace WebCore
 
-#endif // USE(GSTREAMER) && ENABLE(WEB_AUDIO)
+#endif // USE(GSTREAMER) && ENABLE(WEB_AUDIO) && !USE(ACCELERATE)

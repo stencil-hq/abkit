@@ -73,7 +73,12 @@ int ScrollbarThemeAdwaita::scrollbarThickness(ScrollbarWidth scrollbarWidth, Ove
 {
     if (scrollbarWidth == ScrollbarWidth::None || (usesOverlayScrollbars() && overlayRelevancy == OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize))
         return 0;
+#if OS(MACOS)
+    // The scrollbars of a Mac that always shows them, which is how wide pages find them there.
+    return scrollbarWidth == ScrollbarWidth::Thin ? 13 : 17;
+#else
     return scrollbarSize;
+#endif
 }
 
 int ScrollbarThemeAdwaita::minimumThumbLength(Scrollbar&)

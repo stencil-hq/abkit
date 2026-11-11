@@ -29,6 +29,9 @@
 
 #include <WebCore/PlatformMediaSessionTypes.h>
 #include <memory>
+#if HAVE(AUDIT_TOKEN)
+#include <mach/message.h>
+#endif
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/AbstractThreadSafeRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/CompletionHandler.h>
@@ -149,8 +152,10 @@ public:
     NODELETE static bool shouldManageAudioSessionCategory();
     NODELETE static void setShouldManageAudioSessionCategory(bool);
 
+#if HAVE(AUDIT_TOKEN)
     virtual void setHostProcessAttribution(audit_token_t) { };
     virtual void setPresentingProcesses(Vector<audit_token_t>&&) { };
+#endif
 
     bool isInterrupted() const { return m_isInterrupted; }
 

@@ -29,13 +29,13 @@
 #include "Scrollbar.h"
 #include <wtf/text/TextStream.h>
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 #include "PlatformGestureEventMac.h"
 #endif
 
 namespace WebCore {
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
 
 PlatformWheelEvent PlatformWheelEvent::createFromGesture(const PlatformGestureEvent& platformGestureEvent, double deltaY, std::optional<double> wheelTicksYOverride)
 {

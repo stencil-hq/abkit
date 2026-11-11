@@ -101,18 +101,103 @@ void MediaRecorderPrivateGStreamer::resumeRecording(CompletionHandler<void()>&& 
 
 String MediaRecorderPrivateGStreamer::mimeType() const
 {
-    return m_recorder->mimeType();
+    return m_recorder->reportedMimeType();
 }
+
+#if OS(DARWIN)
+// What the system's recorder makes of a type. It knows codecs by their names, takes MP4 with H.264 and
+// AAC or WebM with VP8 and Opus when none is named, and tells the page one fixed string for each codec,
+// whatever profile or level was asked for.
+struct SystemRecording {
+    bool isWebM { false };
+    // For the encoder.
+    String videoCodec;
+    // As told to the page.
+    ASCIILiteral videoCodecName;
+    ASCIILiteral audioCodecName;
+};
+
+static std::optional<SystemRecording> systemRecordingForType(const ContentType& contentType)
+{
+    auto containerType = contentType.containerType();
+    SystemRecording recording;
+    recording.isWebM = equalLettersIgnoringASCIICase(containerType, "video/webm"_s) || equalLettersIgnoringASCIICase(containerType, "audio/webm"_s);
+    if (!recording.isWebM && !containerType.isEmpty() && !equalLettersIgnoringASCIICase(containerType, "video/mp4"_s) && !equalLettersIgnoringASCIICase(containerType, "audio/mp4"_s))
+        return { };
+
+    if (recording.isWebM) {
+        recording.videoCodec = "vp8"_s;
+        recording.videoCodecName = "vp8"_s;
+        recording.audioCodecName = "opus"_s;
+    } else {
+        recording.videoCodec = "avc1.4d002a"_s;
+        recording.videoCodecName = "avc1.42000a"_s;
+        recording.audioCodecName = "mp4a.40.2"_s;
+    }
+
+    for (auto& codec : contentType.codecs()) {
+        if (codec == "opus"_s) {
+            recording.audioCodecName = "opus"_s;
+            continue;
+        }
+        if (recording.isWebM) {
+            if (codec.startsWith("vp09.02"_s))
+                recording.videoCodecName = "vp09.02.30.10"_s;
+            else if (codec.startsWith("vp09"_s) || codec == "vp9"_s || codec == "vp9.0"_s)
+                recording.videoCodecName = "vp09.00.10.08"_s;
+            else if (codec.startsWith("vp08"_s) || codec == "vp8"_s || codec == "vp8.0"_s)
+                recording.videoCodecName = "vp8"_s;
+            else
+                return { };
+            recording.videoCodec = codec;
+        } else if (startsWithLettersIgnoringASCIICase(codec, "avc1"_s)) {
+            recording.videoCodecName = "avc1.42000a"_s;
+            // A profile and level the encoder is given only when they are spelled as it reads them:
+            // avc1.PPCCLL.
+            if (codec.startsWith("avc1."_s) && codec.length() == 11)
+                recording.videoCodec = codec;
+        } else if (codec.startsWith("hev1."_s) || codec.startsWith("hvc1."_s)) {
+            recording.videoCodecName = "hev1.1.6.L93.B0"_s;
+            recording.videoCodec = codec;
+        } else if (codec.startsWith("av01."_s)) {
+            recording.videoCodecName = "av01.0.01M.08"_s;
+            recording.videoCodec = codec;
+        } else if (codec == "pcm"_s)
+            recording.audioCodecName = "pcm"_s;
+        else if (codec == "alac"_s)
+            recording.audioCodecName = "alac"_s;
+        else if (startsWithLettersIgnoringASCIICase(codec, "mp4a"_s))
+            recording.audioCodecName = "mp4a.40.2"_s;
+        else
+            return { };
+    }
+    return recording;
+}
+#endif
 
 bool MediaRecorderPrivateGStreamer::isTypeSupported(const ContentType& contentType)
 {
     auto& scanner = GStreamerRegistryScanner::singleton();
+#if OS(DARWIN)
+    auto recording = systemRecordingForType(contentType);
+    if (!recording)
+        return false;
+
+    // The fragmented MP4 muxer takes no Apple Lossless.
+    if (recording->audioCodecName == "alac"_s)
+        return false;
+
+    using Configuration = GStreamerRegistryScanner::Configuration;
+    return scanner.isCodecSupported(Configuration::Encoding, recording->videoCodec)
+        && (recording->audioCodecName == "pcm"_s || scanner.isCodecSupported(Configuration::Encoding, String { recording->audioCodecName }));
+#else
     bool isSupported = scanner.isContentTypeSupported(GStreamerRegistryScanner::Configuration::Encoding, contentType, { }, GStreamerRegistryScanner::CaseSensitiveCodecName::No) > MediaPlayerEnums::SupportsType::IsNotSupported;
 
     // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/7670
     if (isSupported && !contentType.containerType().endsWith("mp4"_s) && !gst_check_version(1, 24, 9))
         isSupported = false;
     return isSupported;
+#endif
 }
 
 MediaRecorderPrivateBackend::MediaRecorderPrivateBackend(MediaStreamPrivate& stream, const MediaRecorderPrivateOptions& options)
@@ -130,6 +215,21 @@ MediaRecorderPrivateBackend::MediaRecorderPrivateBackend(MediaStreamPrivate& str
     auto contentType = ContentType(options.mimeType);
     auto containerType = contentType.containerType();
     auto codecs = contentType.codecs();
+#if OS(DARWIN)
+    if (auto recording = systemRecordingForType(contentType)) {
+        codecs.clear();
+        if (selectedTracks.videoTrack)
+            codecs.append(recording->videoCodec);
+        if (selectedTracks.audioTrack)
+            codecs.append(String { recording->audioCodecName });
+
+        // The page is told the container it asked for, and MP4 when it asked for none.
+        auto reportedContainerType = containerType.isEmpty() ? String { selectedTracks.videoTrack ? "video/mp4"_s : "audio/mp4"_s } : containerType;
+        auto separator = selectedTracks.videoTrack && selectedTracks.audioTrack ? ","_s : ""_s;
+        m_reportedMimeType = makeString(reportedContainerType, "; codecs="_s, selectedTracks.videoTrack ? recording->videoCodecName : ""_s, separator, selectedTracks.audioTrack ? recording->audioCodecName : ""_s);
+        containerType = recording->isWebM ? "video/webm"_s : "video/mp4"_s;
+    }
+#endif
     if (containerType.endsWith("webm"_s)) {
         containerType = selectedTracks.videoTrack ? "video/webm"_s : "audio/webm"_s;
         if (codecs.isEmpty()) {
@@ -155,6 +255,8 @@ MediaRecorderPrivateBackend::MediaRecorderPrivateBackend(MediaStreamPrivate& str
         builder.append(interleave(codecs, ","_s));
     }
     m_mimeType = builder.toString();
+    if (m_reportedMimeType.isEmpty())
+        m_reportedMimeType = m_mimeType;
     GST_DEBUG("New mimeType: \"%s\"", m_mimeType.ascii().data());
 }
 
@@ -191,7 +293,8 @@ void MediaRecorderPrivateBackend::startRecording(MediaRecorderPrivate::StartReco
     if (!m_pipeline)
         preparePipeline();
     GST_DEBUG_OBJECT(m_pipeline.get(), "Starting");
-    callback(String(mimeType()), 0, 0);
+    // The bit rates are the ones the encoders were given.
+    callback(String(reportedMimeType()), m_options.audioBitsPerSecond.value_or(0), m_options.videoBitsPerSecond.value_or(0));
     gst_element_set_state(m_pipeline.get(), GST_STATE_PLAYING);
     m_positionTimer.startRepeating(100_ms);
 }
@@ -319,9 +422,12 @@ GRefPtr<GstEncodingContainerProfile> MediaRecorderPrivateBackend::containerProfi
 
     GST_DEBUG("Creating container profile for mime-type %s", mimeType.ascii().data());
     auto contentType = ContentType(mimeType);
+#if !OS(DARWIN)
+    // On Darwin the type was vetted as the system's recorder vets it, when the recorder was made.
     auto& scanner = GStreamerRegistryScanner::singleton();
     if (scanner.isContentTypeSupported(GStreamerRegistryScanner::Configuration::Encoding, contentType, { }) == MediaPlayerEnums::SupportsType::IsNotSupported)
         return nullptr;
+#endif
 
     static bool isobmffPluginFound = false;
     static std::once_flag onceFlag;
@@ -387,6 +493,8 @@ GRefPtr<GstEncodingContainerProfile> MediaRecorderPrivateBackend::containerProfi
             audioCapsName = "audio/x-opus"_s;
         else if (codecs.findIf([](auto& codec) { return codec.startsWith("mp4a"_s); }) != notFound)
             audioCapsName = "audio/mpeg, mpegversion=4"_s;
+        else if (codecs.contains("pcm"_s))
+            audioCapsName = "audio/x-raw, format=(string)S16LE, layout=(string)interleaved"_s;
         else if (containerType.endsWith("webm"_s))
             audioCapsName = "audio/x-vorbis"_s;
         else if (containerType.endsWith("mp4"_s))

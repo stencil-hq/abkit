@@ -27,7 +27,7 @@
 
 #include <wtf/Platform.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <concepts>

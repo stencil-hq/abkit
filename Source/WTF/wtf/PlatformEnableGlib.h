@@ -90,3 +90,36 @@
 #if ENABLE(WPE_PLATFORM) || PLATFORM(GTK)
 #define ENABLE_DAMAGE_TRACKING 1
 #endif
+#if !defined(ENABLE_AUTOCORRECT) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_AUTOCORRECT 1
+#endif
+
+#if !defined(ENABLE_WIRELESS_PLAYBACK_TARGET_AVAILABILITY_API) && ENABLE(WIRELESS_PLAYBACK_TARGET) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_WIRELESS_PLAYBACK_TARGET_AVAILABILITY_API 1
+#endif
+
+#if !defined(ENABLE_WRITING_SUGGESTIONS) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_WRITING_SUGGESTIONS 1
+#endif
+
+/* navigator.audioSession, exposed as Safari exposes it. The WPE port on Darwin has no
+   system audio session, so the base WebCore AudioSession answers. */
+#if !defined(ENABLE_DOM_AUDIO_SESSION) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_DOM_AUDIO_SESSION 1
+#endif
+
+/* window.ApplePayError, exposed as Safari exposes it: Safari's WebKit has Apple Pay built
+   in and its other interfaces are gated by the ApplePayEnabled setting, so the error type is
+   visible while no payment can be made. The WPE port has no Apple Pay implementation at all,
+   so only this plain data type is built. */
+#if !defined(ENABLE_APPLE_PAY_ERROR) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_APPLE_PAY_ERROR 1
+#endif
+
+/* window.pushManager, exposed as Safari exposes it. Safari's WebKit answers the calls with a
+   push service; the whole declarative push feature also carries the Cocoa port's web push
+   daemon client into the network process, which is no part of this engine, so the port builds
+   the window half alone and the window answers the calls itself. */
+#if !defined(ENABLE_WINDOW_PUSH_MANAGER) && PLATFORM(WPE) && OS(DARWIN)
+#define ENABLE_WINDOW_PUSH_MANAGER 1
+#endif

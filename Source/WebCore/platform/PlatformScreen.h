@@ -90,6 +90,8 @@ constexpr DynamicRangeMode preferredDynamicRangeMode(Widget* = nullptr) { return
 #if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
 WEBCORE_EXPORT bool screenSupportsHighDynamicRange(Widget* = nullptr);
 WEBCORE_EXPORT bool screenSupportsHighDynamicRange(PlatformDisplayID);
+#elif PLATFORM(WPE) && OS(DARWIN)
+WEBCORE_EXPORT bool screenSupportsHighDynamicRange(Widget* = nullptr);
 #else
 constexpr bool screenSupportsHighDynamicRange(Widget* = nullptr) { return false; }
 #endif

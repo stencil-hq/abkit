@@ -30,6 +30,10 @@
 #import <CoreText/CTFont.h>
 #import <Foundation/Foundation.h>
 #import <wtf/spi/cocoa/IOSurfaceSPI.h>
+#if !HAVE(IOSURFACE)
+// A port on Darwin that is not a Cocoa port: the SDK's header declares the class.
+#import <IOSurface/IOSurfaceObjC.h>
+#endif
 #endif
 
 namespace WTF {
@@ -61,7 +65,7 @@ WTF_DECLARE_TOLL_FREE_BRIDGING_TRAITS(CFTimeZone, NSTimeZone)
 WTF_DECLARE_TOLL_FREE_BRIDGING_TRAITS(CFURL, NSURL)
 #if USE(APPKIT)
 WTF_DECLARE_TOLL_FREE_BRIDGING_TRAITS(CTFont, NSFont)
-#else
+#elif PLATFORM(IOS_FAMILY)
 WTF_DECLARE_TOLL_FREE_BRIDGING_TRAITS(CTFont, UIFont)
 #endif
 WTF_DECLARE_TOLL_FREE_BRIDGING_TRAITS(IOSurface, ::IOSurface)

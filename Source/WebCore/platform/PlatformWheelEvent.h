@@ -100,7 +100,7 @@ public:
     {
     }
 
-#if ENABLE(MAC_GESTURE_EVENTS)
+#if ENABLE(MAC_GESTURE_EVENTS) && PLATFORM(COCOA)
     static PlatformWheelEvent createFromGesture(const PlatformGestureEvent&, double deltaY, std::optional<double> wheelTicksYOverride = std::nullopt);
 #endif
 

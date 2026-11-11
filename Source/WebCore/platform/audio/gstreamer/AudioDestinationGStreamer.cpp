@@ -59,6 +59,62 @@ static void initializeAudioDestinationDebugCategory()
     });
 }
 
+static void forEachAudioOutputDevice(NOESCAPE const Function<void(GstDevice*, const GstStructure*)>& apply)
+{
+    GRefPtr monitor = adoptGRef(gst_device_monitor_new());
+    GRefPtr caps = adoptGRef(gst_caps_new_empty_simple("audio/x-raw"));
+    gst_device_monitor_add_filter(monitor.get(), "Audio/Sink", caps.get());
+    bool started = gst_device_monitor_start(monitor.get());
+#if GST_CHECK_VERSION(1, 28, 0)
+    if (started) {
+        GRefPtr bus = adoptGRef(gst_device_monitor_get_bus(monitor.get()));
+        [[maybe_unused]] GRefPtr message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), GST_CLOCK_TIME_NONE, GST_MESSAGE_DEVICE_MONITOR_STARTED));
+        GST_DEBUG_OBJECT(monitor.get(), "Device monitor startup completed");
+    }
+#endif
+    auto* devices = gst_device_monitor_get_devices(monitor.get());
+    while (devices) {
+        GRefPtr device = adoptGRef(GST_DEVICE_CAST(devices->data));
+        GRefPtr caps = adoptGRef(gst_device_get_caps(device.get()));
+        unsigned size = gst_caps_get_size(caps.get());
+        for (unsigned i = 0; i < size; i++) {
+            auto* structure = gst_caps_get_structure(caps.get(), i);
+            if (gstStructureGetName(structure) == "audio/x-raw"_s)
+                apply(device.get(), structure);
+        }
+        devices = g_list_delete_link(devices, devices);
+    }
+    if (started)
+        gst_device_monitor_stop(monitor.get());
+}
+
+#if OS(DARWIN)
+// What Core Audio's clients, and so the pages of the system's browser, see of the hardware is the
+// device that plays by default.
+struct AudioOutputFormat {
+    int sampleRate { 0 };
+    int channels { 0 };
+};
+
+static const AudioOutputFormat& defaultOutputDeviceFormat()
+{
+    static AudioOutputFormat format;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        initializeAudioDestinationDebugCategory();
+        forEachAudioOutputDevice([](GstDevice* device, const GstStructure* structure) {
+            GUniquePtr<GstStructure> properties(gst_device_get_properties(device));
+            if (format.sampleRate || !properties || !gstStructureGet<bool>(properties.get(), "is-default"_s).value_or(false))
+                return;
+            format.sampleRate = gstStructureGet<int>(structure, "rate"_s).value_or(0);
+            format.channels = gstStructureGet<int>(structure, "channels"_s).value_or(0);
+        });
+        GST_DEBUG("Default output device: %d Hz, %d channels", format.sampleRate, format.channels);
+    });
+    return format;
+}
+#endif
+
 static unsigned long maximumNumberOfOutputChannels()
 {
     initializeAudioDestinationDebugCategory();
@@ -74,34 +130,17 @@ static unsigned long maximumNumberOfOutputChannels()
             }
         }
 
-        GRefPtr monitor = adoptGRef(gst_device_monitor_new());
-        GRefPtr caps = adoptGRef(gst_caps_new_empty_simple("audio/x-raw"));
-        gst_device_monitor_add_filter(monitor.get(), "Audio/Sink", caps.get());
-        bool started = gst_device_monitor_start(monitor.get());
-#if GST_CHECK_VERSION(1, 28, 0)
-        if (started) {
-            GRefPtr bus = adoptGRef(gst_device_monitor_get_bus(monitor.get()));
-            [[maybe_unused]] GRefPtr message = adoptGRef(gst_bus_timed_pop_filtered(bus.get(), GST_CLOCK_TIME_NONE, GST_MESSAGE_DEVICE_MONITOR_STARTED));
-            GST_DEBUG_OBJECT(monitor.get(), "Device monitor startup completed");
-        }
+#if OS(DARWIN)
+        count = defaultOutputDeviceFormat().channels;
+        if (count)
+            return;
 #endif
-        auto* devices = gst_device_monitor_get_devices(monitor.get());
-        while (devices) {
-            GRefPtr device = adoptGRef(GST_DEVICE_CAST(devices->data));
-            GRefPtr caps = adoptGRef(gst_device_get_caps(device.get()));
-            unsigned size = gst_caps_get_size(caps.get());
-            for (unsigned i = 0; i < size; i++) {
-                auto* structure = gst_caps_get_structure(caps.get(), i);
-                if (gstStructureGetName(structure) != "audio/x-raw"_s)
-                    continue;
-                if (auto value = gstStructureGet<int>(structure, "channels"_s))
-                    count = std::max(count, *value);
-            }
-            devices = g_list_delete_link(devices, devices);
-        }
+
+        forEachAudioOutputDevice([](GstDevice*, const GstStructure* structure) {
+            if (auto value = gstStructureGet<int>(structure, "channels"_s))
+                count = std::max(count, *value);
+        });
         GST_DEBUG("maximumNumberOfOutputChannels: %d", count);
-        if (started)
-            gst_device_monitor_stop(monitor.get());
     });
 
     return count;
@@ -121,6 +160,10 @@ Ref<AudioDestination> AudioDestination::create(const CreationOptions& options)
 
 float AudioDestination::hardwareSampleRate()
 {
+#if OS(DARWIN)
+    if (auto sampleRate = defaultOutputDeviceFormat().sampleRate)
+        return sampleRate;
+#endif
     return 44100;
 }
 
@@ -169,8 +212,11 @@ void AudioDestinationGStreamer::initializePipeline()
     webkitWebAudioSourceSetDestination(WEBKIT_WEB_AUDIO_SRC(m_src.get()), this);
     webkitWebAudioSourceSetSilent(WEBKIT_WEB_AUDIO_SRC(m_src.get()), isSilent());
 
+    if (!usesOutputDevice())
+        m_audioSink = createDiscardingAudioSink();
+
     auto& quirksManager = GStreamerQuirksManager::singleton();
-    if (quirksManager.isEnabled()) {
+    if (!m_audioSink && quirksManager.isEnabled()) {
 #if ENABLE(MEDIA_STREAM)
         if (!m_audioSink && !outputDeviceId().isEmpty()) {
             auto [resolvedId, device] = gstResolveAudioOutputDevice(outputDeviceId());
@@ -254,7 +300,8 @@ void AudioDestinationGStreamer::setSinkId(const String& persistentDeviceId, bool
     setSinkSelection(persistentDeviceId, isSilent);
 
     // If pipeline is not created yet, the selection will be applied during its initialization.
-    if (!m_pipeline || !m_audioSink) {
+    // Without an output device there is nothing to switch.
+    if (!m_pipeline || !m_audioSink || !usesOutputDevice()) {
         completionHandler(true);
         return;
     }

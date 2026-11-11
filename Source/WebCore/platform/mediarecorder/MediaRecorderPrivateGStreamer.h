@@ -58,6 +58,8 @@ public:
     void pauseRecording(CompletionHandler<void()>&&);
     void resumeRecording(CompletionHandler<void()>&&);
     const String& mimeType() const LIFETIME_BOUND { return m_mimeType; }
+    // The type the page is told, which on Darwin names the codecs as the system's recorder does.
+    const String& reportedMimeType() const LIFETIME_BOUND { return m_reportedMimeType; }
 
     void setSelectTracksCallback(SelectTracksCallback&& callback) { m_selectTracksCallback = WTF::move(callback); }
 
@@ -92,6 +94,7 @@ private:
     MediaStreamPrivate& m_stream;
     const MediaRecorderPrivateOptions& m_options;
     String m_mimeType;
+    String m_reportedMimeType;
     std::optional<SelectTracksCallback> m_selectTracksCallback;
     bool m_waitingForEOS { false };
     Vector<MediaRecorderPrivate::FetchDataCallback> m_fetchDataCallbacksPendingEOS;

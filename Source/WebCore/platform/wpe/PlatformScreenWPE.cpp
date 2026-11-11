@@ -34,6 +34,12 @@
 #include "ScreenProperties.h"
 #include "Widget.h"
 
+#if OS(DARWIN)
+#include <CoreFoundation/CoreFoundation.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <dlfcn.h>
+#endif
+
 namespace WebCore {
 
 #if ENABLE(WPE_PLATFORM)
@@ -164,9 +170,66 @@ void setScreenHasTouchDevice(bool value)
 }
 #endif
 
+#if OS(DARWIN)
+// The Cocoa ports ask the window server about the display the page is on. This port has no AppKit
+// and a single screen that is not removable, so both answers come from the main display; each is
+// asked once and kept for the life of the process.
+static bool mainDisplaySupportsWideGamutColor()
+{
+    static const bool supportsWideGamutColor = [] {
+        CGColorSpaceRef colorSpace = CGDisplayCopyColorSpace(CGMainDisplayID());
+        if (!colorSpace)
+            return false;
+        bool isWideGamut = CGColorSpaceIsWideGamutRGB(colorSpace);
+        CGColorSpaceRelease(colorSpace);
+        return isWideGamut;
+    }();
+    return supportsWideGamutColor;
+}
+
+static bool mainDisplaySupportsHighDynamicRange()
+{
+    static const bool supportsHighDynamicRange = [] {
+        // This is the call the Cocoa ports fall back to for a display whose properties they have not
+        // collected. MediaToolbox is not a link dependency of this port, so it is opened at run time.
+        void* mediaToolbox = dlopen("/System/Library/Frameworks/MediaToolbox.framework/MediaToolbox", RTLD_NOW);
+        if (!mediaToolbox)
+            return false;
+        auto shouldPlayHDRVideo = reinterpret_cast<Boolean (*)(CFArrayRef)>(dlsym(mediaToolbox, "MTShouldPlayHDRVideo"));
+        if (!shouldPlayHDRVideo)
+            return false;
+
+        CGDirectDisplayID displayID = CGMainDisplayID();
+        CFNumberRef displayNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &displayID);
+        if (!displayNumber)
+            return false;
+        const void* displays[] = { displayNumber };
+        CFArrayRef displayList = CFArrayCreate(kCFAllocatorDefault, displays, 1, &kCFTypeArrayCallBacks);
+        CFRelease(displayNumber);
+        if (!displayList)
+            return false;
+        Boolean result = shouldPlayHDRVideo(displayList);
+        CFRelease(displayList);
+        return result;
+    }();
+    return supportsHighDynamicRange;
+}
+#endif
+
 bool screenSupportsExtendedColor(Widget*)
 {
+#if OS(DARWIN)
+    return mainDisplaySupportsWideGamutColor();
+#else
     return false;
+#endif
 }
+
+#if OS(DARWIN)
+bool screenSupportsHighDynamicRange(Widget*)
+{
+    return mainDisplaySupportsHighDynamicRange();
+}
+#endif
 
 } // namespace WebCore
