@@ -9,6 +9,17 @@ if (is_win)
     # On Windows ANGLE is the EGL itself too, drawing with Direct3D 11 as it
     # does for the Win port.
     include(PlatformWin.cmake)
+    # Unlike the Win port, WPE draws from several threads at once (Skia's
+    # painting workers, the compositor, the main thread), each with its own
+    # context. Direct3D 11 contexts share one device context and one state
+    # cache per display, so every call must hold the global lock and treat a
+    # call on another context than the last as a context switch; without
+    # both, tiles repainted after the first frame drew with another thread's
+    # state (missing or garbage pixels) or crashed in StateManager11.
+    list(APPEND ANGLE_DEFINITIONS
+        ANGLE_ENABLE_SHARE_CONTEXT_LOCK=1
+        ANGLE_FORCE_CONTEXT_CHECK_EVERY_CALL=1
+    )
     return ()
 endif ()
 
