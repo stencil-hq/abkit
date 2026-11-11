@@ -44,9 +44,10 @@ refuses Intel Macs), and tests it under Rosetta on an Apple-silicon Mac.
 ## Linux
 
 `WebKitBuild/linux/build-engine.sh linux-x64|linux-arm64|linux-musl-x64|linux-musl-arm64 OUT_DIR` builds in a
-container; the host needs only Docker (CI: ubuntu-24.04 for x64, ubuntu-24.04-arm for arm64; another architecture
-works through emulation, slowly). The container is `WebKitBuild/linux/Dockerfile.glibc` (Ubuntu 22.04, clang 20)
-or `Dockerfile.musl` (Alpine 3.22), and in it:
+container; the host needs only Docker (CI: vmon for x64, Blacksmith for arm64; another architecture works through
+emulation, slowly). The container is `WebKitBuild/linux/Dockerfile.glibc` (Ubuntu 22.04, clang 20) or
+`Dockerfile.musl` (Alpine 3.22, with apt.llvm.org's clang 20 on its own glibc compiling for Alpine: under musl's
+allocator clang builds the engine about 1.8 times slower), and in it:
 
 1. `WebKitBuild/linux/build-deps.sh` builds pinned sources: the same Safari-shaped libsoup and BoringSSL TLS
    module as macOS (shared steps in `WebKitBuild/safari-deps.sh`, plus `linux/patches/`), Mesa for EGL/GLES on

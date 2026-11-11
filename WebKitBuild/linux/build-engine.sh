@@ -25,7 +25,9 @@
 #   gstreamer1.0-libav libevent-dev libasound2-dev libopus-dev libvpx-dev libmanette-0.2-dev
 #   flite1-dev fonts-dejavu-core.
 # - musl targets: alpine:3.22; the engine needs musl 1.2.5 or newer and nothing else of the system.
-#   Packages: clang20 lld20 llvm20-dev llvm20-static llvm20-gtest compiler-rt build-base
+#   The compiler is apt.llvm.org's clang 20 and lld, run on their own glibc (Dockerfile.musl) and
+#   compiling for <arch>-alpine-linux-musl: musl's allocator makes clang far slower.
+#   Packages: llvm20-dev llvm20-static llvm20-gtest build-base
 #   linux-headers cmake samurai ccache pkgconf patchelf file patch xz bzip2 git curl bash python3
 #   py3-pip perl ruby ruby-dev gperf unifdef bison flex nasm icu-dev icu-data-full harfbuzz-dev
 #   freetype-dev fontconfig-dev libjpeg-turbo-dev libpng-dev libwebp-dev libxml2-dev libxslt-dev sqlite-dev
