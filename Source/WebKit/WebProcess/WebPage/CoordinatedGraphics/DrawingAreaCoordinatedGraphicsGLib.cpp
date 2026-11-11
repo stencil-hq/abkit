@@ -145,6 +145,9 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
         settings.setAsyncFrameScrollingEnabled(false);
         settings.setAsyncOverflowScrollingEnabled(false);
     }
+
+    if (m_renderer)
+        m_renderer->setCompositionSuppressed(settings.compositionSuppressed());
 }
 
 bool DrawingAreaCoordinatedGraphics::enterAcceleratedCompositingModeIfNeeded()
@@ -160,6 +163,8 @@ bool DrawingAreaCoordinatedGraphics::enterAcceleratedCompositingModeIfNeeded()
             m_renderer->setLayerTreeStateIsFrozen(true);
         if (m_isPaintingSuspended)
             m_renderer->suspend();
+        if (webPage->corePage()->settings().compositionSuppressed())
+            m_renderer->setCompositionSuppressed(true);
     }
 
     return true;

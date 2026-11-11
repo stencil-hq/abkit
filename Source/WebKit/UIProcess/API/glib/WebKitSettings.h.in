@@ -589,6 +589,26 @@ WEBKIT_API void
 webkit_settings_set_webrtc_udp_ports_range                     (WebKitSettings *settings,
                                                                 const gchar    *udp_port_range);
 
+WEBKIT_API void
+webkit_settings_set_fingerprinting_noise_seed                  (WebKitSettings *settings,
+                                                                const char     *seed);
+
+WEBKIT_API void
+webkit_settings_set_screen_override                            (WebKitSettings *settings,
+                                                                guint           width,
+                                                                guint           height,
+                                                                int             available_left,
+                                                                int             available_top,
+                                                                guint           available_width,
+                                                                guint           available_height);
+
+WEBKIT_API void
+webkit_settings_set_window_frame_override                      (WebKitSettings *settings,
+                                                                int             x,
+                                                                int             y,
+                                                                guint           width,
+                                                                guint           height);
+
 G_END_DECLS
 
 #endif /* WebKitSettings_h */

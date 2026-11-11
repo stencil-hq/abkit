@@ -645,6 +645,18 @@ webkit_web_view_can_execute_editing_command_finish   (WebKitWebView             
                                                       GError                   **error);
 
 WEBKIT_API void
+webkit_web_view_run_interaction_query                (WebKitWebView             *web_view,
+                                                      const char                *request,
+                                                      GCancellable              *cancellable,
+                                                      GAsyncReadyCallback        callback,
+                                                      gpointer                   user_data);
+
+WEBKIT_API char *
+webkit_web_view_run_interaction_query_finish         (WebKitWebView             *web_view,
+                                                      GAsyncResult              *result,
+                                                      GError                   **error);
+
+WEBKIT_API void
 webkit_web_view_execute_editing_command              (WebKitWebView             *web_view,
                                                       const gchar               *command);
 

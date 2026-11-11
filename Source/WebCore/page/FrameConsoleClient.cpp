@@ -76,8 +76,10 @@
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/ScriptCallStackFactory.h>
 #include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/Symbol.h>
 #include <wtf/Stopwatch.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(OFFSCREEN_CANVAS)
@@ -210,6 +212,31 @@ void FrameConsoleClient::addMessage(MessageSource source, MessageLevel level, co
     addMessage(WTF::move(message));
 }
 
+// What an embedder is told a console call said: all of its arguments, not only the first. The first is
+// converted the way script would convert it, as it always was; the others are described without running
+// any of the page's code, so that a page cannot find out that its console is being read.
+static String textForEmbedder(const String& firstArgument, JSC::JSGlobalObject* globalObject, const Inspector::ScriptArguments& arguments)
+{
+    if (arguments.argumentCount() < 2 || !globalObject)
+        return firstArgument;
+
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(globalObject->vm());
+    StringBuilder text;
+    text.append(firstArgument);
+    for (size_t index = 1; index < arguments.argumentCount(); ++index) {
+        auto argument = arguments.argumentAt(index);
+        text.append(' ');
+        if (auto* object = argument.getObject())
+            text.append("[object "_s, JSC::JSObject::calculatedClassName(object), ']');
+        else if (argument.isSymbol())
+            text.append(asSymbol(argument)->tryGetDescriptiveString().value_or("Symbol()"_s));
+        else
+            text.append(argument.toWTFString(globalObject));
+        scope.clearException();
+    }
+    return text.toString();
+}
+
 void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel level, JSC::JSGlobalObject* lexicalGlobalObject, Ref<Inspector::ScriptArguments>&& arguments)
 {
     String messageText;
@@ -241,7 +268,7 @@ void FrameConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel 
         return;
 
     if (arguments->argumentCount()) {
-        page->chrome().client().addMessageToConsole(MessageSource::ConsoleAPI, level, messageText, lineNumber, columnNumber, url);
+        page->chrome().client().addMessageToConsole(MessageSource::ConsoleAPI, level, textForEmbedder(messageText, lexicalGlobalObject, arguments.get()), lineNumber, columnNumber, url);
 
         if (RefPtr consoleMessageListener = page->consoleMessageListenerForTesting())
             consoleMessageListener->invoke(messageText);

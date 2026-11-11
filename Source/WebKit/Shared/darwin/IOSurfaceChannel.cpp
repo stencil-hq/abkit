@@ -115,24 +115,25 @@ static bool receiveOne(mach_msg_timeout_t timeout) WTF_REQUIRES_LOCK(receiverLoc
     return true;
 }
 
+static size_t findReceived(pid_t process, uint64_t bufferID) WTF_REQUIRES_LOCK(receiverLock)
+{
+    return received.findIf([&](auto& item) {
+        return item.process == process && item.bufferID == bufferID;
+    });
+}
+
 IOSurfaceRef takeSurface(pid_t process, uint64_t bufferID)
 {
     Locker locker { receiverLock };
     if (receivePort == MACH_PORT_NULL)
         return nullptr;
 
-    auto find = [&] {
-        return received.findIf([&](auto& item) {
-            return item.process == process && item.bufferID == bufferID;
-        });
-    };
-
     // Everything already queued, then (it should not come to that) whatever
     // arrives next, until the surface turns up.
     while (receiveOne(0)) { }
-    auto index = find();
+    auto index = findReceived(process, bufferID);
     while (index == notFound && receiveOne(timeoutMilliseconds))
-        index = find();
+        index = findReceived(process, bufferID);
     if (index == notFound)
         return nullptr;
 

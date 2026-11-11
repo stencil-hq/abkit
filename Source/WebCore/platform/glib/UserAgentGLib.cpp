@@ -74,7 +74,12 @@ static ASCIILiteral platformForUAString(UserAgentType type)
 
 static const String platformVersionForUAString(UserAgentType type)
 {
-#if OS(UNIX)
+#if OS(MACOS)
+    // Every Mac browser sends this frozen token, whatever the processor and system version.
+    UNUSED_PARAM(type);
+    static NeverDestroyed<const String> uaOSVersion(MAKE_STATIC_STRING_IMPL("Intel Mac OS X 10_15_7"));
+    return uaOSVersion;
+#elif OS(UNIX)
     if (isMobileUA(type))
         return "like Android 4.4"_s;
 

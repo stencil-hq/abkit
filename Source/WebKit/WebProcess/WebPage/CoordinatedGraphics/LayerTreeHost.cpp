@@ -57,6 +57,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/glib/RunLoopSourcePriority.h>
 #include <wtf/text/StringToIntegerConversion.h>
+#include <wtf/threads/BinarySemaphore.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -141,7 +142,7 @@ void LayerTreeHost::scheduleRenderingUpdate()
     if (m_layerTreeStateIsFrozen || m_isSuspended || m_webPage->size().isEmpty())
         return;
 
-    if (m_isWaitingForRenderer) {
+    if (!canUpdateRendering()) {
         m_scheduledWhileWaitingForRenderer = true;
         return;
     }
@@ -159,7 +160,10 @@ void LayerTreeHost::scheduleRenderingUpdateRunLoopObserver()
 
 bool LayerTreeHost::canUpdateRendering() const
 {
-    return !m_isWaitingForRenderer;
+    // While composition is suppressed no frame is going to be composited, so rendering updates must not
+    // wait for one. A frame requested before the suppression started stays parked in the suspended
+    // compositor, with m_isWaitingForRenderer set, until the suppression ends.
+    return !m_isWaitingForRenderer || m_isCompositionSuppressed;
 }
 
 void LayerTreeHost::updateRendering()
@@ -214,7 +218,24 @@ void LayerTreeHost::updateRendering()
 
     bool didChangeSceneState = m_sceneState->flush();
     m_tileManager->didFinishRenderingUpdate();
-    if (m_compositionRequired || m_pendingResize || m_forceFrameSync || didChangeSceneState)
+    if (m_isCompositionSuppressed) {
+        // No frame follows this rendering update. The frame that is owed needs no bookkeeping here: what it
+        // is made of outlives the suppression (the flushed scene state, the compositor size, the dirty
+        // regions kept by the layers) and setCompositionSuppressed(false) always requires a composition.
+
+        // A forced repaint has no frame to wait for, so it is complete now.
+        if (m_forcedRepaintAsyncCallback)
+            m_forcedRepaintAsyncCallback();
+
+        // Removed layers are only released by the next composition; don't let them pile up until then.
+        if (didChangeSceneState) {
+            if (RunLoop* runLoop = m_compositor->runLoop()) {
+                runLoop->dispatch([sceneState = m_sceneState] {
+                    sceneState->invalidateRemovedLayers();
+                });
+            }
+        }
+    } else if (m_compositionRequired || m_pendingResize || m_forceFrameSync || didChangeSceneState)
         requestCompositionForRenderingUpdate();
 
     m_compositionRequired = false;
@@ -273,7 +294,7 @@ void LayerTreeHost::updateRenderingWithForcedRepaint()
         return;
     }
 
-    if (m_isWaitingForRenderer) {
+    if (!canUpdateRendering()) {
         if (m_forcedRepaintAsyncCallback)
             m_pendingForceRepaint = true;
         return;
@@ -328,6 +349,44 @@ void LayerTreeHost::resume()
     FrameRenderer::resume();
 }
 
+void LayerTreeHost::setCompositionSuppressed(bool suppressed)
+{
+    if (m_isCompositionSuppressed == suppressed)
+        return;
+
+    m_isCompositionSuppressed = suppressed;
+    if (suppressed) {
+        // The compositor's own suspension is what suppression needs: it stops rendering, including the
+        // frames the compositor schedules for itself (accelerated animations), and it keeps every
+        // composition requested meanwhile, from any thread, until it is resumed.
+        m_compositor->suspend();
+
+        // Rendering updates stop waiting for the renderer now, but they must still not run while it flushes
+        // the scene for a frame. One that is being rendered at this moment has to finish first; later ones
+        // find the compositor suspended.
+        if (RunLoop* runLoop = m_compositor->runLoop()) {
+            BinarySemaphore semaphore;
+            runLoop->dispatch([&semaphore] {
+                semaphore.signal();
+            });
+            semaphore.wait();
+        }
+
+        // This forced repaint was waiting for the frame in flight, which may now be parked.
+        if (m_pendingForceRepaint)
+            updateRenderingWithForcedRepaint();
+    } else {
+        m_compositor->resume();
+
+        // Nothing was painted or composited while suppressed, so a frame is owed even if the page is static.
+        m_compositionRequired = true;
+    }
+
+    // When the suppression starts this runs the update that was waiting for the frame in flight. When it
+    // ends this either updates right away or, if that frame is still pending, right after it.
+    scheduleRenderingUpdate();
+}
+
 GraphicsLayerFactory* LayerTreeHost::graphicsLayerFactory()
 {
     return this;
@@ -374,6 +433,10 @@ void LayerTreeHost::notifyCompositionRequired()
 
 bool LayerTreeHost::isCompositionRequiredOrOngoing() const
 {
+    // No composition follows a rendering update while suppressed, and the scrolling tree would wait for it.
+    if (m_isCompositionSuppressed)
+        return false;
+
     return m_compositionRequired || m_forceFrameSync || m_compositor->isActive();
 }
 

@@ -26,6 +26,7 @@
 #pragma once
 
 #include "DisplayVBlankMonitorThreaded.h"
+#include <chrono>
 
 namespace WebKit {
 
@@ -37,6 +38,8 @@ public:
 private:
     Type type() const override { return Type::Timer; }
     bool waitForVBlank() const override;
+
+    mutable std::chrono::steady_clock::time_point m_nextTick;
 };
 
 } // namespace WebKit

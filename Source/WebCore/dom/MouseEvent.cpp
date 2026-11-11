@@ -88,6 +88,7 @@ Ref<MouseEvent> MouseEvent::create(
     auto canBubble = !isMouseEnterOrLeave ? CanBubble::Yes : CanBubble::No;
     auto isComposed = !isMouseEnterOrLeave ? IsComposed::Yes : IsComposed::No;
 
+    auto screenLocation = screenLocationForPlatformEvent(view.get(), event.globalPosition(), event.position());
     return MouseEvent::create(
         eventType,
         canBubble,
@@ -96,7 +97,7 @@ Ref<MouseEvent> MouseEvent::create(
         event.timestamp(),
         WTF::move(view),
         detail,
-        event.globalPosition(),
+        screenLocation,
         event.position(),
         event.movementDelta().x(),
         event.movementDelta().y(),

@@ -164,7 +164,7 @@ void WorkerOrWorkletGlobalScope::postTaskForMode(Task&& task, const String& mode
 OptionSet<NoiseInjectionPolicy> WorkerOrWorkletGlobalScope::noiseInjectionPolicies() const
 {
     OptionSet<NoiseInjectionPolicy> policies;
-    if (m_advancedPrivacyProtections.contains(AdvancedPrivacyProtections::FingerprintingProtections))
+    if (m_advancedPrivacyProtections.contains(AdvancedPrivacyProtections::FingerprintingProtections) || !settingsValues().fingerprintingNoiseSeed.isEmpty())
         policies.add(NoiseInjectionPolicy::Minimal);
     if (m_advancedPrivacyProtections.contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
         policies.add(NoiseInjectionPolicy::Enhanced);

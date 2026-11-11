@@ -62,6 +62,10 @@ public:
 
     void invalidateCommittedLayers();
 
+    // Releases the compositing side of the layers removed up to the last flush(), which the next
+    // composition would otherwise do. To be called in the compositing thread.
+    void invalidateRemovedLayers();
+
     bool layersDidChange() const { return m_didChangeLayers; }
 
     void waitUntilPaintingFinished();
