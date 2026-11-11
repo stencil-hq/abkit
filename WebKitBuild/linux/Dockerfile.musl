@@ -4,15 +4,52 @@
 # runs on any Alpine whose musl is at least 3.22's (1.2.5). build-deps.sh builds what Alpine has
 # differently from what the engine needs: libsoup with Safari's request, the BoringSSL TLS module
 # and a Mesa whose llvmpipe is linked statically.
-FROM alpine:3.22
-
+#
+# The compiler and linker run on glibc, not musl: under musl's allocator clang and lld build the
+# engine about 1.8 times slower (1h45 against 1h for arm64 on the same runner). They are
+# apt.llvm.org's, carried into Alpine with the glibc they run on, and compile for Alpine's triple
+# (clang.cfg), so Alpine stays the system the engine is built against: its headers, libraries,
+# GCC runtime and pkg-config, the build's other tools.
 ARG LLVM_VERSION=20
 
-# The mirror's name fails to resolve now and then, so the install is retried.
+FROM ubuntu:22.04 AS llvm
+ARG DEBIAN_FRONTEND=noninteractive
+ARG LLVM_VERSION
+
+# Retried as in Dockerfile.glibc. /opt/llvm takes clang, lld and Clang's headers in the layout
+# clang finds them by, /opt/glibc the shared libraries they load, glibc and its loader included;
+# the executables run on that loader, and every object looks in /opt/glibc first (RPATH, not
+# RUNPATH, so before the musl libraries LD_LIBRARY_PATH names during the build).
+RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; return 1; } \
+	&& echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80retries \
+	&& retry sh -c 'apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg patchelf' \
+	&& curl -fsSL --retry 5 --retry-all-errors https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/apt.llvm.org.gpg \
+	&& echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-$LLVM_VERSION main" > /etc/apt/sources.list.d/llvm.list \
+	&& retry sh -c 'apt-get update && apt-get install -y --no-install-recommends clang-$0 lld-$0' $LLVM_VERSION \
+	&& llvm=/usr/lib/llvm-$LLVM_VERSION \
+	&& mkdir -p /opt/llvm/bin /opt/llvm/lib /opt/glibc \
+	&& cp -L $llvm/bin/clang $llvm/bin/lld /opt/llvm/bin/ \
+	&& cp -a $llvm/lib/clang /opt/llvm/lib/ \
+	&& ln -s clang /opt/llvm/bin/clang++ \
+	&& ln -s lld /opt/llvm/bin/ld.lld \
+	&& ldd $llvm/bin/clang $llvm/bin/lld | awk '$2 == "=>" && $3 ~ /^\// { print $3 } $1 ~ /^\/.*ld-linux/ { print $1 }' \
+		| sort -u | xargs -I{} cp -L {} /opt/glibc/ \
+	&& loader=$(ls /opt/glibc/ld-linux-*) \
+	&& for lib in /opt/glibc/*; do \
+		case $lib in "$loader"|*/libc.so.6) ;; *) patchelf --force-rpath --set-rpath /opt/glibc "$lib" ;; esac; \
+	done \
+	&& patchelf --set-interpreter "$loader" --force-rpath --set-rpath /opt/glibc /opt/llvm/bin/clang /opt/llvm/bin/lld \
+	&& rm -rf /var/lib/apt/lists/*
+
+FROM alpine:3.22
+ARG LLVM_VERSION
+
+# The mirror's name fails to resolve now and then, so the install is retried. llvm-dev and
+# llvm-static are for Mesa's llvmpipe.
 RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; return 1; } \
 	&& retry apk add --no-cache \
-		clang$LLVM_VERSION lld$LLVM_VERSION llvm$LLVM_VERSION-dev llvm$LLVM_VERSION-static llvm$LLVM_VERSION-gtest \
-		compiler-rt build-base linux-headers cmake samurai ccache pkgconf patchelf file patch xz bzip2 git curl bash \
+		llvm$LLVM_VERSION-dev llvm$LLVM_VERSION-static llvm$LLVM_VERSION-gtest \
+		build-base linux-headers cmake samurai ccache pkgconf patchelf file patch xz bzip2 git curl bash \
 		python3 py3-pip perl ruby ruby-dev gperf unifdef bison flex nasm \
 		icu-dev icu-data-full harfbuzz-dev freetype-dev fontconfig-dev libjpeg-turbo-dev libpng-dev libwebp-dev \
 		libxml2-dev libxslt-dev sqlite-dev zlib-dev libepoxy-dev libxkbcommon-dev woff2-dev \
@@ -24,4 +61,9 @@ RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; ret
 		libmanette-dev flite-dev \
 		font-dejavu
 
-ENV CC=clang-$LLVM_VERSION CXX=clang++-$LLVM_VERSION LLVM_CONFIG=llvm-config-$LLVM_VERSION
+COPY --from=llvm /opt/llvm /opt/llvm
+COPY --from=llvm /opt/glibc /opt/glibc
+RUN for driver in clang clang++; do echo "--target=$(uname -m)-alpine-linux-musl" > /opt/llvm/bin/$driver.cfg; done \
+	&& /opt/llvm/bin/clang --version
+
+ENV CC=/opt/llvm/bin/clang CXX=/opt/llvm/bin/clang++ LLVM_CONFIG=llvm-config-$LLVM_VERSION
