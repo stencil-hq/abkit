@@ -532,6 +532,7 @@ static void next_step(void)
     switch (step) {
     case STEP_LOADING:
         step = STEP_SHOWN;
+        fprintf(stderr, "probe: %d buffers while the window was set\n", buffer_frames);
         report_step("shown");
         break;
     case STEP_SHOWN:
@@ -587,6 +588,7 @@ static void next_step(void)
 #if defined(PROBE_ZERO_COPY) && defined(_WIN32)
             buffer_frames = 0;
             armed = TRUE;
+            status = 1;
             wpe_view_set_native_window(probeView, NULL);
 #endif
             report_step("cleared");
@@ -639,6 +641,9 @@ static void load_changed(WebKitWebView* view, WebKitLoadEvent event, gpointer da
         return;
     }
     if (g_getenv("PROBE_WINDOW")) {
+        /* Frames that still come as buffers (no window could be presented
+           into) are written too. */
+        armed = TRUE;
         g_timeout_add(pause_ms / 3, next_step_timeout, NULL);
         return;
     }
