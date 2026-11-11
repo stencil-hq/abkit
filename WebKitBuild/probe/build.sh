@@ -1,8 +1,10 @@
 #!/bin/sh
-# Builds the offscreen probe against the WPE build in WebKitBuild/wpe-darwin.
+# Builds the offscreen probe against a WPE build of this host: the one in
+# WebKitBuild/wpe-darwin, or the directory given (WebKitBuild/wpe-linux).
+# Usage: build.sh [BUILD_DIR]
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
-build=$here/../wpe-darwin
+build=${1:-$here/../wpe-darwin}
 source=$here/../../Source
 exec cc -o "$here/probe" "$here/probe.c" \
 	-I"$build/DerivedSources/WebKit" \
