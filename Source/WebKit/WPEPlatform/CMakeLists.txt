@@ -137,6 +137,13 @@ else ()
     list(APPEND WPEPlatform_LIBRARIES XkbCommon::XkbCommon)
 endif ()
 
+if (APPLE)
+    # Darwin's GPU buffers: the web process renders into IOSurfaces.
+    list(APPEND WPEPlatform_SOURCES ${WEBKIT_DIR}/WPEPlatform/wpe/WPEBufferIOSurface.cpp)
+    list(APPEND WPEPlatform_INSTALLED_HEADERS ${WEBKIT_DIR}/WPEPlatform/wpe/WPEBufferIOSurface.h)
+    list(APPEND WPEPlatform_LIBRARIES "-framework IOSurface")
+endif ()
+
 if (USE_GBM)
     list(APPEND WPEPlatform_LIBRARIES GBM::GBM)
 endif ()

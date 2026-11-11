@@ -172,6 +172,12 @@ WPE_API void                  wpe_view_set_gesture_controller       (WPEView    
 WPE_API WPEGestureController *wpe_view_get_gesture_controller       (WPEView            *view);
 WPE_API WPEViewAccessible    *wpe_view_get_accessible               (WPEView            *view);
 
+#ifdef G_OS_WIN32
+WPE_API void                  wpe_view_set_native_window            (WPEView            *view,
+                                                                     gpointer            window);
+WPE_API gpointer              wpe_view_get_native_window            (WPEView            *view);
+#endif
+
 G_END_DECLS
 
 #endif /* WPEView_h */

@@ -71,6 +71,9 @@ struct _WPEViewPrivate {
     bool visible { true };
     bool mapped;
     bool hasFocus;
+#if OS(WINDOWS)
+    gpointer nativeWindow { nullptr };
+#endif
 
     struct {
         unsigned pressCount { 0 };
@@ -110,6 +113,9 @@ enum {
     PROP_VISIBLE,
     PROP_MAPPED,
     PROP_HAS_FOCUS,
+#if OS(WINDOWS)
+    PROP_NATIVE_WINDOW,
+#endif
 
     N_PROPERTIES
 };
@@ -185,6 +191,11 @@ static void wpeViewGetProperty(GObject* object, guint propId, GValue* value, GPa
     case PROP_HAS_FOCUS:
         g_value_set_boolean(value, wpe_view_get_has_focus(view));
         break;
+#if OS(WINDOWS)
+    case PROP_NATIVE_WINDOW:
+        g_value_set_pointer(value, wpe_view_get_native_window(view));
+        break;
+#endif
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, paramSpec);
     }
@@ -354,6 +365,20 @@ static void wpe_view_class_init(WPEViewClass* viewClass)
             nullptr, nullptr,
             FALSE,
             WEBKIT_PARAM_READABLE);
+
+#if OS(WINDOWS)
+    /**
+     * WPEView:native-window:
+     *
+     * The window (an `HWND`) the web process presents the view's frames
+     * into, or %NULL. Only available on Windows.
+     */
+    sObjProperties[PROP_NATIVE_WINDOW] =
+        g_param_spec_pointer(
+            "native-window",
+            nullptr, nullptr,
+            WEBKIT_PARAM_READABLE);
+#endif
 
     g_object_class_install_properties(objectClass, N_PROPERTIES, sObjProperties.data());
 
@@ -1231,3 +1256,49 @@ WPEViewAccessible* wpe_view_get_accessible(WPEView* view)
 
     return nullptr;
 }
+
+#if OS(WINDOWS)
+/**
+ * wpe_view_set_native_window:
+ * @view: a #WPEView
+ * @window: (nullable): an `HWND`, or %NULL
+ *
+ * Make the web process present the frames of @view straight into @window,
+ * a window of the embedder's (of this process), with a swap chain of its
+ * own: no buffer is handed to [vfunc@View.render_buffer] then, and the web
+ * process follows the window's size. It may be called at any time; the
+ * change applies from the next frame, which it schedules. With %NULL,
+ * frames come to [vfunc@View.render_buffer] as buffers again, and the
+ * window keeps showing the last frame presented into it.
+ *
+ * Without hardware acceleration, or when the web process cannot present
+ * into @window, frames keep coming as buffers.
+ *
+ * Only available on Windows.
+ */
+void wpe_view_set_native_window(WPEView* view, gpointer window)
+{
+    g_return_if_fail(WPE_IS_VIEW(view));
+
+    if (view->priv->nativeWindow == window)
+        return;
+
+    view->priv->nativeWindow = window;
+    g_object_notify_by_pspec(G_OBJECT(view), sObjProperties[PROP_NATIVE_WINDOW]);
+}
+
+/**
+ * wpe_view_get_native_window:
+ * @view: a #WPEView
+ *
+ * Get the window set with wpe_view_set_native_window().
+ *
+ * Returns: (transfer none) (nullable): an `HWND`, or %NULL
+ */
+gpointer wpe_view_get_native_window(WPEView* view)
+{
+    g_return_val_if_fail(WPE_IS_VIEW(view), nullptr);
+
+    return view->priv->nativeWindow;
+}
+#endif // OS(WINDOWS)

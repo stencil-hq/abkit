@@ -101,6 +101,13 @@ ThreadedCompositor::ThreadedCompositor(WebPage& webPage, LayerTreeHost& layerTre
 
     updateSceneAttributes(webPage.size(), webPage.deviceScaleFactor());
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    // The surface asks for a frame when it starts or stops presenting into a
+    // window. It stops asking when the compositor is invalidated.
+    m_surface->setFrameRequestHandler([this] {
+        requestComposition(CompositionReason::Animation);
+    });
+#endif
     m_surface->didCreateCompositingRunLoop(m_workQueue->runLoop());
 
     m_workQueue->dispatchSync([this] {

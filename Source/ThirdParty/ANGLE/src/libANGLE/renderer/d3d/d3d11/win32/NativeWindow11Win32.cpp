@@ -152,11 +152,34 @@ HRESULT NativeWindow11Win32::createSwapChain(ID3D11Device *device,
         swapChainDesc.SwapEffect    = DXGI_SWAP_EFFECT_SEQUENTIAL;
         swapChainDesc.AlphaMode     = DXGI_ALPHA_MODE_UNSPECIFIED;
         swapChainDesc.Flags         = 0;
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+        // WebKit (WPE): a flip-model swap chain, which DWM composes without a
+        // copy and without tearing (it allows no multisampling).
+        const bool flipModel = samples <= 1;
+        if (flipModel)
+        {
+            swapChainDesc.SampleDesc.Count = 1;
+            swapChainDesc.BufferCount      = 2;
+            swapChainDesc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+        }
+#endif
         angle::ComPtr<IDXGISwapChain1> swapChain1;
         HRESULT result = factory2->CreateSwapChainForHwnd(device, getNativeWindow(), &swapChainDesc,
                                                           nullptr, nullptr, &swapChain1);
         if (SUCCEEDED(result))
         {
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+            // At most one frame queued ahead of the display.
+            if (flipModel)
+            {
+                angle::ComPtr<IDXGIDevice1> dxgiDevice =
+                    angle::DynamicCastComObject<IDXGIDevice1>(device);
+                if (dxgiDevice)
+                {
+                    dxgiDevice->SetMaximumFrameLatency(1);
+                }
+            }
+#endif
             factory2->MakeWindowAssociation(getNativeWindow(), DXGI_MWA_NO_ALT_ENTER);
             *swapChain = std::move(swapChain1);
         }

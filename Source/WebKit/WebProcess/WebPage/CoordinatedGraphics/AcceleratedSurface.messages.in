@@ -28,4 +28,8 @@
 messages -> AcceleratedSurface {
     ReleaseBuffer(WebKit::RendererBufferIdentifier id, UnixFileDescriptor releaseFence)
     FrameDone()
+
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    SetNativeWindow(uint64_t window)
+#endif
 }

@@ -96,6 +96,12 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <wtf/glib/RunLoopSourcePriority.h>
 #endif
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+#include "IOSurfaceChannel.h"
+#include <CoreGraphics/CGColorSpace.h>
+#include <IOSurface/IOSurfaceRef.h>
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -455,6 +461,152 @@ void AcceleratedSurface::RenderTargetSHMImage::didRenderFrame()
         m_skiaSurface->readPixels(info, m_bitmap->mutableSpan().data(), m_bitmap->bytesPerRow(), 0, 0);
 }
 
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+static IOSurfaceRef createIOSurface(const IntSize& size)
+{
+    int width = size.width();
+    int height = size.height();
+    int bytesPerElement = 4;
+    size_t bytesPerRow = IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, width * bytesPerElement);
+    uint32_t pixelFormat = 'BGRA';
+    auto number = [](CFNumberType type, const void* value) {
+        return CFNumberCreate(kCFAllocatorDefault, type, value);
+    };
+    const void* keys[] = { kIOSurfaceWidth, kIOSurfaceHeight, kIOSurfaceBytesPerElement, kIOSurfaceBytesPerRow, kIOSurfacePixelFormat };
+    const void* values[] = { number(kCFNumberIntType, &width), number(kCFNumberIntType, &height), number(kCFNumberIntType, &bytesPerElement), number(kCFNumberLongType, &bytesPerRow), number(kCFNumberSInt32Type, &pixelFormat) };
+    auto properties = CFDictionaryCreate(kCFAllocatorDefault, keys, values, std::size(keys), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    for (auto* value : values)
+        CFRelease(value);
+    auto surface = IOSurfaceCreate(properties);
+    CFRelease(properties);
+    if (!surface)
+        return nullptr;
+
+    // The pixels are sRGB, which the window server should know.
+    if (auto colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB)) {
+        if (auto propertyList = CGColorSpaceCopyPropertyList(colorSpace)) {
+            IOSurfaceSetValue(surface, kIOSurfaceColorSpace, propertyList);
+            CFRelease(propertyList);
+        }
+        CGColorSpaceRelease(colorSpace);
+    }
+    return surface;
+}
+
+std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTargetIOSurface::create(AcceleratedSurface& surface, const IntSize& size)
+{
+    auto ioSurface = createIOSurface(size);
+    if (!ioSurface) {
+        WTFLogAlways("Failed to create an IOSurface of size %dx%d", size.width(), size.height());
+        return nullptr;
+    }
+
+    auto target = makeUnique<RenderTargetIOSurface>(surface, size, ioSurface);
+    if (!target->initialize())
+        return nullptr;
+    return target;
+}
+
+AcceleratedSurface::RenderTargetIOSurface::RenderTargetIOSurface(AcceleratedSurface& surface, const IntSize& size, IOSurfaceRef ioSurface)
+    : RenderTargetShareableBuffer(surface, size)
+    , m_ioSurface(ioSurface)
+{
+}
+
+bool AcceleratedSurface::RenderTargetIOSurface::initialize()
+{
+    auto& display = PlatformDisplay::sharedDisplay();
+    auto eglDisplay = display.glDisplay().eglDisplay();
+    const EGLint configAttributes[] = {
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_NONE
+    };
+    EGLConfig config;
+    EGLint configCount = 0;
+    if (!eglChooseConfig(eglDisplay, configAttributes, &config, 1, &configCount) || configCount != 1) {
+        WTFLogAlways("Failed to find an EGL configuration for IOSurfaces");
+        return false;
+    }
+
+    // ANGLE binds an IOSurface to the texture target its configurations name
+    // (a 2D texture on Metal).
+    EGLint textureTarget = EGL_TEXTURE_2D;
+    eglGetConfigAttrib(eglDisplay, config, EGL_BIND_TO_TEXTURE_TARGET_ANGLE, &textureTarget);
+    m_textureTarget = textureTarget == EGL_TEXTURE_RECTANGLE_ANGLE ? GL_TEXTURE_RECTANGLE_ANGLE : GL_TEXTURE_2D;
+
+    const EGLint attributes[] = {
+        EGL_WIDTH, m_size.width(),
+        EGL_HEIGHT, m_size.height(),
+        EGL_IOSURFACE_PLANE_ANGLE, 0,
+        EGL_TEXTURE_TARGET, textureTarget,
+        EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, GL_BGRA_EXT,
+        EGL_TEXTURE_FORMAT, EGL_TEXTURE_RGBA,
+        EGL_TEXTURE_TYPE_ANGLE, GL_UNSIGNED_BYTE,
+        EGL_NONE
+    };
+    m_pbuffer = eglCreatePbufferFromClientBuffer(eglDisplay, EGL_IOSURFACE_ANGLE, m_ioSurface, config, attributes);
+    if (!m_pbuffer) {
+        WTFLogAlways("Failed to create an EGL surface for an IOSurface: %s", GLContext::lastErrorString());
+        return false;
+    }
+
+    glGenTextures(1, &m_texture);
+    glBindTexture(m_textureTarget, m_texture);
+    if (!eglBindTexImage(eglDisplay, m_pbuffer, EGL_BACK_BUFFER)) {
+        WTFLogAlways("Failed to bind an IOSurface to a texture: %s", GLContext::lastErrorString());
+        return false;
+    }
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textureTarget, m_texture, 0);
+    createSkiaSurfaceForFramebuffer(m_fbo);
+    if (!m_skiaSurface)
+        return false;
+
+    // The surface reaches the UI process before the message announcing it.
+    if (!IOSurfaceChannel::sendSurface(m_ioSurface, m_id.toUInt64())) {
+        WTFLogAlways("Failed to send an IOSurface to the UI process");
+        return false;
+    }
+    WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidCreateIOSurfaceBuffer(m_id), m_surface->surfaceID());
+    return true;
+}
+
+AcceleratedSurface::RenderTargetIOSurface::~RenderTargetIOSurface()
+{
+    m_skiaSurface = nullptr;
+    auto eglDisplay = PlatformDisplay::sharedDisplay().glDisplay().eglDisplay();
+    if (m_texture) {
+        if (m_pbuffer)
+            eglReleaseTexImage(eglDisplay, m_pbuffer, EGL_BACK_BUFFER);
+        glDeleteTextures(1, &m_texture);
+    }
+    if (m_pbuffer)
+        eglDestroySurface(eglDisplay, m_pbuffer);
+    CFRelease(m_ioSurface);
+}
+
+void AcceleratedSurface::RenderTargetIOSurface::sync(bool)
+{
+    // The window server reads the surface on the GPU after the work drawing
+    // it, once that work is scheduled: nothing to wait for beyond that.
+    static auto waitUntilWorkScheduled = reinterpret_cast<PFNEGLWAITUNTILWORKSCHEDULEDANGLEPROC>(eglGetProcAddress("eglWaitUntilWorkScheduledANGLE"));
+    auto eglDisplay = PlatformDisplay::sharedDisplay().glDisplay().eglDisplay();
+    if (waitUntilWorkScheduled)
+        waitUntilWorkScheduled(eglDisplay);
+    else if (auto fence = GLFence::create(PlatformDisplay::sharedDisplay().glDisplay()))
+        fence->clientWait();
+}
+
+bool AcceleratedSurface::RenderTargetIOSurface::isInUse() const
+{
+    return IOSurfaceIsInUse(m_ioSurface);
+}
+#endif // OS(DARWIN) && ENABLE(WPE_PLATFORM)
+
 std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTargetTexture::create(AcceleratedSurface& surface, const IntSize& size)
 {
 #if !HAVE(DMABUF)
@@ -592,6 +744,72 @@ void AcceleratedSurface::RenderTargetWPEBackend::didRenderFrame()
 }
 #endif
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTargetWindow::create(AcceleratedSurface& surface, const IntSize& size, uint64_t window)
+{
+    // The compositor's context draws into the window: a surface of its
+    // configuration (made for windows), with a flip-model swap chain of the
+    // frame's size, whatever the window's is meanwhile (it stretches).
+    auto& display = PlatformDisplay::sharedDisplay();
+    auto* context = display.skiaGLContext();
+    if (!context)
+        return nullptr;
+
+    auto eglDisplay = display.glDisplay().eglDisplay();
+    const EGLint attributes[] = {
+        EGL_FIXED_SIZE_ANGLE, EGL_TRUE,
+        EGL_WIDTH, std::max(1, size.width()),
+        EGL_HEIGHT, std::max(1, size.height()),
+        EGL_NONE
+    };
+    auto eglSurface = eglCreateWindowSurface(eglDisplay, context->config(), reinterpret_cast<EGLNativeWindowType>(window), attributes);
+    if (eglSurface == EGL_NO_SURFACE) {
+        WTFLogAlways("Failed to create an EGL surface for window %p: %s", reinterpret_cast<void*>(window), GLContext::lastErrorString());
+        return nullptr;
+    }
+    return makeUnique<RenderTargetWindow>(surface, size, *context, eglSurface);
+}
+
+AcceleratedSurface::RenderTargetWindow::RenderTargetWindow(AcceleratedSurface& surface, const IntSize& size, GLContext& context, EGLSurface eglSurface)
+    : RenderTarget(surface, size)
+    , m_context(context)
+    , m_eglSurface(eglSurface)
+{
+}
+
+AcceleratedSurface::RenderTargetWindow::~RenderTargetWindow()
+{
+    // The window keeps showing the last frame presented into it.
+    m_skiaSurface = nullptr;
+    m_context.setDrawSurface(EGL_NO_SURFACE);
+    eglDestroySurface(PlatformDisplay::sharedDisplay().glDisplay().eglDisplay(), m_eglSurface);
+}
+
+void AcceleratedSurface::RenderTargetWindow::willRenderFrame()
+{
+    m_context.setDrawSurface(m_eglSurface);
+    if (!m_presentedOnce) {
+        // Presents wait for the display (no tearing); how many frames may
+        // queue is the swap chain's (one, see ANGLE's PlatformWPE.cmake).
+        eglSwapInterval(PlatformDisplay::sharedDisplay().glDisplay().eglDisplay(), 1);
+        m_presentedOnce = true;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (!m_skiaSurface)
+        createSkiaSurfaceForFramebuffer(0);
+}
+
+void AcceleratedSurface::RenderTargetWindow::sendFrame(Vector<WebCore::IntRect, 1>&&)
+{
+    // The compositor presented the frame (swapping the window's surface);
+    // nobody else will say it is done, and the present waited for room.
+    RunLoop::currentSingleton().dispatch([surface = ThreadSafeWeakPtr { m_surface.get() }] {
+        if (RefPtr protectedSurface = surface.get())
+            protectedSurface->frameDone();
+    });
+}
+#endif // OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+
 AcceleratedSurface::SwapChain::SwapChain(AcceleratedSurface& surface)
     : m_surface(surface)
 {
@@ -628,8 +846,14 @@ AcceleratedSurface::SwapChain::SwapChain(AcceleratedSurface& surface)
         break;
 #elif !USE(LIBEPOXY)
     case PlatformDisplay::Type::Default:
-        // An EGL of no display server (ANGLE): frames are read back.
+        // An EGL of no display server (ANGLE): frames are read back, except
+        // on Darwin, where they are drawn into IOSurfaces when the UI process
+        // can take them.
         m_type = Type::SharedMemory;
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+        if (GLContext::isExtensionSupported(eglQueryString(display.glDisplay().eglDisplay(), EGL_EXTENSIONS), "EGL_ANGLE_iosurface_client_buffer") && IOSurfaceChannel::isAvailable())
+            m_type = Type::IOSurface;
+#endif
         break;
 #endif
 #else
@@ -749,9 +973,33 @@ bool AcceleratedSurface::SwapChain::resize(const IntSize& size)
         return true;
     }
 #endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    // The swap chain is made again at the new size (resizing one only
+    // takes effect after its next present).
+    if (m_type == Type::NativeWindow) {
+        m_lockedTargets.clear();
+        return true;
+    }
+#endif
     reset();
     return true;
 }
+
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+bool AcceleratedSurface::SwapChain::setNativeWindow(uint64_t window)
+{
+    if (window == m_nativeWindow)
+        return false;
+
+    if (m_type != Type::NativeWindow)
+        m_bufferType = m_type;
+    m_nativeWindow = window;
+    // Dropping the swap chain leaves its last frame on the window.
+    reset();
+    m_type = m_nativeWindow && m_nativeWindow != m_failedNativeWindow ? Type::NativeWindow : m_bufferType;
+    return true;
+}
+#endif
 
 bool AcceleratedSurface::SwapChain::handleBufferFormatChangeIfNeeded()
 {
@@ -782,6 +1030,14 @@ std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::SwapChain:
         return RenderTargetTexture::create(m_surface.get(), m_size);
     case Type::SharedMemory:
         return RenderTargetSHMImage::create(m_surface.get(), m_size);
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+    case Type::IOSurface:
+        return RenderTargetIOSurface::create(m_surface.get(), m_size);
+#endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    case Type::NativeWindow:
+        return RenderTargetWindow::create(m_surface.get(), m_size, m_nativeWindow);
+#endif
 #endif
 #if USE(WPE_RENDERER)
     case Type::WPEBackend:
@@ -801,6 +1057,44 @@ AcceleratedSurface::RenderTarget* AcceleratedSurface::SwapChain::nextTarget()
         return m_lockedTargets[0].get();
 #endif
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    // One target, kept: the window's swap chain.
+    if (m_type == Type::NativeWindow) {
+        if (m_lockedTargets.isEmpty()) {
+            if (auto target = createTarget())
+                m_lockedTargets.append(WTF::move(target));
+            else {
+                // Frames go out as buffers then, as with no window.
+                m_failedNativeWindow = m_nativeWindow;
+                m_type = m_bufferType;
+            }
+        }
+        if (m_type == Type::NativeWindow)
+            return m_lockedTargets[0].get();
+    }
+#endif
+
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+    // A surface the window server still reads (just released by the host)
+    // would show a frame half drawn: prefer one it let go of, else another
+    // buffer while there is room for one.
+    if (m_type == Type::IOSurface && !m_freeTargets.isEmpty() && m_freeTargets.last()->isInUse()) {
+        auto index = m_freeTargets.reverseFindIf([](const auto& target) {
+            return !target->isInUse();
+        });
+        if (index != notFound) {
+            auto target = WTF::move(m_freeTargets[index]);
+            m_freeTargets.removeAt(index);
+            m_freeTargets.append(WTF::move(target));
+        } else if (m_freeTargets.size() + m_lockedTargets.size() < s_maximumBuffers) {
+            if (auto target = createTarget()) {
+                WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidChangeBufferConfiguration(m_lockedTargets.size() + m_freeTargets.size() + 1), m_surface->surfaceID());
+                m_freeTargets.append(WTF::move(target));
+            }
+        }
+    }
+#endif
+
     if (m_freeTargets.isEmpty()) {
         ASSERT(m_lockedTargets.size() < s_maximumBuffers);
 
@@ -818,6 +1112,19 @@ AcceleratedSurface::RenderTarget* AcceleratedSurface::SwapChain::nextTarget()
             if (auto target = createTarget())
                 m_freeTargets.append(WTF::move(target));
         }
+
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+        // No IOSurface target could be made: shared memory, as with no GPU
+        // buffers at all.
+        if (m_type == Type::IOSurface && m_freeTargets.isEmpty() && m_lockedTargets.isEmpty()) {
+            WTFLogAlways("Rendering into IOSurfaces failed: frames are read back to shared memory instead");
+            m_type = Type::SharedMemory;
+            for (unsigned i = 0; i < targetsToCreate; ++i) {
+                if (auto target = createTarget())
+                    m_freeTargets.append(WTF::move(target));
+            }
+        }
+#endif
 
 #if ENABLE(WPE_PLATFORM)
         if (m_freeTargets.size() != targetsToCreate)
@@ -864,6 +1171,10 @@ void AcceleratedSurface::SwapChain::releaseUnusedBuffers()
 {
 #if USE(WPE_RENDERER)
     ASSERT(m_type != Type::WPEBackend);
+#endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    if (m_type == Type::NativeWindow)
+        return;
 #endif
 
 #if ENABLE(WPE_PLATFORM)
@@ -917,7 +1228,7 @@ Vector<IntRect, 1> AcceleratedSurface::SwapChainDamageTracker::takeFrameDamageRe
 
 void AcceleratedSurface::SwapChainDamageTracker::didPresent(RenderTarget& target, TargetContents targetContents)
 {
-    if (targetContents == TargetContents::Invalid) {
+    if (targetContents == TargetContents::Invalid || !target.keepsContents()) {
         // Nothing was drawn, so drop the record and let the target's next use repaint it fully.
         target.setDamage(std::nullopt);
         return;
@@ -947,6 +1258,16 @@ bool AcceleratedSurface::shouldPaintMirrored() const
 #endif
     case SwapChain::Type::SharedMemory:
         return false;
+#if OS(DARWIN) && ENABLE(WPE_PLATFORM)
+    case SwapChain::Type::IOSurface:
+        // The surface's rows are top first, like the embedder's layers.
+        return false;
+#endif
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    case SwapChain::Type::NativeWindow:
+        // A window surface's framebuffer is bottom first, as GL's is.
+        return true;
+#endif
 #endif
 #if USE(WPE_RENDERER)
     case SwapChain::Type::WPEBackend:
@@ -1042,6 +1363,9 @@ void AcceleratedSurface::didCreateCompositingRunLoop(RunLoop& runLoop)
 void AcceleratedSurface::willDestroyCompositingRunLoop()
 {
     m_frameCompleteHandler = nullptr;
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    m_frameRequestHandler = nullptr;
+#endif
 
 #if USE(WPE_RENDERER)
     if (m_swapChain.type() == SwapChain::Type::WPEBackend)
@@ -1169,6 +1493,31 @@ void AcceleratedSurface::releaseBuffer(RendererBufferIdentifier targetID, UnixFi
     ASSERT(m_swapChain.type() != SwapChain::Type::WPEBackend);
 #endif
     m_swapChain.releaseTarget(targetID, WTF::move(releaseFence));
+}
+#endif
+
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+void AcceleratedSurface::setNativeWindow(uint64_t window)
+{
+    // Only the compositor draws into a window, and only with the GPU: else
+    // frames stay buffers in shared memory.
+    if (m_renderingPurpose != RenderingPurpose::Composited || !m_hardwareAccelerationEnabled)
+        return;
+
+    if (!m_swapChain.setNativeWindow(window))
+        return;
+
+    m_pendingFrameNotifyTargets.clear();
+    m_target = nullptr;
+#if ENABLE(DAMAGE_TRACKING)
+    m_damageTracker.reset();
+#endif
+
+    // The window needs a frame now, and without one the embedder waits for
+    // the buffer it took the window back for, even on a page that does not
+    // change.
+    if (m_frameRequestHandler)
+        m_frameRequestHandler();
 }
 #endif
 

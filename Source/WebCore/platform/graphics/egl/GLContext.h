@@ -94,6 +94,11 @@ public:
     WEBCORE_EXPORT bool makeContextCurrent();
     bool unmakeContextCurrent();
     WEBCORE_EXPORT void swapBuffers();
+
+    // Draws into and swaps `surface` (of this context's display, and of a
+    // configuration compatible with it), which its caller keeps, instead of
+    // the context's own surface; EGL_NO_SURFACE goes back to that.
+    WEBCORE_EXPORT bool setDrawSurface(EGLSurface);
     GCGLContext platformContext() const;
 
     struct GLExtensions {
@@ -179,6 +184,7 @@ private:
     mutable unsigned m_version { 0 };
     EGLContext m_context { nullptr };
     EGLSurface m_surface { nullptr };
+    EGLSurface m_drawSurface { nullptr };
     EGLConfig m_config { nullptr };
 #if USE(WPE_RENDERER)
     struct wpe_renderer_backend_egl_offscreen_target* m_wpeTarget { nullptr };
