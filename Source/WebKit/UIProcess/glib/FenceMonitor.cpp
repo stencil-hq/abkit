@@ -27,7 +27,9 @@
 #include "FenceMonitor.h"
 
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
+#if !OS(WINDOWS)
 #include <glib-unix.h>
+#endif
 
 #if PLATFORM(GTK)
 #include <gtk/gtk.h>
@@ -46,6 +48,7 @@ FenceMonitor::~FenceMonitor()
         g_source_destroy(m_source.get());
 }
 
+#if !OS(WINDOWS)
 struct FenceSource {
     static GSourceFuncs sourceFuncs;
 
@@ -98,11 +101,18 @@ static bool isFileDescriptorReadable(int fd)
 
     return pollFD.revents & (G_IO_IN | G_IO_NVAL);
 }
+#endif // !OS(WINDOWS)
 
 void FenceMonitor::addFileDescriptor(UnixFileDescriptor&& fd)
 {
     RELEASE_ASSERT(!m_fd);
 
+#if OS(WINDOWS)
+    // No fence is a descriptor there (see UnixFileDescriptor.h): the frame
+    // is ready as it comes.
+    UNUSED_PARAM(fd);
+    m_callback();
+#else
     if (!fd || isFileDescriptorReadable(fd.value())) {
         m_callback();
         return;
@@ -115,6 +125,7 @@ void FenceMonitor::addFileDescriptor(UnixFileDescriptor&& fd)
     if (source.tag)
         g_source_remove_unix_fd(&source.base, source.tag);
     source.tag = g_source_add_unix_fd(&source.base, m_fd.value(), G_IO_IN);
+#endif
 }
 
 } // namespace WebKit

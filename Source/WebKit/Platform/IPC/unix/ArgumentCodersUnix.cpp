@@ -24,6 +24,34 @@
  */
 
 #include "config.h"
+
+#if OS(WINDOWS)
+#include "ArgumentCodersUnix.h"
+
+#include <wtf/unix/UnixFileDescriptor.h>
+
+namespace IPC {
+
+// Windows shares handles, not descriptors, and the GLib ports' shared code
+// has none to send there (see UnixFileDescriptor.h): one arrives closed.
+void ArgumentCoder<UnixFileDescriptor>::encode(Encoder&, const UnixFileDescriptor& fd)
+{
+    ASSERT_UNUSED(fd, !fd);
+}
+
+void ArgumentCoder<UnixFileDescriptor>::encode(Encoder&, UnixFileDescriptor&& fd)
+{
+    ASSERT_UNUSED(fd, !fd);
+}
+
+std::optional<UnixFileDescriptor> ArgumentCoder<UnixFileDescriptor>::decode(Decoder&)
+{
+    return UnixFileDescriptor { };
+}
+
+}
+
+#elif USE(UNIX_DOMAIN_SOCKETS)
 #include "ArgumentCodersUnix.h"
 
 #include "Decoder.h"
@@ -50,3 +78,5 @@ std::optional<UnixFileDescriptor> ArgumentCoder<UnixFileDescriptor>::decode(Deco
 #endif // OS(ANDROID)
 
 }
+
+#endif // USE(UNIX_DOMAIN_SOCKETS)

@@ -105,13 +105,37 @@ set(WPEPlatform_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/WPEPlatform/wpe"
 )
 
+if (USE_LIBEPOXY)
+    set(WPEPlatform_GL_LIBRARIES Epoxy::Epoxy)
+else ()
+    set(WPEPlatform_GL_LIBRARIES ANGLE::EGL ANGLE::GLES)
+endif ()
+
 set(WPEPlatform_LIBRARIES
-    Epoxy::Epoxy
+    ${WPEPlatform_GL_LIBRARIES}
     GLib::Gio
     WebKit::WTF
-    XkbCommon::XkbCommon
     bmalloc
 )
+
+if (WIN32)
+    # XKB keymaps are the Unix desktops' (an embedder there brings its own
+    # WPEKeymap), and DMA-BUF buffers are file descriptors.
+    list(REMOVE_ITEM WPEPlatform_SOURCES
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEBufferDMABuf.cpp
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEKeymapXKB.cpp
+    )
+    list(REMOVE_ITEM WPEPlatform_INSTALLED_HEADERS
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEBufferDMABuf.h
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEKeymapXKB.h
+    )
+    list(REMOVE_ITEM WPEPlatform_ENUM_GENERATION_HEADERS
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEBufferDMABuf.h
+        ${WEBKIT_DIR}/WPEPlatform/wpe/WPEKeymapXKB.h
+    )
+else ()
+    list(APPEND WPEPlatform_LIBRARIES XkbCommon::XkbCommon)
+endif ()
 
 if (USE_GBM)
     list(APPEND WPEPlatform_LIBRARIES GBM::GBM)

@@ -1,3 +1,17 @@
+if (is_apple)
+    # On an Apple OS ANGLE is the EGL itself, drawing with Metal as it does
+    # for the Cocoa port; none of the system-EGL sources below apply.
+    include(PlatformCocoa.cmake)
+    return ()
+endif ()
+
+if (is_win)
+    # On Windows ANGLE is the EGL itself too, drawing with Direct3D 11 as it
+    # does for the Win port.
+    include(PlatformWin.cmake)
+    return ()
+endif ()
+
 if (is_android)
     list(APPEND ANGLE_DEFINITIONS ANGLE_PLATFORM_ANDROID)
 else ()

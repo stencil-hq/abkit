@@ -52,10 +52,13 @@ endif ()
 webkit_add_compile_definitions(LIBDIR="${LIB_INSTALL_DIR}")
 webkit_add_compile_definitions(PKGLIBDIR="${LIB_INSTALL_DIR}/wpe-webkit-${WPE_API_VERSION}")
 webkit_add_compile_definitions(PKGLIBEXECDIR="${LIBEXEC_INSTALL_DIR}")
-webkit_add_compile_definitions(DATADIR="${CMAKE_INSTALL_FULL_DATADIR}")
+if (NOT WIN32)
+    # Only the sandbox binds it, and the Windows SDK has a DATADIR of its own.
+    webkit_add_compile_definitions(DATADIR="${CMAKE_INSTALL_FULL_DATADIR}")
+endif ()
 webkit_add_compile_definitions(LOCALEDIR="${CMAKE_INSTALL_FULL_LOCALEDIR}")
 
-if (NOT DEVELOPER_MODE AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+if (NOT DEVELOPER_MODE AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin" AND NOT WIN32)
     target_link_options(WebKit PRIVATE "LINKER:--version-script,${CMAKE_CURRENT_SOURCE_DIR}/webkitglib-symbols.map")
     set_property(TARGET WebKit APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/webkitglib-symbols.map")
 endif ()
@@ -130,6 +133,25 @@ list(APPEND WebKit_SERIALIZATION_IN_FILES
 
     Shared/soup/WebCoreArgumentCodersSoup.serialization.in
 )
+
+if (WIN32)
+    # The processes are launched and talk as the Win port's do: named pipes
+    # and duplicated handles, where Unix has sockets and descriptors.
+    list(APPEND WebKit_SOURCES
+        Platform/IPC/win/ConnectionWin.cpp
+        Platform/IPC/win/IPCSemaphoreWin.cpp
+
+        Shared/win/AuxiliaryProcessMainWin.cpp
+
+        UIProcess/Launcher/win/ProcessLauncherWin.cpp
+    )
+    list(APPEND WebKit_SERIALIZATION_IN_FILES
+        Shared/win/WTFArgumentCodersWin.serialization.in
+    )
+    list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBKIT_DIR}/Platform/IPC/win"
+    )
+endif ()
 
 list(APPEND WebKit_DERIVED_SOURCES
     ${WebKit_DERIVED_SOURCES_DIR}/ModernMediaControlsGResourceBundle.c
@@ -434,8 +456,14 @@ list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
     "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}/jsc"
 )
 
+if (WIN32)
+    # GIO has no Unix-only part there.
+    list(APPEND WebKit_LIBRARIES GLib::Gio)
+else ()
+    list(APPEND WebKit_LIBRARIES GLib::GioUnix)
+endif ()
+
 list(APPEND WebKit_LIBRARIES
-    GLib::GioUnix
     GLib::Module
     Soup3::Soup3
 )
@@ -474,7 +502,7 @@ if (USE_GSTREAMER_FULL)
     list(APPEND WebKit_LIBRARIES
         ${GSTREAMER_FULL_LIBRARIES}
     )
-else ()
+elseif (USE_GSTREAMER)
     list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES
         ${GSTREAMER_INCLUDE_DIRS}
         ${GSTREAMER_AUDIO_INCLUDE_DIRS}

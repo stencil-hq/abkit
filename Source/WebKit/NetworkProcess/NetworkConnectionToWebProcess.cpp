@@ -498,7 +498,7 @@ void NetworkConnectionToWebProcess::didClose(IPC::Connection& connection)
     // Deferred fetches have to go out before the loaders below are aborted.
     sendAllDeferredFetches();
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     CONNECTION_RELEASE_LOG(Loading, "didClose: WebProcess (%d) closed its connection. Aborting related loaders.", connection.remoteProcessID());
 #else
     CONNECTION_RELEASE_LOG(Loading, "didClose: WebProcess closed its connection. Aborting related loaders.");

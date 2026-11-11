@@ -30,18 +30,18 @@
 #include "WPEExtensions.h"
 #include "WPEToplevelHeadless.h"
 #include "WPEViewHeadless.h"
-#include <epoxy/egl.h>
-#include <fcntl.h>
+#include "WPEEGLPrivate.h"
 #include <gio/gio.h>
 #include <optional>
-#include <unistd.h>
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/WTFGType.h>
 #include <wtf/text/CString.h>
-#include <wtf/unix/UnixFileDescriptor.h>
 
 #if USE(GBM)
+#include <fcntl.h>
 #include <gbm.h>
+#include <unistd.h>
+#include <wtf/unix/UnixFileDescriptor.h>
 #endif
 
 #if USE(LIBDRM)
@@ -143,6 +143,13 @@ static gpointer wpeDisplayHeadlessGetEGLDisplay(WPEDisplay* display, GError** er
     UNUSED_PARAM(display);
 #endif
 
+#if !USE(LIBEPOXY)
+    // An EGL without Mesa's platforms (ANGLE) has its default display alone.
+    if (EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY); eglDisplay != EGL_NO_DISPLAY)
+        return eglDisplay;
+    g_set_error_literal(error, WPE_EGL_ERROR, WPE_EGL_ERROR_NOT_AVAILABLE, "Can't get EGL display: no default EGL display");
+    return nullptr;
+#else
     if (!epoxy_has_egl_extension(nullptr, "EGL_MESA_platform_surfaceless")) {
         g_set_error_literal(error, WPE_EGL_ERROR, WPE_EGL_ERROR_NOT_AVAILABLE, "Can't get EGL display: Surfaceless platform not supported");
         return nullptr;
@@ -158,6 +165,7 @@ static gpointer wpeDisplayHeadlessGetEGLDisplay(WPEDisplay* display, GError** er
 
     g_set_error_literal(error, WPE_EGL_ERROR, WPE_EGL_ERROR_NOT_AVAILABLE, "Can't get EGL display: failed to create surfaceless EGL display");
     return nullptr;
+#endif // !USE(LIBEPOXY)
 }
 
 static WPEDRMDevice* wpeDisplayHeadlessGetDRMDevice(WPEDisplay* display)

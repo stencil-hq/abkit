@@ -162,6 +162,10 @@ macro(WEBKIT_OPTION_BEGIN)
     if (NOT DEFINED ENABLE_BACK_FORWARD_LIST_SWIFT_DEFAULT)
         if (CMAKE_CROSSCOMPILING)
             set(_swift_features_default OFF)
+        elseif (APPLE AND NOT WEBKIT_PORT_IS_COCOA)
+            # Swift on an Apple OS extends the Cocoa port's Objective-C++ modules
+            # (wtf, pal), which other ports hosted there do not build.
+            set(_swift_features_default OFF)
         elseif (COMPILER_IS_CLANG)
             _WEBKIT_DETECT_SWIFT_CXX_INTEROP_SUPPORT(_swift_interop_ok)
             if (_swift_interop_ok)

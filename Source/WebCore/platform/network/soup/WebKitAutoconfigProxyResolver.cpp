@@ -98,9 +98,9 @@ static gchar** webkitAutoconfigProxyResolverLookupFinish(GProxyResolver*, GAsync
     return static_cast<char**>(g_task_propagate_pointer(G_TASK(result), error));
 }
 
-static void webkitAutoconfigProxyResolverInterfaceInit(GProxyResolverInterface* interface)
+static void webkitAutoconfigProxyResolverInterfaceInit(GProxyResolverInterface* iface)
 {
-    interface->lookup = webkitAutoconfigProxyResolverLookup;
-    interface->lookup_async = webkitAutoconfigProxyResolverLookupAsync;
-    interface->lookup_finish = webkitAutoconfigProxyResolverLookupFinish;
+    iface->lookup = webkitAutoconfigProxyResolverLookup;
+    iface->lookup_async = webkitAutoconfigProxyResolverLookupAsync;
+    iface->lookup_finish = webkitAutoconfigProxyResolverLookupFinish;
 }

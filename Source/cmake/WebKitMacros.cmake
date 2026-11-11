@@ -312,7 +312,9 @@ function(WEBKIT_REUSE_PREFIX_HEADER _target _from _header)
 endfunction()
 
 function(_WEBKIT_ADD_PCH_OBJECT _target)
-    if (NOT (COMPILER_IS_CLANG AND APPLE))
+    # Apple's ports alone: the object holds what the prefix header's inline
+    # functions need, which only their link order and exports resolve.
+    if (NOT (COMPILER_IS_CLANG AND WEBKIT_APPLE_FRAMEWORKS))
         return ()
     endif ()
     cmake_parse_arguments(PARSE_ARGV 1 _PO "PREFIX_NO_CODEGEN" "" "PREFIX_LANGUAGES")
@@ -964,7 +966,7 @@ macro(WEBKIT_FRAMEWORK _target)
         add_custom_command(TARGET ${_target} POST_BUILD COMMAND ${${_target}_POST_BUILD_COMMAND} VERBATIM)
     endif ()
 
-    if (APPLE AND NOT PORT STREQUAL "GTK" AND ${${_target}_LIBRARY_TYPE} MATCHES SHARED)
+    if (WEBKIT_APPLE_FRAMEWORKS AND ${${_target}_LIBRARY_TYPE} MATCHES SHARED)
         set_target_properties(${_target} PROPERTIES FRAMEWORK TRUE)
         target_compile_options(${_target} BEFORE PUBLIC -F${CMAKE_BINARY_DIR})
         install(TARGETS ${_target} FRAMEWORK DESTINATION ${LIB_INSTALL_DIR})

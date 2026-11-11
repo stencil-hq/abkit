@@ -1859,7 +1859,7 @@ ProcessTerminationReason WebProcessProxy::terminationReason() const
 
 void WebProcessProxy::didClose(IPC::Connection& connection)
 {
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     WEBPROCESSPROXY_RELEASE_LOG_ERROR(Process, "didClose: (web process %d crash)", connection.remoteProcessID());
 #else
     WEBPROCESSPROXY_RELEASE_LOG_ERROR(Process, "didClose (web process crash)");

@@ -1569,7 +1569,11 @@ void NetworkDataTaskSoup::didGetFileInfo(GFileInfo* info)
         m_response.setMimeType("text/html"_s);
         m_response.setExpectedContentLength(-1);
     } else {
-        auto contentType = String::fromLatin1(g_file_info_get_content_type(info));
+        // GIO's content types are MIME types only where the system's own are
+        // (Linux); elsewhere (a UTI on Darwin, an extension on Windows) GIO
+        // knows the MIME type they stand for.
+        GUniquePtr<char> mimeTypeOfContentType(g_content_type_get_mime_type(g_file_info_get_content_type(info)));
+        auto contentType = String::fromLatin1(mimeTypeOfContentType ? mimeTypeOfContentType.get() : g_file_info_get_content_type(info));
         auto mimeTypeFromExtension = MIMETypeRegistry::mimeTypeForPath(m_response.url().path());
         auto mimeTypeFromContent = extractMIMETypeFromMediaType(contentType);
         // If an application calls g_app_info_get_default_for_type($ext) then Glib will return "application/x-extension-$ext" in mimeTypeFromExtension which WebKit doesn't know how to handle.

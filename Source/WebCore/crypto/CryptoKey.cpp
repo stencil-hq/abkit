@@ -80,7 +80,7 @@ WebCoreOpaqueRoot root(CryptoKey* key)
     return WebCoreOpaqueRoot { key };
 }
 
-#if !OS(DARWIN) || PLATFORM(GTK)
+#if !OS(DARWIN) || USE(GLIB)
 Vector<uint8_t> CryptoKey::randomData(size_t size)
 {
     Vector<uint8_t> result(size);

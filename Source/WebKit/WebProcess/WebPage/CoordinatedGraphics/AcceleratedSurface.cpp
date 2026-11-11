@@ -40,7 +40,6 @@
 #include <WebCore/ShareableBitmap.h>
 #include <array>
 #include <fcntl.h>
-#include <unistd.h>
 #include <wtf/SafeStrerror.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -57,13 +56,21 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include "AcceleratedBackingStoreMessages.h"
 #include "AcceleratedSurfaceMessages.h"
 #include <WebCore/DMABufBuffer.h>
-#include <epoxy/egl.h>
+#endif
+
+#if !OS(WINDOWS)
+#include <unistd.h>
 #endif
 
 #if USE(LIBEPOXY)
+#include <epoxy/egl.h>
 #include <epoxy/gl.h>
 #else
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <GLES3/gl3.h>
 #endif
 
 #if USE(GBM)
@@ -225,27 +232,35 @@ void AcceleratedSurface::RenderTargetShareableBuffer::sendFrame(Vector<WebCore::
 
 void AcceleratedSurface::RenderTargetShareableBuffer::willRenderFrame()
 {
+#if OS(UNIX)
     if (m_releaseFenceFD) {
         if (auto fence = GLFence::importFD(PlatformDisplay::sharedDisplay().glDisplay(), WTF::move(m_releaseFenceFD)))
             fence->serverWait();
     }
+#endif
 }
 
 std::unique_ptr<GLFence> AcceleratedSurface::RenderTargetShareableBuffer::createRenderingFence(bool useExplicitSync) const
 {
     auto& display = PlatformDisplay::sharedDisplay().glDisplay();
+#if OS(UNIX)
     if (useExplicitSync && supportsExplicitSync()) {
         if (auto fence = GLFence::createExportable(display))
             return fence;
     }
+#else
+    UNUSED_PARAM(useExplicitSync);
+#endif
     return GLFence::create(display);
 }
 
 void AcceleratedSurface::RenderTargetShareableBuffer::sync(bool useExplicitSync)
 {
     if (auto fence = createRenderingFence(useExplicitSync)) {
+#if OS(UNIX)
         m_renderingFenceFD = fence->exportFD();
         if (!m_renderingFenceFD)
+#endif
             fence->clientWait();
     }
 }
@@ -442,6 +457,12 @@ void AcceleratedSurface::RenderTargetSHMImage::didRenderFrame()
 
 std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTargetTexture::create(AcceleratedSurface& surface, const IntSize& size)
 {
+#if !HAVE(DMABUF)
+    // A texture leaves the process as a DMA-BUF, which this system lacks.
+    UNUSED_PARAM(surface);
+    UNUSED_PARAM(size);
+    return nullptr;
+#else
     auto texture = BitmapTexture::create(size);
 
     auto& display = PlatformDisplay::sharedDisplay();
@@ -481,6 +502,7 @@ std::unique_ptr<AcceleratedSurface::RenderTarget> AcceleratedSurface::RenderTarg
     });
 
     return makeUnique<RenderTargetTexture>(surface, size, WTF::move(texture), fourcc, WTF::move(fds), WTF::move(offsets), WTF::move(strides), modifier);
+#endif // !HAVE(DMABUF)
 }
 
 AcceleratedSurface::RenderTargetTexture::RenderTargetTexture(AcceleratedSurface& surface, const IntSize& size, Ref<BitmapTexture>&& texture, uint32_t format, Vector<UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier)
@@ -603,6 +625,11 @@ AcceleratedSurface::SwapChain::SwapChain(AcceleratedSurface& surface)
     case PlatformDisplay::Type::Default:
         m_type = Type::EGLImage;
         setupBufferFormat();
+        break;
+#elif !USE(LIBEPOXY)
+    case PlatformDisplay::Type::Default:
+        // An EGL of no display server (ANGLE): frames are read back.
+        m_type = Type::SharedMemory;
         break;
 #endif
 #else

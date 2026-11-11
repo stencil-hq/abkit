@@ -36,8 +36,13 @@
 #include <WebCore/Page.h>
 #include <WebCore/PlatformDisplay.h>
 #include <WebCore/Settings.h>
+#if USE(LIBEPOXY)
 #include <epoxy/egl.h>
 #include <epoxy/gl.h>
+#else
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
+#endif
 #include <wtf/SetForScope.h>
 #include <wtf/SystemTracing.h>
 

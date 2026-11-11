@@ -32,7 +32,6 @@
 #include <gio/gio.h>
 #include <glib/gi18n-lib.h>
 #include <mutex>
-#include <unistd.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
@@ -46,7 +45,15 @@
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/RunLoopSourcePriority.h>
 #include <wtf/glib/Sandbox.h>
+
 #include <wtf/posix/POSIXExtras.h>
+#include <wtf/unix/UnixFileDescriptor.h>
+
+#if OS(WINDOWS)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
 
@@ -78,7 +85,25 @@ namespace WebKit {
 static const Seconds s_dbusCallTimeout = 20_ms;
 
 // Alias to avoid conflicting with write() below.
+#if OS(WINDOWS)
+// The C runtime's descriptors there.
+static int writeToFD(int fd, const void* buffer, size_t size)
+{
+    return _write(fd, buffer, static_cast<unsigned>(size));
+}
+
+static int fsync(int fd)
+{
+    return _commit(fd);
+}
+
+static int posixUnlink(UTF8CStringView path)
+{
+    return _unlink(path.utf8());
+}
+#else
 ssize_t (*writeToFD)(int, const void*, size_t) = write;
+#endif
 
 // Simple stream that writes to an fd.
 class FileDescriptorWriteStream : public SkWStream {
@@ -90,7 +115,7 @@ public:
 
     bool write(const void* buffer, size_t size) final
     {
-        ssize_t written = writeToFD(m_fd.value(), buffer, size);
+        auto written = writeToFD(m_fd.value(), buffer, size);
         if (written < 0)
             return false;
 

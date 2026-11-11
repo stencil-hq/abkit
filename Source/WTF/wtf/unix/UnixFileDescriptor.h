@@ -29,9 +29,22 @@
 #include <wtf/Compiler.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/StdLibExtras.h>
+
+#if OS(WINDOWS)
+#include <io.h>
+#else
 #include <wtf/UniStdExtras.h>
+#endif
 
 namespace WTF {
+
+#if OS(WINDOWS)
+// Descriptors there are the C runtime's, which no child process inherits.
+// The GLib ports' shared code carries them (sync fences, DMA-BUF planes),
+// but Windows gives it none to carry.
+inline int dupCloseOnExec(int fd) { return _dup(fd); }
+inline int closeWithRetry(int fd) { return _close(fd); }
+#endif
 
 class UnixFileDescriptor {
 public:

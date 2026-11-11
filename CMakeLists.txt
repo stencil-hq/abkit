@@ -9,8 +9,9 @@
 cmake_minimum_required(VERSION 3.20)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/Source/cmake")
 
-if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
-    # Resolve the SDK and pin tools before the call to project().
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND NOT CMAKE_TOOLCHAIN_FILE)
+    # Resolve the SDK and pin tools before the call to project(). A toolchain
+    # file cross-compiles for another system (Windows, with clang-cl).
     include(WebKitXcodeSDK)
 endif ()
 

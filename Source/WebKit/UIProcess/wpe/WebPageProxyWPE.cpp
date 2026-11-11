@@ -204,6 +204,9 @@ OptionSet<WebCore::PlatformEvent::Modifier> WebPageProxy::currentStateOfModifier
         return { };
 
     auto* keymap = wpe_display_get_keymap(wpe_view_get_display(view));
+    // Without XKB (Windows) a display has the keymap its embedder gives it, or none.
+    if (!keymap)
+        return { };
     OptionSet<WebCore::PlatformEvent::Modifier> modifiers;
     auto wpeModifiers = wpe_keymap_get_modifiers(keymap);
     if (wpeModifiers & WPE_MODIFIER_KEYBOARD_CONTROL)

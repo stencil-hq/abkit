@@ -37,7 +37,12 @@
 #include <WebCore/IntRect.h>
 #include <WebCore/PlatformScreen.h>
 #include <cstdlib>
+#if USE(LIBEPOXY)
 #include <epoxy/gl.h>
+#else
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
+#endif
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -181,9 +186,13 @@ static bool uiProcessContextIsEGL()
 
 static const char* openGLAPI()
 {
+#if USE(LIBEPOXY)
     if (epoxy_is_desktop_gl())
         return "OpenGL (libepoxy)";
     return "OpenGL ES 2 (libepoxy)";
+#else
+    return "OpenGL ES (ANGLE)";
+#endif
 }
 
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))

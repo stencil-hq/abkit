@@ -63,7 +63,7 @@ SkFontMgr& FontCache::fontManager() const
     if (!m_fontManager) {
 #if OS(ANDROID)
         m_fontManager = SkFontMgr_New_Android(nullptr, SkFontScanner_Make_FreeType());
-#elif OS(WINDOWS)
+#elif PLATFORM(WIN)
         auto result = createDWriteFactory();
         m_fontManager = SkFontMgr_New_DirectWrite(result.factory.get(), result.fontCollection.get());
 #else

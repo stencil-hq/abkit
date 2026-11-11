@@ -1,9 +1,9 @@
 # WebKit dropped MSVC support. This file is only for clang-cl.
 
-# Detect Windows cross-compilation from Linux
-if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+# Detect Windows cross-compilation from Linux or macOS
+if (NOT CMAKE_HOST_WIN32 AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(WEBKIT_WIN_CROSS_COMPILE ON)
-    message(STATUS "Cross-compiling Windows port from Linux host")
+    message(STATUS "Cross-compiling for Windows from a ${CMAKE_HOST_SYSTEM_NAME} host")
 
     # Define the sysroot location
     set(WEBKIT_WIN_SYSROOT "${CMAKE_SOURCE_DIR}/WebKitLibraries/windows")

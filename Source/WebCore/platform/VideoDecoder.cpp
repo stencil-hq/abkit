@@ -24,6 +24,8 @@
  */
 
 #include "config.h"
+
+#if ENABLE(VIDEO)
 #include "VideoDecoder.h"
 
 #if USE(LIBWEBRTC) && PLATFORM(COCOA)
@@ -127,3 +129,5 @@ VideoDecoder::VideoDecoder() = default;
 VideoDecoder::~VideoDecoder() = default;
 
 }
+
+#endif // ENABLE(VIDEO)

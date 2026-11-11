@@ -28,7 +28,7 @@ webkit_platform_header: "ConnectionHandle.h"
 #if OS(WINDOWS)
     Win32Handle m_handle;
 #endif
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     MachSendRight m_handle;
 #endif
 }

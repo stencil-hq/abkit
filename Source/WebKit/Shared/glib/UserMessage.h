@@ -84,7 +84,9 @@ struct UserMessage {
     struct DataMessage {
         UTF8CString name;
         GRefPtr<GVariant> parameters;
+#if USE(UNIX_DOMAIN_SOCKETS)
         GRefPtr<GUnixFDList> fileDescriptors;
+#endif
     };
 
 private:

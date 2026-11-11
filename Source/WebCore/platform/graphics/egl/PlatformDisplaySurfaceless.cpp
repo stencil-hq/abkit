@@ -27,9 +27,19 @@
 #include "PlatformDisplaySurfaceless.h"
 
 #include "GLContext.h"
+
+#if USE(LIBEPOXY)
 #include <epoxy/egl.h>
+#else
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#endif
 
 namespace WebCore {
+
+// The surfaceless platform is Mesa's; other EGLs (ANGLE) are reached through
+// PlatformDisplayDefault.
+#if USE(LIBEPOXY)
 
 std::unique_ptr<PlatformDisplaySurfaceless> PlatformDisplaySurfaceless::create()
 {
@@ -59,6 +69,20 @@ PlatformDisplaySurfaceless::PlatformDisplaySurfaceless(Ref<GLDisplay>&& glDispla
     m_angleNativeDisplay = EGL_DEFAULT_DISPLAY;
 #endif
 }
+
+#else
+
+std::unique_ptr<PlatformDisplaySurfaceless> PlatformDisplaySurfaceless::create()
+{
+    return nullptr;
+}
+
+PlatformDisplaySurfaceless::PlatformDisplaySurfaceless(Ref<GLDisplay>&& glDisplay)
+    : PlatformDisplay(WTF::move(glDisplay))
+{
+}
+
+#endif // USE(LIBEPOXY)
 
 PlatformDisplaySurfaceless::~PlatformDisplaySurfaceless() = default;
 

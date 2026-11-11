@@ -99,6 +99,23 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
         set(PORT "Cocoa" CACHE STRING "choose which WebKit port to build (one of ${ALL_PORTS})" FORCE)
     endif ()
 
+    # `APPLE` says which OS the build targets, not which port it is: another
+    # port hosted on an Apple OS (WPE on macOS) shares the OS and none of the
+    # Cocoa port's frameworks, services or Objective-C sources.
+    if (APPLE AND PORT STREQUAL "Cocoa")
+        set(WEBKIT_PORT_IS_COCOA ON)
+    else ()
+        set(WEBKIT_PORT_IS_COCOA OFF)
+    endif ()
+
+    # The GLib ports build plain shared libraries wherever they are hosted;
+    # Apple's ports (and JavaScriptCore alone) build framework bundles.
+    if (APPLE AND NOT PORT MATCHES "^(GTK|WPE)$")
+        set(WEBKIT_APPLE_FRAMEWORKS ON)
+    else ()
+        set(WEBKIT_APPLE_FRAMEWORKS OFF)
+    endif ()
+
     string(TOLOWER ${PORT} WEBKIT_PORT_DIR)
 
     # -----------------------------------------------------------------------------

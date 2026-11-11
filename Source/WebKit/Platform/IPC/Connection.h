@@ -78,7 +78,7 @@
 #include <wtf/android/RefPtrAndroid.h>
 #endif
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
 #include <mach/mach_port.h>
 #include <wtf/darwin/DispatchOSObject.h>
 #include <wtf/darwin/XPCObjectPtr.h>
@@ -86,7 +86,7 @@
 #if HAVE(XPC_API)
 #include <xpc/xpc.h>
 #endif
-#endif // OS(DARWIN)
+#endif // USE(MACH_IPC)
 
 #if USE(GLIB)
 #include <wtf/glib/GSocketMonitor.h>
@@ -403,13 +403,13 @@ public:
 #endif
     };
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     xpc_connection_t xpcConnection() const { return m_xpcConnection.get(); }
     std::optional<audit_token_t> getAuditToken();
     pid_t remoteProcessID() const;
 #endif
 
-#if USE(GLIB)
+#if USE(GLIB) && USE(UNIX_DOMAIN_SOCKETS)
     void sendCredentials() const;
     static pid_t remoteProcessID(GSocket*, GError**);
 #endif

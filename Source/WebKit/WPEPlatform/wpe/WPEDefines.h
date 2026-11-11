@@ -32,7 +32,15 @@
 
 #include <glib.h>
 
-#define WPE_API __attribute__((visibility("default")))
+#ifdef G_OS_WIN32
+#    ifdef BUILDING_WEBKIT
+#        define WPE_API __declspec(dllexport)
+#    else
+#        define WPE_API __declspec(dllimport)
+#    endif
+#else
+#    define WPE_API __attribute__((visibility("default")))
+#endif
 
 /*
  * The G_DECLARE_DERIVABLE_TYPE macro creates an instance struct that

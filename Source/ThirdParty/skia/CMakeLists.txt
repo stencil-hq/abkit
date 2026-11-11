@@ -1,7 +1,16 @@
 set_property(DIRECTORY . PROPERTY FOLDER "skia")
 
+# Fonts are DirectWrite's for the Win port; elsewhere FreeType draws what
+# fontconfig (or Android's font manager) finds, the WPE port on Windows
+# included.
+if (WIN32 AND NOT PORT STREQUAL "WPE")
+    set(Skia_USE_DIRECTWRITE ON)
+else ()
+    set(Skia_USE_DIRECTWRITE OFF)
+endif ()
+
 # Skia dependencies not used directly in WebKit.
-if (NOT WIN32 AND NOT PLAYSTATION)
+if (NOT Skia_USE_DIRECTWRITE AND NOT PLAYSTATION)
     find_package(Freetype 2.9.0 REQUIRED)
     find_package(Fontconfig 2.13.0 REQUIRED)
 endif ()
@@ -815,10 +824,19 @@ add_library(Skia STATIC
 
 if (WIN32)
     target_sources(Skia PRIVATE
-        src/ports/SkFontHost_win.cpp
-        src/ports/SkFontMgr_win_dw.cpp
         src/ports/SkLog_win.cpp
         src/ports/SkOSFile_win.cpp
+    )
+else ()
+    target_sources(Skia PRIVATE
+        src/ports/SkOSFile_posix.cpp
+    )
+endif ()
+
+if (Skia_USE_DIRECTWRITE)
+    target_sources(Skia PRIVATE
+        src/ports/SkFontHost_win.cpp
+        src/ports/SkFontMgr_win_dw.cpp
         src/ports/SkScalerContext_win_dw.cpp
         src/ports/SkTypeface_win_dw.cpp
         src/utils/win/SkDWrite.cpp
@@ -830,7 +848,6 @@ else ()
     target_sources(Skia PRIVATE
         src/ports/SkFontHost_FreeType.cpp
         src/ports/SkFontHost_FreeType_common.cpp
-        src/ports/SkOSFile_posix.cpp
         src/ports/SkTypeface_proxy.cpp
     )
     target_link_libraries(Skia PRIVATE Freetype::Freetype)
@@ -844,12 +861,22 @@ else ()
         target_link_libraries(Skia PRIVATE EXPAT::EXPAT android log)
     else ()
         target_sources(Skia PRIVATE
-            src/ports/SkFontConfigInterface.cpp
-            src/ports/SkFontConfigInterface_direct.cpp
-            src/ports/SkFontConfigInterface_direct_factory.cpp
             src/ports/SkFontMgr_fontconfig.cpp
-            src/ports/SkLog_stdio.cpp
         )
+        if (WIN32)
+            # The FreeType shipped is the one built against: nothing newer
+            # to look for at run time (which takes dlopen).
+            target_compile_definitions(Skia PRIVATE SK_FREETYPE_MINIMUM_RUNTIME_VERSION_IS_BUILD_VERSION)
+        else ()
+            # The interface over fontconfig that sandboxed processes use is
+            # POSIX code, and WebKit uses the font manager above alone.
+            target_sources(Skia PRIVATE
+                src/ports/SkFontConfigInterface.cpp
+                src/ports/SkFontConfigInterface_direct.cpp
+                src/ports/SkFontConfigInterface_direct_factory.cpp
+                src/ports/SkLog_stdio.cpp
+            )
+        endif ()
         target_link_libraries(Skia PRIVATE Fontconfig::Fontconfig)
     endif ()
 endif ()
@@ -1086,7 +1113,7 @@ target_compile_definitions(Skia PUBLIC
     SK_ASSUME_WEBGL=0
 )
 
-if (WIN32)
+if (Skia_USE_DIRECTWRITE)
     target_compile_definitions(Skia PRIVATE SK_TYPEFACE_FACTORY_DIRECTWRITE)
 else ()
     target_compile_definitions(Skia PRIVATE SK_TYPEFACE_FACTORY_FREETYPE)

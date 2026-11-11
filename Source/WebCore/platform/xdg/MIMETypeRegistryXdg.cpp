@@ -26,6 +26,7 @@
 #include "config.h"
 #include "MIMETypeRegistry.h"
 
+#if USE(XDGMIME)
 #include <wtf/text/MakeString.h>
 
 #define XDG_PREFIX _wk_xdg
@@ -89,3 +90,5 @@ Vector<String> MIMETypeRegistry::extensionsForMIMEType(const String& mimeType)
 }
 
 }
+
+#endif // USE(XDGMIME)

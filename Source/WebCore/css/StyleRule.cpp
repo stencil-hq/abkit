@@ -63,7 +63,7 @@ struct SameSizeAsStyleRuleBase : public WTF::RefCountedBase {
     unsigned bitfields : 5;
 };
 
-#if !PLATFORM(WIN)
+#if !OS(WINDOWS)
 static_assert(sizeof(StyleRuleBase) == sizeof(SameSizeAsStyleRuleBase), "StyleRuleBase should stay small");
 #endif
 

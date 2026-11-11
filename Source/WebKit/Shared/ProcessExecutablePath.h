@@ -31,6 +31,12 @@ namespace WebKit {
 
 String executablePathOfWebProcess();
 String executablePathOfNetworkProcess();
+#if USE(GLIB)
+// The directory the WebKit library was loaded from: where an embedder that
+// ships the engine in its own bundle keeps the helper processes and the
+// injected bundle. Null when the loader cannot say.
+String directoryOfWebKitLibrary();
+#endif
 #if ENABLE(GPU_PROCESS)
 String executablePathOfGPUProcess();
 #endif

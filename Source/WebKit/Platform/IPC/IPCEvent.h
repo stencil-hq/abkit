@@ -155,7 +155,7 @@ inline std::optional<EventSignalPair> createEventSignalPair()
     if (!event)
         return std::nullopt;
 #endif
-#if PLATFORM(WIN)
+#if OS(WINDOWS)
     Semaphore signal(Win32Handle { event.m_semaphoreHandle });
 #else
     Semaphore signal(event.m_fd.duplicate());

@@ -61,6 +61,7 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <epoxy/egl.h>
 #include <epoxy/gl.h>
 #else
+#include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #endif
 

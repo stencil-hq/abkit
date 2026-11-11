@@ -24,6 +24,8 @@
  */
 
 #include "config.h"
+
+#if ENABLE(VIDEO)
 #include "MediaSamplesDecoder.h"
 
 #include "AV1Utilities.h"
@@ -819,3 +821,5 @@ void MediaSamplesDecoder::emitDecodedVideo(int64_t firstSequence, int64_t endSeq
 }
 
 } // namespace WebCore
+
+#endif // ENABLE(VIDEO)

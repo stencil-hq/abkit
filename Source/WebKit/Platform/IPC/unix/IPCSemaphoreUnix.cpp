@@ -27,6 +27,7 @@
 #include "config.h"
 #include "IPCSemaphore.h"
 
+#if USE(UNIX_DOMAIN_SOCKETS)
 #include "Decoder.h"
 #include "Encoder.h"
 #include "Logging.h"
@@ -295,3 +296,5 @@ void Semaphore::destroy()
 }
 
 } // namespace IPC
+
+#endif // USE(UNIX_DOMAIN_SOCKETS)

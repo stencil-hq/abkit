@@ -7995,7 +7995,7 @@ void WebPage::processDidResume()
         manager->processDidResume();
 }
 
-bool WebPage::didReceiveRemoteCommand(PlatformMediaSession::RemoteControlCommandType type, const PlatformMediaSession::RemoteCommandArgument& argument, std::optional<WebCore::MediaSessionIdentifier> targetSession)
+bool WebPage::didReceiveRemoteCommand(PlatformMediaSessionRemoteControlCommandType type, const PlatformMediaSessionRemoteCommandArgument& argument, std::optional<WebCore::MediaSessionIdentifier> targetSession)
 {
     RefPtr manager = mediaSessionManagerIfExists();
     return manager && manager->processDidReceiveRemoteControlCommand(type, argument, targetSession);

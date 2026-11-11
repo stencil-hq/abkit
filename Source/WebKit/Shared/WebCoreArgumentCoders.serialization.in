@@ -1755,7 +1755,7 @@ class WebCore::PasteboardCustomData {
 #if USE(UNIX_DOMAIN_SOCKETS)
 headers: <wtf/unix/UnixFileDescriptor.h> "ArgumentCodersUnix.h"
 #endif
-#if OS(DARWIN)
+#if USE(MACH_IPC)
 header: <wtf/MachSendRight.h>
 #endif
 
@@ -1763,7 +1763,7 @@ header: <wtf/MachSendRight.h>
 #if USE(UNIX_DOMAIN_SOCKETS)
     [Validator='!!m_handle && *m_handle'] UnixFileDescriptor m_handle;
 #endif
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     [Validator='!!m_handle && *m_handle'] MachSendRight m_handle;
 #endif
 #if OS(WINDOWS)
