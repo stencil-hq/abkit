@@ -343,6 +343,10 @@ static const String& queryAccessibilityBusAddress()
     static LazyNeverDestroyed<String> address;
     static std::once_flag onceKey;
     std::call_once(onceKey, [] {
+        // AT-SPI is the Unix desktops' accessibility bus: Windows and Darwin
+        // have no session bus to ask, and asking makes GIO try to autolaunch
+        // one (warning on Windows that dbus-daemon is missing).
+#if !OS(WINDOWS) && !OS(DARWIN)
         GRefPtr<GDBusConnection> sessionBus = adoptGRef(g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr));
         if (sessionBus.get()) {
             GRefPtr<GDBusMessage> message = adoptGRef(g_dbus_message_new_method_call("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus", "GetAddress"));
@@ -362,6 +366,7 @@ static const String& queryAccessibilityBusAddress()
                 }
             }
         }
+#endif
         address.construct();
     });
     return address.get();
