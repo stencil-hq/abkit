@@ -93,9 +93,12 @@ elseif (WIN32)
     # The processes share memory as the Win port's do, and file types come
     # from the registry.
     list(APPEND WebCore_SOURCES
+        platform/network/soup/WebKitWindowsTLSDatabase.cpp
         platform/win/MIMETypeRegistryWin.cpp
         platform/win/SharedMemoryWin.cpp
     )
+    # TLS servers are verified again as Windows verifies them (CryptoAPI).
+    list(APPEND WebCore_LIBRARIES crypt32)
 endif ()
 
 list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
