@@ -633,7 +633,14 @@ EGLint SwapChain11::reset(DisplayD3D *displayD3D,
                   << gl::FmtHR(hr);
             release();
 
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+            // WebKit (WPE): a swap chain that cannot be made for a window
+            // (DXGI_ERROR_NOT_CURRENTLY_AVAILABLE without desktop composition)
+            // loses nothing unless the device itself was removed.
+            if (d3d11::isDeviceLostError(hr) && FAILED(device->GetDeviceRemovedReason()))
+#else
             if (d3d11::isDeviceLostError(hr))
+#endif
             {
                 HRESULT reason = device->GetDeviceRemovedReason();
                 ERR() << "Device lost in SwapChain11::reset " << gl::FmtHR(hr)

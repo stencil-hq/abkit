@@ -104,6 +104,7 @@ private:
 #if OS(WINDOWS)
     void sendNativeWindow();
     void sizePresentationWindow();
+    void didFailToPresentIntoWindow();
 #endif
 
     void notifyBufferConfigurationIfNeeded();
@@ -127,6 +128,9 @@ private:
     void* m_presentationParent { nullptr };
     uint64_t m_presentationSurfaceID { 0 };
     ProcessID m_presentationProcessID { 0 };
+    // The surface (of a process) that could not present into a window.
+    uint64_t m_failedPresentationSurfaceID { 0 };
+    ProcessID m_failedPresentationProcessID { 0 };
 #endif
 };
 

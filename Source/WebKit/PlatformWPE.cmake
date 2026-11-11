@@ -473,8 +473,9 @@ list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES
 )
 
 if (WIN32)
-    # GIO has no Unix-only part there.
-    list(APPEND WebKit_LIBRARIES GLib::Gio)
+    # GIO has no Unix-only part there. DWM says whether windows can be
+    # presented into (there is no composition in session 0).
+    list(APPEND WebKit_LIBRARIES GLib::Gio dwmapi)
 else ()
     list(APPEND WebKit_LIBRARIES GLib::GioUnix)
 endif ()

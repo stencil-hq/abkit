@@ -1064,9 +1064,11 @@ AcceleratedSurface::RenderTarget* AcceleratedSurface::SwapChain::nextTarget()
             if (auto target = createTarget())
                 m_lockedTargets.append(WTF::move(target));
             else {
-                // Frames go out as buffers then, as with no window.
+                // Frames go out as buffers then, as with no window, which the
+                // UI process takes away.
                 m_failedNativeWindow = m_nativeWindow;
                 m_type = m_bufferType;
+                WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::DidFailToPresentIntoWindow(), m_surface->surfaceID());
             }
         }
         if (m_type == Type::NativeWindow)
