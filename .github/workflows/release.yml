@@ -8,10 +8,13 @@ name: Release
 # Each archive holds the packaged engine directory as `abkit/`
 # (docs/installing.md).
 #
-# A WebKit build takes hours on these runners. Compiles go through ccache,
-# saved after every build step that ran, also one the time limit stopped: a
-# run that timed out is re-run (`gh run rerun --failed`) and resumes from its
-# cache. Hence no build on pushes.
+# Runners, as Tern's (apps/build/README.md in the monorepo): x86_64 Linux hosts
+# are vmon microVMs on our cluster (`vmon-small`, `vmon-large`: 8 vCPU), which
+# build linux-x64 and linux-musl-x64 in containers and cross-compile both
+# Windows targets; vmon has no arm64 or macOS hosts, so the arm64 Linux
+# targets and both Macs build on Blacksmith. Compiles go through ccache, saved
+# after every build step that ran, also one the time limit stopped: a run that
+# timed out is re-run (`gh run rerun --failed`) and resumes from its cache.
 on:
    push:
       tags: ["v*"]
@@ -35,7 +38,7 @@ defaults:
 
 jobs:
    version:
-      runs-on: ubuntu-24.04
+      runs-on: vmon-small
       outputs:
          version: ${{ steps.version.outputs.version }}
          publish: ${{ steps.version.outputs.publish }}
@@ -57,25 +60,23 @@ jobs:
               fi
               echo "version=$version" >>"$GITHUB_OUTPUT"
          # The targets this run builds: all of them for a release; a run by
-         # hand may name some. GitHub's macOS arm64 runners are rarely
-         # available to this repository, so darwin-arm64 builds on Blacksmith.
-         # A target with `test` is tested on that runner by the smoke-elsewhere
-         # job: Windows targets are cross-compiled, and the Intel Mac runners
-         # are virtual machines without a Metal device, which the engine draws
-         # with, so darwin-x64 runs under Rosetta on an Apple-silicon Mac.
+         # hand may name some. darwin-x64 (`rosetta`) builds and runs under
+         # Rosetta on an Apple-silicon Mac, against an x86_64 Homebrew. A
+         # target with `test` is cross-compiled and tested on that runner by
+         # the smoke-elsewhere job.
          - id: targets
            env:
               TARGETS: ${{ inputs.targets }}
            run: |
               all='[
                  {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
-                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64", "test": "blacksmith-12vcpu-macos-26"},
-                 {"target": "linux-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux", "arch": "x86_64"},
-                 {"target": "linux-arm64", "os": "ubuntu-24.04-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
-                 {"target": "linux-musl-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
-                 {"target": "linux-musl-arm64", "os": "ubuntu-24.04-arm", "script": "linux", "platform": "linux-musl", "arch": "arm64"},
-                 {"target": "windows-x64", "os": "ubuntu-24.04", "script": "win", "platform": "windows", "arch": "x86_64", "test": "windows-2025"},
-                 {"target": "windows-arm64", "os": "ubuntu-24.04", "script": "win", "platform": "windows", "arch": "arm64", "test": "windows-11-arm"}
+                 {"target": "darwin-x64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "x86_64", "rosetta": true},
+                 {"target": "linux-x64", "os": "vmon-large", "script": "linux", "platform": "linux", "arch": "x86_64"},
+                 {"target": "linux-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
+                 {"target": "linux-musl-x64", "os": "vmon-large", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
+                 {"target": "linux-musl-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux-musl", "arch": "arm64"},
+                 {"target": "windows-x64", "os": "vmon-large", "script": "win", "platform": "windows", "arch": "x86_64", "test": "windows-2025"},
+                 {"target": "windows-arm64", "os": "vmon-large", "script": "win", "platform": "windows", "arch": "arm64", "test": "windows-11-arm"}
               ]'
               if [[ $GITHUB_REF == refs/tags/v* || -z $TARGETS ]]; then
                  build=$(jq -c . <<<"$all")
@@ -112,22 +113,14 @@ jobs:
                  docs
               sparse-checkout-cone-mode: true
 
-         # The runners' own resolver (Azure's) has been failing to resolve ubuntu.com, apt's
-         # mirrors; public resolvers answer. Containers started with --network host follow.
-         - name: Resolve through public DNS
-           if: startsWith(matrix.os, 'ubuntu-')
+         # An x86_64 Homebrew in /usr/local beside the runner's own, for a build under Rosetta.
+         - name: Prepare Rosetta and an x86_64 Homebrew
+           if: matrix.rosetta
            run: |
-              sudo mkdir -p /etc/systemd/resolved.conf.d
-              printf '[Resolve]\nDNS=1.1.1.1 8.8.8.8\nDomains=~.\n' | sudo tee /etc/systemd/resolved.conf.d/public.conf >/dev/null
-              sudo systemctl restart systemd-resolved
-              getent hosts archive.ubuntu.com
-
-         # The hosted image's SDKs and toolchains leave too little room for a WebKit build.
-         - name: Free disk space
-           if: startsWith(matrix.os, 'ubuntu-')
-           run: |
-              sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
-              df -h "$GITHUB_WORKSPACE"
+              /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+              [ -x /usr/local/bin/brew ] ||
+                 NONINTERACTIVE=1 /usr/bin/arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+              echo "PATH=/usr/local/bin:/usr/local/sbin:$PATH" >>"$GITHUB_ENV"
 
          - uses: actions/cache/restore@v6
            with:
@@ -137,7 +130,7 @@ jobs:
 
          - name: Build
            timeout-minutes: 330
-           run: WebKitBuild/${{ matrix.script }}/build-engine.sh "${{ matrix.target }}" "$PWD/dist/abkit"
+           run: ${{ matrix.rosetta && '/usr/bin/arch -x86_64' || '' }} WebKitBuild/${{ matrix.script }}/build-engine.sh "${{ matrix.target }}" "$PWD/dist/abkit"
 
          - uses: actions/cache/save@v6
            if: always() && hashFiles('.ccache/**') != ''
@@ -198,7 +191,7 @@ jobs:
    publish:
       needs: [version, build, smoke-elsewhere]
       if: needs.version.outputs.publish == 'true'
-      runs-on: ubuntu-24.04
+      runs-on: vmon-small
       permissions:
          contents: read
          id-token: write

@@ -1,0 +1,7 @@
+# Runner labels outside GitHub's own: vmon runners (one microVM per job on our
+# cluster) and Blacksmith (blacksmith.sh) for the arm64 and macOS jobs.
+self-hosted-runner:
+   labels:
+      - vmon-small
+      - vmon-large
+      - blacksmith-*

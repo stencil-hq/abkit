@@ -37,8 +37,9 @@ bundled libwebrtc), MSE, WebCodecs, Encrypted Media (ClearKey), WebGL and WebGPU
 lock, PDF.js, speech, device orientation and gesture events, `<model>`; `configure-wpe-darwin.sh` says why each is
 on or off. It bundles Homebrew's libraries, so it runs on the macOS version it was built on and later. It draws
 with Metal (through ANGLE), so it needs a Metal device: every Mac that runs a current macOS has one, but a virtual
-machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI therefore tests
-darwin-x64 under Rosetta on an Apple-silicon Mac.
+machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI therefore builds
+and tests darwin-x64 under Rosetta on an Apple-silicon Mac, against an x86_64 Homebrew in `/usr/local`
+(`arch -x86_64 WebKitBuild/darwin/build-engine.sh darwin-x64 OUT_DIR`).
 
 ## Linux
 
