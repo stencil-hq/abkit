@@ -9,7 +9,7 @@ name: Release
 # (docs/installing.md).
 #
 # Runners, as Tern's (apps/build/README.md in the monorepo): x86_64 Linux hosts
-# are vmon microVMs on our cluster (`vmon-small`, `vmon-large`: 8 vCPU), which
+# are vmon microVMs on our cluster (`vmon-small`, `vmon-xlarge`: 16 vCPU), which
 # build linux-x64 and linux-musl-x64 in containers and cross-compile both
 # Windows targets; vmon has no arm64 or macOS hosts, so the arm64 Linux
 # targets and darwin-arm64 build on Blacksmith, darwin-x64 on GitHub's Intel
@@ -74,12 +74,12 @@ jobs:
               all='[
                  {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
                  {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64", "test": "blacksmith-12vcpu-macos-26"},
-                 {"target": "linux-x64", "os": "vmon-large", "script": "linux", "platform": "linux", "arch": "x86_64"},
+                 {"target": "linux-x64", "os": "vmon-xlarge", "script": "linux", "platform": "linux", "arch": "x86_64"},
                  {"target": "linux-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
-                 {"target": "linux-musl-x64", "os": "vmon-large", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
+                 {"target": "linux-musl-x64", "os": "vmon-xlarge", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
                  {"target": "linux-musl-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux-musl", "arch": "arm64"},
-                 {"target": "windows-x64", "os": "vmon-large", "script": "win", "platform": "windows", "arch": "x86_64", "test": "windows-2025"},
-                 {"target": "windows-arm64", "os": "vmon-large", "script": "win", "platform": "windows", "arch": "arm64", "test": "windows-11-arm"}
+                 {"target": "windows-x64", "os": "vmon-xlarge", "script": "win", "platform": "windows", "arch": "x86_64", "test": "windows-2025"},
+                 {"target": "windows-arm64", "os": "vmon-xlarge", "script": "win", "platform": "windows", "arch": "arm64", "test": "windows-11-arm"}
               ]'
               if [[ $GITHUB_REF == refs/tags/v* || -z $TARGETS ]]; then
                  build=$(jq -c . <<<"$all")
