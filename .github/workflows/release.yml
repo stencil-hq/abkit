@@ -12,7 +12,8 @@ name: Release
 # are vmon microVMs on our cluster (`vmon-small`, `vmon-large`: 8 vCPU), which
 # build linux-x64 and linux-musl-x64 in containers and cross-compile both
 # Windows targets; vmon has no arm64 or macOS hosts, so the arm64 Linux
-# targets and both Macs build on Blacksmith. Compiles go through ccache, saved
+# targets and darwin-arm64 build on Blacksmith, darwin-x64 on GitHub's Intel
+# Macs. Compiles go through ccache, saved
 # after every build step that ran, also one the time limit stopped: a run that
 # timed out is re-run (`gh run rerun --failed`) and resumes from its cache.
 on:
@@ -60,17 +61,19 @@ jobs:
               fi
               echo "version=$version" >>"$GITHUB_OUTPUT"
          # The targets this run builds: all of them for a release; a run by
-         # hand may name some. darwin-x64 (`rosetta`) builds and runs under
-         # Rosetta on an Apple-silicon Mac, against an x86_64 Homebrew. A
-         # target with `test` is cross-compiled and tested on that runner by
-         # the smoke-elsewhere job.
+         # hand may name some. A target with `test` is tested on that runner
+         # by the smoke-elsewhere job: the Windows targets are cross-compiled,
+         # and darwin-x64 builds on GitHub's Intel Macs (the only x86_64
+         # Homebrew left: its installer refuses Intel Macs now), virtual
+         # machines without the Metal device the engine draws with, so it runs
+         # under Rosetta on an Apple-silicon Mac.
          - id: targets
            env:
               TARGETS: ${{ inputs.targets }}
            run: |
               all='[
                  {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
-                 {"target": "darwin-x64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "x86_64", "rosetta": true},
+                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64", "test": "blacksmith-12vcpu-macos-26"},
                  {"target": "linux-x64", "os": "vmon-large", "script": "linux", "platform": "linux", "arch": "x86_64"},
                  {"target": "linux-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
                  {"target": "linux-musl-x64", "os": "vmon-large", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
@@ -113,15 +116,6 @@ jobs:
                  docs
               sparse-checkout-cone-mode: true
 
-         # An x86_64 Homebrew in /usr/local beside the runner's own, for a build under Rosetta.
-         - name: Prepare Rosetta and an x86_64 Homebrew
-           if: matrix.rosetta
-           run: |
-              /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
-              [ -x /usr/local/bin/brew ] ||
-                 NONINTERACTIVE=1 /usr/bin/arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-              echo "PATH=/usr/local/bin:/usr/local/sbin:$PATH" >>"$GITHUB_ENV"
-
          - uses: actions/cache/restore@v6
            with:
               path: .ccache
@@ -130,7 +124,7 @@ jobs:
 
          - name: Build
            timeout-minutes: 330
-           run: ${{ matrix.rosetta && '/usr/bin/arch -x86_64' || '' }} WebKitBuild/${{ matrix.script }}/build-engine.sh "${{ matrix.target }}" "$PWD/dist/abkit"
+           run: WebKitBuild/${{ matrix.script }}/build-engine.sh "${{ matrix.target }}" "$PWD/dist/abkit"
 
          - uses: actions/cache/save@v6
            if: always() && hashFiles('.ccache/**') != ''
