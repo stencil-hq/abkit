@@ -4,8 +4,9 @@ name: Release
 # on its own system (WebKitBuild/smoke-engine.py) and, for a release tag
 # `v<version>`, publishes the eight archives as one build of product `abkit` on
 # build.stencil.so (WebKitBuild/upload-build.sh). Run by hand it builds and
-# tests without publishing. Each archive holds the packaged engine directory as
-# `abkit/` (docs/installing.md).
+# tests without publishing, every target or those its `targets` input names.
+# Each archive holds the packaged engine directory as `abkit/`
+# (docs/installing.md).
 #
 # A WebKit build takes hours on these runners. Compiles go through ccache,
 # saved after every build step that ran, also one the time limit stopped: a
@@ -15,6 +16,11 @@ on:
    push:
       tags: ["v*"]
    workflow_dispatch:
+      inputs:
+         targets:
+            description: "Targets to build, comma-separated (empty: all)"
+            type: string
+            default: ""
 
 permissions:
    contents: read
@@ -33,6 +39,8 @@ jobs:
       outputs:
          version: ${{ steps.version.outputs.version }}
          publish: ${{ steps.version.outputs.publish }}
+         build: ${{ steps.targets.outputs.build }}
+         windows: ${{ steps.targets.outputs.windows }}
       steps:
          # A release tag names the version and publishes; any other ref builds
          # a test version named after its commit.
@@ -48,23 +56,40 @@ jobs:
                  echo "publish=false" >>"$GITHUB_OUTPUT"
               fi
               echo "version=$version" >>"$GITHUB_OUTPUT"
+         # The targets this run builds: all of them for a release; a run by
+         # hand may name some. GitHub's macOS arm64 runners are rarely
+         # available to this repository, so darwin-arm64 builds on Blacksmith.
+         # Windows targets are cross-compiled, and tested by the smoke-windows
+         # job on Windows.
+         - id: targets
+           env:
+              TARGETS: ${{ inputs.targets }}
+           run: |
+              all='[
+                 {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
+                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64"},
+                 {"target": "linux-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux", "arch": "x86_64"},
+                 {"target": "linux-arm64", "os": "ubuntu-24.04-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
+                 {"target": "linux-musl-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
+                 {"target": "linux-musl-arm64", "os": "ubuntu-24.04-arm", "script": "linux", "platform": "linux-musl", "arch": "arm64"},
+                 {"target": "windows-x64", "os": "ubuntu-24.04", "script": "win", "platform": "windows", "arch": "x86_64", "test": "windows-2025"},
+                 {"target": "windows-arm64", "os": "ubuntu-24.04", "script": "win", "platform": "windows", "arch": "arm64", "test": "windows-11-arm"}
+              ]'
+              if [[ $GITHUB_REF == refs/tags/v* || -z $TARGETS ]]; then
+                 build=$(jq -c . <<<"$all")
+              else
+                 build=$(jq -c --arg wanted ",${TARGETS// /}," '[.[] | select($wanted | contains("," + .target + ","))]' <<<"$all")
+                 [[ $build != '[]' ]] || { echo "::error::no target named in '$TARGETS'"; exit 1; }
+              fi
+              echo "build={\"include\":$build}" >>"$GITHUB_OUTPUT"
+              echo "windows={\"include\":$(jq -c '[.[] | select(.test)]' <<<"$build")}" >>"$GITHUB_OUTPUT"
 
    build:
       name: Build ${{ matrix.target }}
       needs: version
       strategy:
          fail-fast: false
-         matrix:
-            include:
-               - { target: darwin-arm64, os: macos-26, script: darwin, platform: macos, arch: arm64 }
-               - { target: darwin-x64, os: macos-15-intel, script: darwin, platform: macos, arch: x86_64 }
-               - { target: linux-x64, os: ubuntu-24.04, script: linux, platform: linux, arch: x86_64 }
-               - { target: linux-arm64, os: ubuntu-24.04-arm, script: linux, platform: linux, arch: arm64 }
-               - { target: linux-musl-x64, os: ubuntu-24.04, script: linux, platform: linux-musl, arch: x86_64 }
-               - { target: linux-musl-arm64, os: ubuntu-24.04-arm, script: linux, platform: linux-musl, arch: arm64 }
-               # Cross-compiled; tested by the smoke-windows job on Windows.
-               - { target: windows-x64, os: ubuntu-24.04, script: win, platform: windows, arch: x86_64 }
-               - { target: windows-arm64, os: ubuntu-24.04, script: win, platform: windows, arch: arm64 }
+         matrix: ${{ fromJSON(needs.version.outputs.build) }}
       runs-on: ${{ matrix.os }}
       timeout-minutes: 360
       env:
@@ -138,16 +163,16 @@ jobs:
               path: dist/abkit-*
               if-no-files-found: error
 
+   # Each Windows engine is tested on Windows once the builds are done, also
+   # when another target's build failed.
    smoke-windows:
       name: Smoke test ${{ matrix.target }}
       needs: [version, build]
+      if: ${{ !cancelled() && needs.version.outputs.windows != '{"include":[]}' }}
       strategy:
          fail-fast: false
-         matrix:
-            include:
-               - { target: windows-x64, os: windows-2025 }
-               - { target: windows-arm64, os: windows-11-arm }
-      runs-on: ${{ matrix.os }}
+         matrix: ${{ fromJSON(needs.version.outputs.windows) }}
+      runs-on: ${{ matrix.test }}
       steps:
          - uses: actions/checkout@v7
            with:
