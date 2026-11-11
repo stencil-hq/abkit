@@ -1,0 +1,850 @@
+diff --git a/libsoup/content-decoder/soup-content-decoder.c b/libsoup/content-decoder/soup-content-decoder.c
+--- a/libsoup/content-decoder/soup-content-decoder.c
++++ b/libsoup/content-decoder/soup-content-decoder.c
+@@ -462,6 +462,9 @@
+ 		soup_message_headers_append_common (request_headers,
+ 						    SOUP_HEADER_ACCEPT_ENCODING, accept_encoding->str,
+ 						    SOUP_HEADER_VALUE_TRUSTED);
++#ifdef __APPLE__
++		soup_message_headers_set_automatic (request_headers, SOUP_HEADER_ACCEPT_ENCODING);
++#endif
+ 		g_string_free (accept_encoding, TRUE);
+ 	}
+ 
+diff --git a/libsoup/cookies/soup-cookie.c b/libsoup/cookies/soup-cookie.c
+--- a/libsoup/cookies/soup-cookie.c
++++ b/libsoup/cookies/soup-cookie.c
+@@ -179,7 +179,12 @@
+ 	SoupCookie *cookie;
+ 
+ 	cookie = g_slice_new0 (SoupCookie);
++#ifdef __APPLE__
++	/* Safari sends a cookie that names no SameSite policy with cross-site requests too. */
++	soup_cookie_set_same_site_policy (cookie, SOUP_SAME_SITE_POLICY_NONE);
++#else
+ 	soup_cookie_set_same_site_policy (cookie, SOUP_SAME_SITE_POLICY_LAX);
++#endif
+ 
+ 	/* Parse the NAME */
+ 	start = skip_lws (header);
+@@ -274,6 +279,10 @@
+ 					soup_cookie_set_same_site_policy (cookie, SOUP_SAME_SITE_POLICY_NONE);
+ 				else if (g_ascii_strcasecmp (policy, "Strict") == 0)
+ 					soup_cookie_set_same_site_policy (cookie, SOUP_SAME_SITE_POLICY_STRICT);
++#ifdef __APPLE__
++				else
++					soup_cookie_set_same_site_policy (cookie, SOUP_SAME_SITE_POLICY_LAX);
++#endif
+ 				/* There is an explicit "Lax" value which is the default */
+ 				g_free (policy);
+ 			}
+diff --git a/libsoup/http1/soup-client-message-io-http1.c b/libsoup/http1/soup-client-message-io-http1.c
+--- a/libsoup/http1/soup-client-message-io-http1.c
++++ b/libsoup/http1/soup-client-message-io-http1.c
+@@ -16,6 +16,9 @@
+ #endif
+ 
+ #include "soup-client-message-io-http1.h"
++#ifdef __APPLE__
++#include "soup-safari-request-headers.h"
++#endif
+ #include "soup.h"
+ #include "soup-body-input-stream.h"
+ #include "soup-body-output-stream.h"
+@@ -240,7 +243,17 @@
+  *      W:DONE     / R:DONE               R:DONE     / W:DONE
+  */
+ 
++#ifdef __APPLE__
+ static void
++write_header (const char *name,
++              const char *value,
++              gpointer    header)
++{
++        g_string_append_printf (header, "%s: %s\r\n", name, value);
++}
++#endif
++
++static void
+ write_headers (SoupMessage  *msg,
+                GString      *header,
+                SoupEncoding *encoding)
+@@ -286,6 +299,14 @@
+         g_free (uri_string);
+ 
+         *encoding = soup_message_headers_get_encoding (soup_message_get_request_headers (msg));
++
++#ifdef __APPLE__
++        if (soup_message_get_method (msg) != SOUP_METHOD_CONNECT) {
++                soup_safari_request_headers_foreach (msg, write_header, header);
++                g_string_append (header, "\r\n");
++                return;
++        }
++#endif
+ 
+         soup_message_headers_iter_init (&iter, soup_message_get_request_headers (msg));
+         while (soup_message_headers_iter_next (&iter, &name, &value))
+diff --git a/libsoup/http2/soup-client-message-io-http2.c b/libsoup/http2/soup-client-message-io-http2.c
+--- a/libsoup/http2/soup-client-message-io-http2.c
++++ b/libsoup/http2/soup-client-message-io-http2.c
+@@ -29,6 +29,9 @@
+ #include <glib/gi18n-lib.h>
+ 
+ #include "soup-client-message-io-http2.h"
++#ifdef __APPLE__
++#include "soup-safari-request-headers.h"
++#endif
+ 
+ #include "soup-body-input-stream.h"
+ #include "soup-message-metrics-private.h"
+@@ -1607,7 +1610,21 @@
+         return !g_hash_table_contains (invalid_request_headers, name);
+ }
+ 
++#ifdef __APPLE__
+ static void
++add_safari_header (const char *name,
++                   const char *value,
++                   gpointer    headers)
++{
++        if (!request_header_is_valid (name))
++                return;
++
++        g_ptr_array_add (headers, g_strdup (name));
++        g_ptr_array_add (headers, g_strdup (value));
++}
++#endif
++
++static void
+ send_message_request (SoupMessage          *msg,
+                       SoupClientMessageIOHTTP2   *io,
+                       SoupHTTP2MessageData *data)
+@@ -1639,6 +1656,15 @@
+         }
+ 
+         SoupMessageHeaders *request_headers = soup_message_get_request_headers (msg);
++#ifdef __APPLE__
++        /* nghttp2 copies what it is given when the request is submitted; until then the strings live here. */
++        GPtrArray *safari_headers = g_ptr_array_new_with_free_func (g_free);
++        soup_safari_request_headers_foreach (msg, add_safari_header, safari_headers);
++        for (guint i = 0; i < safari_headers->len; i += 2) {
++                const nghttp2_nv nv = MAKE_NV2 (safari_headers->pdata[i], safari_headers->pdata[i + 1]);
++                g_array_append_val (headers, nv);
++        }
++#else
+         SoupMessageHeadersIter iter;
+         const char *name, *value;
+         soup_message_headers_iter_init (&iter, request_headers);
+@@ -1649,6 +1675,7 @@
+                 const nghttp2_nv nv = MAKE_NV2 (name, value);
+                 g_array_append_val (headers, nv);
+         }
++#endif
+ 
+         GInputStream *body_stream = soup_message_get_request_body_stream (msg);
+         SoupSessionFeature *logger = soup_session_get_feature_for_message (data->item->session, SOUP_TYPE_LOGGER, data->msg);
+@@ -1684,6 +1711,9 @@
+                 io_try_write (io, !data->item->async);
+         }
+         g_array_free (headers, TRUE);
++#ifdef __APPLE__
++        g_ptr_array_unref (safari_headers);
++#endif
+         g_free (authority);
+         g_free (host);
+         g_free (path_and_query);
+@@ -2222,11 +2252,21 @@
+         soup_client_message_io_http2_set_owner (io, soup_connection_get_owner (conn));
+ 
+         int stream_window_size = soup_connection_get_http2_initial_stream_window_size (conn);
++#ifdef __APPLE__
++        /* The settings Safari sends, in its order. */
+         const nghttp2_settings_entry settings[] = {
++                { NGHTTP2_SETTINGS_ENABLE_PUSH, 0 },
++                { NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100 },
+                 { NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, stream_window_size },
++                { NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES, 1 },
++        };
++#else
++        const nghttp2_settings_entry settings[] = {
++                { NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, stream_window_size },
+                 { NGHTTP2_SETTINGS_HEADER_TABLE_SIZE, MAX_HEADER_TABLE_SIZE },
+                 { NGHTTP2_SETTINGS_ENABLE_PUSH, 0 },
+         };
++#endif
+         NGCHECK (nghttp2_submit_settings (io->session, NGHTTP2_FLAG_NONE, settings, G_N_ELEMENTS (settings)));
+         NGCHECK (nghttp2_session_set_local_window_size (io->session, NGHTTP2_FLAG_NONE, 0, soup_connection_get_http2_initial_window_size (conn)));
+         io_try_write (io, !io->async);
+diff --git a/libsoup/meson.build b/libsoup/meson.build
+--- a/libsoup/meson.build
++++ b/libsoup/meson.build
+@@ -160,6 +160,11 @@
+   soup_sources += 'content-decoder/soup-zstd-decompressor.c'
+ endif
+ 
++if host_machine.system() == 'darwin'
++  soup_sources += 'soup-safari-request-headers.c'
++  platform_deps += dependency('appleframeworks', modules : ['CoreFoundation', 'CFNetwork'])
++endif
++
+ 
+ install_headers(soup_installed_headers, subdir : includedir)
+ 
+diff --git a/libsoup/soup-connection-manager.c b/libsoup/soup-connection-manager.c
+--- a/libsoup/soup-connection-manager.c
++++ b/libsoup/soup-connection-manager.c
+@@ -403,11 +403,18 @@
+         if (env_force_http1 == -1)
+                 env_force_http1 = g_getenv ("SOUP_FORCE_HTTP1") != NULL ? 1 : 0;
+ 
++#ifdef __APPLE__
++        /* Safari sends a POST on a connection it already has, like any other request. */
+         need_new_connection =
+                 (soup_message_query_flags (msg, SOUP_MESSAGE_NEW_CONNECTION)) ||
++                (soup_message_is_misdirected_retry (msg));
++#else
++        need_new_connection =
++                (soup_message_query_flags (msg, SOUP_MESSAGE_NEW_CONNECTION)) ||
+                 (soup_message_is_misdirected_retry (msg)) ||
+                 (!soup_message_query_flags (msg, SOUP_MESSAGE_IDEMPOTENT) &&
+                  !SOUP_METHOD_IS_IDEMPOTENT (soup_message_get_method (msg)));
++#endif
+ 
+         host = soup_connection_manager_get_or_create_host_for_item (manager, item);
+ 
+diff --git a/libsoup/soup-connection.c b/libsoup/soup-connection.c
+--- a/libsoup/soup-connection.c
++++ b/libsoup/soup-connection.c
+@@ -94,8 +94,14 @@
+  */
+ #define SOUP_CONNECTION_UNUSED_TIMEOUT 3
+ 
++#ifdef __APPLE__
++/* Safari's windows: its WINDOW_UPDATE raises the connection's to 10MB. */
++#define HTTP2_INITIAL_WINDOW_SIZE (10 * 1024 * 1024) /* 10MB */
++#define HTTP2_INITIAL_STREAM_WINDOW_SIZE (2 * 1024 * 1024) /* 2MB */
++#else
+ #define HTTP2_INITIAL_WINDOW_SIZE (15 * 1024 * 1024) /* 15MB */
+ #define HTTP2_INITIAL_STREAM_WINDOW_SIZE (6 * 1024 * 1024) /* 6MB */
++#endif
+ 
+ static void
+ soup_connection_init (SoupConnection *conn)
+@@ -627,7 +633,10 @@
+                 if (is_not_using_http_proxy (conn))
+                         g_ptr_array_add (advertised_protocols, "h2");
+                 g_ptr_array_add (advertised_protocols, "http/1.1");
++#ifndef __APPLE__
++                /* Safari offers h2 and http/1.1 only. */
+                 g_ptr_array_add (advertised_protocols, "http/1.0");
++#endif
+                 break;
+         }
+         g_ptr_array_add (advertised_protocols, NULL);
+diff --git a/libsoup/soup-message-headers-private.h b/libsoup/soup-message-headers-private.h
+--- a/libsoup/soup-message-headers-private.h
++++ b/libsoup/soup-message-headers-private.h
+@@ -46,4 +46,11 @@
+                                                         (SoupMessageHeaders *hdrs,
+                                                          goffset             total_length);
+ 
++#ifdef __APPLE__
++void        soup_message_headers_set_automatic         (SoupMessageHeaders      *hdrs,
++                                                        SoupHeaderName           name);
++gboolean    soup_message_headers_is_automatic          (SoupMessageHeaders      *hdrs,
++                                                        SoupHeaderName           name);
++#endif
++
+ G_END_DECLS
+diff --git a/libsoup/soup-message-headers.c b/libsoup/soup-message-headers.c
+--- a/libsoup/soup-message-headers.c
++++ b/libsoup/soup-message-headers.c
+@@ -39,11 +39,18 @@
+ typedef struct {
+         SoupHeaderName name;
+         char *value;
++#ifdef __APPLE__
++        guint sequence;
++        gboolean automatic;
++#endif
+ } SoupCommonHeader;
+ 
+ typedef struct {
+ 	char *name;
+ 	char *value;
++#ifdef __APPLE__
++	guint sequence;
++#endif
+ } SoupUncommonHeader;
+ 
+ struct _SoupMessageHeaders {
+@@ -52,6 +59,12 @@
+ 	GArray *uncommon_headers;
+ 	GHashTable *uncommon_concat;
+ 	SoupMessageHeadersType type;
++#ifdef __APPLE__
++	/* Safari's header order follows from the order in which headers were
++	 * set, so each header remembers its place and iteration keeps it.
++	 */
++	guint next_sequence;
++#endif
+ 
+ 	SoupEncoding encoding;
+ 	goffset content_length;
+@@ -323,6 +336,10 @@
+ 
+         header.name = name;
+         header.value = g_strdup (value);
++#ifdef __APPLE__
++        header.sequence = hdrs->next_sequence++;
++        header.automatic = FALSE;
++#endif
+         g_array_append_val (hdrs->common_headers, header);
+         if (hdrs->common_concat)
+                 g_hash_table_remove (hdrs->common_concat, GUINT_TO_POINTER (header.name));
+@@ -361,6 +378,9 @@
+ 
+ 	header.name = g_strdup (name);
+ 	header.value = g_strdup (value);
++#ifdef __APPLE__
++	header.sequence = hdrs->next_sequence++;
++#endif
+ 	g_array_append_val (hdrs->uncommon_headers, header);
+ 	if (hdrs->uncommon_concat)
+ 		g_hash_table_remove (hdrs->uncommon_concat, header.name);
+@@ -818,6 +838,42 @@
+ 	return value;
+ }
+ 
++#ifdef __APPLE__
++/* Marks the header @name as one the library added by itself, as opposed to one
++ * the application set. Safari writes the two kinds at different places.
++ */
++void
++soup_message_headers_set_automatic (SoupMessageHeaders *hdrs,
++                                    SoupHeaderName      name)
++{
++        if (!hdrs->common_headers)
++                return;
++
++        for (guint i = 0; i < hdrs->common_headers->len; i++) {
++                SoupCommonHeader *header = &g_array_index (hdrs->common_headers, SoupCommonHeader, i);
++
++                if (header->name == name)
++                        header->automatic = TRUE;
++        }
++}
++
++gboolean
++soup_message_headers_is_automatic (SoupMessageHeaders *hdrs,
++                                   SoupHeaderName      name)
++{
++        if (!hdrs->common_headers)
++                return FALSE;
++
++        for (guint i = 0; i < hdrs->common_headers->len; i++) {
++                SoupCommonHeader *header = &g_array_index (hdrs->common_headers, SoupCommonHeader, i);
++
++                if (header->name == name)
++                        return header->automatic;
++        }
++        return FALSE;
++}
++#endif
++
+ /**
+  * SoupMessageHeadersIter:
+  *
+@@ -878,6 +934,23 @@
+ 	SoupMessageHeadersIterReal *real = (SoupMessageHeadersIterReal *)iter;
+ 
+ 	g_return_val_if_fail (iter, FALSE);
++
++#ifdef __APPLE__
++        if (real->hdrs->common_headers &&
++            real->index_common < real->hdrs->common_headers->len &&
++            real->hdrs->uncommon_headers &&
++            real->index_uncommon < real->hdrs->uncommon_headers->len) {
++                SoupCommonHeader *common = &g_array_index (real->hdrs->common_headers, SoupCommonHeader, real->index_common);
++                SoupUncommonHeader *uncommon = &g_array_index (real->hdrs->uncommon_headers, SoupUncommonHeader, real->index_uncommon);
++
++                if (uncommon->sequence < common->sequence) {
++                        *name = uncommon->name;
++                        *value = uncommon->value;
++                        real->index_uncommon++;
++                        return TRUE;
++                }
++        }
++#endif
+ 
+         if (real->hdrs->common_headers &&
+             real->index_common < real->hdrs->common_headers->len) {
+diff --git a/libsoup/soup-message-queue-item.h b/libsoup/soup-message-queue-item.h
+--- a/libsoup/soup-message-queue-item.h
++++ b/libsoup/soup-message-queue-item.h
+@@ -41,6 +41,9 @@
+         guint async        : 1;
+         guint connect_only : 1;
+         guint resend_count : 5;
++#ifdef __APPLE__
++        guint connect_retries : 2;
++#endif
+         int io_priority;
+ 
+         SoupMessageQueueItemState state;
+diff --git a/libsoup/soup-message.h b/libsoup/soup-message.h
+--- a/libsoup/soup-message.h
++++ b/libsoup/soup-message.h
+@@ -13,6 +13,19 @@
+ 
+ G_BEGIN_DECLS
+ 
++#ifdef __APPLE__
++/* This libsoup writes a request's headers in the order and with the additions
++ * of Safari; see soup-safari-request-headers.c.
++ */
++#define SOUP_WRITES_SAFARI_REQUEST_HEADERS 1
++
++/* Object data an application sets (to any non-NULL value) on a message whose
++ * headers WebKit's network process would have taken out of CFNetwork's header
++ * table and put back, which changes their order.
++ */
++#define SOUP_MESSAGE_SAFARI_HEADER_TABLE_REFILLED "soup-safari-header-table-refilled"
++#endif
++
+ #define SOUP_TYPE_MESSAGE (soup_message_get_type ())
+ SOUP_AVAILABLE_IN_ALL
+ G_DECLARE_FINAL_TYPE (SoupMessage, soup_message, SOUP, MESSAGE, GObject)
+diff --git a/libsoup/soup-safari-request-headers.c b/libsoup/soup-safari-request-headers.c
+--- a/libsoup/soup-safari-request-headers.c
++++ b/libsoup/soup-safari-request-headers.c
+@@ -0,0 +1,328 @@
++/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*- */
++/*
++ * Copyright (C) 2026 Stencil
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/* The request headers of a message as Safari puts them on the wire. This is
++ * the one place that decides their order, for HTTP/1.1 and for HTTP/2.
++ *
++ * Safari's order is not a list of names. WebKit hands its headers to CFNetwork,
++ * which keeps them in a hash table and writes them in the table's order, so the
++ * order depends on which headers there are and on the order they were set in.
++ * CFNetwork then writes the headers it adds itself. What Safari sends is:
++ *
++ *   Host (HTTP/1.1)
++ *   the application's headers, with Content-Length when there is a body, in
++ *     the order of CFNetwork's table
++ *   Content-Length: 0 for a request without a body whose method usually has one
++ *   Accept when the application set none
++ *   Accept-Language, Priority, Accept-Encoding, Cookie, unless the application
++ *     set them, which puts them in the table
++ *   Sec-WebSocket-Key, Connection, Upgrade (a WebSocket handshake), or
++ *     Connection: keep-alive (HTTP/1.1)
++ *
++ * The table's order is CFNetwork's to know, so it is asked for it: the names go
++ * into a CFHTTPMessage in the order they were appended here, and the message
++ * says how it would write them. That also gives the spelling Safari uses for
++ * the names over HTTP/1.1.
++ *
++ * One more thing shapes the table. WebKit's web process fills it and, for a
++ * request with a body, sends it to the network process as it is. When the
++ * network process then changes the request (the access control checks of a
++ * cross-origin fetch do, and so does trimming the referrer of a third-party
++ * request), WebKit empties the table and fills it again in the order of the
++ * dictionary CFNetwork returns for all header fields, which moves headers whose
++ * slots collide. The application says so by setting
++ * SOUP_MESSAGE_SAFARI_HEADER_TABLE_REFILLED on the message.
++ */
++
++#include "config.h"
++
++#include "soup-safari-request-headers.h"
++
++#include <CFNetwork/CFNetwork.h>
++#include <string.h>
++
++#include "soup.h"
++#include "soup-message-headers-private.h"
++#include "soup-misc.h"
++
++typedef struct {
++        char *name;
++        char *value;
++} Header;
++
++static void
++header_clear (Header *header)
++{
++        g_free (header->name);
++        g_free (header->value);
++}
++
++static Header *
++find_header (GArray     *headers,
++             const char *name)
++{
++        for (guint i = 0; i < headers->len; i++) {
++                Header *header = &g_array_index (headers, Header, i);
++
++                if (!g_ascii_strcasecmp (header->name, name))
++                        return header;
++        }
++        return NULL;
++}
++
++/* Headers CFNetwork writes at a place of its own rather than from its table. */
++static gboolean
++has_fixed_place (SoupMessageHeaders *request_headers,
++                 const char         *name,
++                 const char         *value)
++{
++        static const char *const names[] = {
++                "Host", "Cookie", "Connection", "Upgrade", "Sec-WebSocket-Key"
++        };
++
++        for (guint i = 0; i < G_N_ELEMENTS (names); i++) {
++                if (!g_ascii_strcasecmp (name, names[i]))
++                        return TRUE;
++        }
++
++        /* The library's own Accept-Language and Accept-Encoding stand for the
++         * ones CFNetwork adds; the application's are in the table.
++         */
++        if (!g_ascii_strcasecmp (name, "Accept-Language"))
++                return soup_message_headers_is_automatic (request_headers, SOUP_HEADER_ACCEPT_LANGUAGE);
++        if (!g_ascii_strcasecmp (name, "Accept-Encoding"))
++                return soup_message_headers_is_automatic (request_headers, SOUP_HEADER_ACCEPT_ENCODING);
++
++        /* A length of zero is not in the table: CFNetwork writes it when it
++         * finds no body.
++         */
++        return !g_ascii_strcasecmp (name, "Content-Length") && !strcmp (value, "0");
++}
++
++static void
++set_header (CFHTTPMessageRef  message,
++            const char       *name,
++            gboolean          present)
++{
++        CFStringRef string = CFStringCreateWithCString (NULL, name, kCFStringEncodingASCII);
++
++        CFHTTPMessageSetHeaderFieldValue (message, string, present ? CFSTR ("-") : NULL);
++        CFRelease (string);
++}
++
++static void
++collect_name (const void *name,
++              const void *value,
++              void       *names)
++{
++        CFIndex size = CFStringGetMaximumSizeForEncoding (CFStringGetLength (name), kCFStringEncodingUTF8) + 1;
++        char *string = g_malloc (size);
++
++        if (CFStringGetCString (name, string, size, kCFStringEncodingUTF8))
++                g_ptr_array_add (names, string);
++        else
++                g_free (string);
++}
++
++/* The names of @headers in the order of CFNetwork's table, in its spelling. */
++static GPtrArray *
++table_order (GArray   *headers,
++             gboolean  refilled)
++{
++        GPtrArray *names = g_ptr_array_new_with_free_func (g_free);
++        CFURLRef url = CFURLCreateWithString (NULL, CFSTR ("http://localhost/"), NULL);
++        CFHTTPMessageRef message = CFHTTPMessageCreateRequest (NULL, CFSTR ("GET"), url, kCFHTTPVersion1_1);
++        CFDataRef serialized;
++
++        /* Content-Length joins the table last: WebKit sets it where the body is attached.
++         * Accept-Encoding is CFNetwork's own coding header, written after the application's
++         * headers, so an application-supplied one takes its place in the table last too.
++         */
++        for (guint i = 0; i < headers->len; i++) {
++                const char *name = g_array_index (headers, Header, i).name;
++
++                if (g_ascii_strcasecmp (name, "Accept-Encoding") && (!refilled || g_ascii_strcasecmp (name, "Content-Length")))
++                        set_header (message, name, TRUE);
++        }
++        if (find_header (headers, "Accept-Encoding"))
++                set_header (message, "Accept-Encoding", TRUE);
++
++        if (refilled) {
++                CFDictionaryRef fields = CFHTTPMessageCopyAllHeaderFields (message);
++                GPtrArray *order = g_ptr_array_new_with_free_func (g_free);
++
++                CFDictionaryApplyFunction (fields, collect_name, order);
++                for (guint i = 0; i < order->len; i++)
++                        set_header (message, order->pdata[i], FALSE);
++                for (guint i = 0; i < order->len; i++)
++                        set_header (message, order->pdata[i], TRUE);
++                if (find_header (headers, "Content-Length"))
++                        set_header (message, "Content-Length", TRUE);
++
++                g_ptr_array_unref (order);
++                CFRelease (fields);
++        }
++
++        serialized = CFHTTPMessageCopySerializedMessage (message);
++        if (serialized) {
++                char *text = g_strndup ((const char *)CFDataGetBytePtr (serialized), CFDataGetLength (serialized));
++                char **lines = g_strsplit (text, "\r\n", -1);
++
++                /* The first line is the request line. */
++                for (guint i = 1; lines[i] && *lines[i]; i++) {
++                        char *colon = strchr (lines[i], ':');
++
++                        if (colon)
++                                g_ptr_array_add (names, g_strndup (lines[i], colon - lines[i]));
++                }
++                g_strfreev (lines);
++                g_free (text);
++                CFRelease (serialized);
++        }
++
++        CFRelease (message);
++        CFRelease (url);
++        return names;
++}
++
++static const char *
++priority_value (SoupMessage *msg)
++{
++        /* The urgency CFNetwork derives from a load's priority; it marks every
++         * load incremental.
++         */
++        switch (soup_message_get_priority (msg)) {
++        case SOUP_MESSAGE_PRIORITY_VERY_HIGH:
++                return "u=0, i";
++        case SOUP_MESSAGE_PRIORITY_HIGH:
++                return "u=1, i";
++        case SOUP_MESSAGE_PRIORITY_NORMAL:
++                return "u=3, i";
++        case SOUP_MESSAGE_PRIORITY_LOW:
++                return "u=5, i";
++        case SOUP_MESSAGE_PRIORITY_VERY_LOW:
++                return "u=7, i";
++        }
++        return "u=3, i";
++}
++
++void
++soup_safari_request_headers_foreach (SoupMessage                 *msg,
++                                     SoupSafariRequestHeaderFunc  func,
++                                     gpointer                     user_data)
++{
++        SoupMessageHeaders *request_headers = soup_message_get_request_headers (msg);
++        gboolean http2 = soup_message_get_http_version (msg) == SOUP_HTTP_2_0;
++        const char *method = soup_message_get_method (msg);
++        GArray *table = g_array_new (FALSE, FALSE, sizeof (Header));
++        GArray *fixed = g_array_new (FALSE, FALSE, sizeof (Header));
++        SoupMessageHeadersIter iter;
++        const char *name, *value;
++        GPtrArray *names;
++        Header *header;
++        gboolean websocket;
++
++        g_array_set_clear_func (table, (GDestroyNotify)header_clear);
++        g_array_set_clear_func (fixed, (GDestroyNotify)header_clear);
++
++        soup_message_headers_iter_init (&iter, request_headers);
++        while (soup_message_headers_iter_next (&iter, &name, &value)) {
++                GArray *headers = has_fixed_place (request_headers, name, value) ? fixed : table;
++
++                header = find_header (headers, name);
++                if (header) {
++                        char *joined = g_strconcat (header->value, ", ", value, NULL);
++
++                        g_free (header->value);
++                        header->value = joined;
++                } else {
++                        Header new_header = { g_strdup (name), g_strdup (value) };
++
++                        g_array_append_val (headers, new_header);
++                }
++        }
++
++        header = find_header (fixed, "Host");
++        if (header && !http2)
++                func ("Host", header->value, user_data);
++
++        names = table_order (table, g_object_get_data (G_OBJECT (msg), SOUP_MESSAGE_SAFARI_HEADER_TABLE_REFILLED) != NULL);
++        for (guint i = 0; i < names->len; i++) {
++                header = find_header (table, names->pdata[i]);
++                if (header)
++                        func (names->pdata[i], header->value, user_data);
++        }
++        g_ptr_array_unref (names);
++
++        if (!find_header (table, "Content-Length") &&
++            method != SOUP_METHOD_GET && method != SOUP_METHOD_HEAD && method != SOUP_METHOD_CONNECT)
++                func ("Content-Length", "0", user_data);
++
++        if (!find_header (table, "Accept"))
++                func ("Accept", "*/*", user_data);
++
++        header = find_header (fixed, "Accept-Language");
++        if (header)
++                func ("Accept-Language", header->value, user_data);
++
++        if (!find_header (table, "Priority"))
++                func ("Priority", priority_value (msg), user_data);
++
++        header = find_header (fixed, "Accept-Encoding");
++        if (header)
++                func ("Accept-Encoding", header->value, user_data);
++
++        header = find_header (fixed, "Cookie");
++        if (header && http2) {
++                /* Over HTTP/2 Safari sends each cookie in a header of its own. */
++                char **cookies = g_strsplit (header->value, "; ", -1);
++
++                for (guint i = 0; cookies[i]; i++) {
++                        if (*cookies[i])
++                                func ("Cookie", cookies[i], user_data);
++                }
++                g_strfreev (cookies);
++        } else if (header)
++                func ("Cookie", header->value, user_data);
++
++        if (!http2) {
++                websocket = (header = find_header (fixed, "Upgrade")) != NULL;
++                if (websocket) {
++                        Header *key = find_header (fixed, "Sec-WebSocket-Key");
++
++                        if (key)
++                                func ("Sec-WebSocket-Key", key->value, user_data);
++                        func ("Connection", "Upgrade", user_data);
++                        func ("Upgrade", header->value, user_data);
++                } else {
++                        header = find_header (fixed, "Connection");
++                        func ("Connection", header && g_ascii_strcasecmp (header->value, "Keep-Alive") ? header->value : "keep-alive", user_data);
++                }
++        }
++
++        g_array_unref (table);
++        g_array_unref (fixed);
++}
+diff --git a/libsoup/soup-safari-request-headers.h b/libsoup/soup-safari-request-headers.h
+--- a/libsoup/soup-safari-request-headers.h
++++ b/libsoup/soup-safari-request-headers.h
+@@ -0,0 +1,41 @@
++/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*- */
++/*
++ * Copyright (C) 2026 Stencil
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#pragma once
++
++#include "soup-message.h"
++
++G_BEGIN_DECLS
++
++typedef void (*SoupSafariRequestHeaderFunc) (const char *name,
++                                             const char *value,
++                                             gpointer    user_data);
++
++void soup_safari_request_headers_foreach (SoupMessage                 *msg,
++                                          SoupSafariRequestHeaderFunc  func,
++                                          gpointer                     user_data);
++
++G_END_DECLS
+diff --git a/libsoup/soup-session.c b/libsoup/soup-session.c
+--- a/libsoup/soup-session.c
++++ b/libsoup/soup-session.c
+@@ -1456,8 +1456,12 @@
+ 	if (priv->user_agent)
+ 		soup_message_headers_replace_common (request_headers, SOUP_HEADER_USER_AGENT, priv->user_agent, SOUP_HEADER_VALUE_UNTRUSTED);
+ 
+-	if (priv->accept_language && !soup_message_headers_get_list_common (request_headers, SOUP_HEADER_ACCEPT_LANGUAGE))
++	if (priv->accept_language && !soup_message_headers_get_list_common (request_headers, SOUP_HEADER_ACCEPT_LANGUAGE)) {
+ 		soup_message_headers_append_common (request_headers, SOUP_HEADER_ACCEPT_LANGUAGE, priv->accept_language, SOUP_HEADER_VALUE_UNTRUSTED);
++#ifdef __APPLE__
++		soup_message_headers_set_automatic (request_headers, SOUP_HEADER_ACCEPT_LANGUAGE);
++#endif
++	}
+ 
+         conn = soup_message_get_connection (item->msg);
+         soup_message_set_http_version (item->msg, soup_connection_get_negotiated_protocol (conn));
+@@ -1694,6 +1698,22 @@
+ 		item->state = SOUP_MESSAGE_CONNECTED;
+ 		return;
+ 	}
++
++#ifdef __APPLE__
++	/* A hello as large as Safari's, with its post-quantum key share, makes
++	 * some servers drop the connection now and then. Safari connects again,
++	 * up to three more times, and so nobody notices.
++	 */
++	if (item->state == SOUP_MESSAGE_CONNECTING && item->connect_retries < 3 &&
++	    g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CONNECTION_CLOSED)) {
++		item->connect_retries++;
++		g_error_free (error);
++		soup_connection_disconnect (conn);
++		soup_message_set_connection (item->msg, NULL);
++		item->state = SOUP_MESSAGE_STARTING;
++		return;
++	}
++#endif
+ 
+         soup_message_set_metrics_timestamp (item->msg, SOUP_MESSAGE_METRICS_RESPONSE_END);
+ 
+diff --git a/libsoup/websocket/soup-websocket-extension-deflate.c b/libsoup/websocket/soup-websocket-extension-deflate.c
+--- a/libsoup/websocket/soup-websocket-extension-deflate.c
++++ b/libsoup/websocket/soup-websocket-extension-deflate.c
+@@ -238,7 +238,12 @@
+ static char *
+ soup_websocket_extension_deflate_get_request_params (SoupWebsocketExtension *extension)
+ {
++#ifdef __APPLE__
++        /* Safari offers the extension without parameters. */
++        return NULL;
++#else
+         return g_strdup ("; client_max_window_bits");
++#endif
+ }
+ 
+ static char *
