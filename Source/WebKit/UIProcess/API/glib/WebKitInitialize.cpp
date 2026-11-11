@@ -26,6 +26,7 @@
 #include "config.h"
 #include "WebKitInitialize.h"
 
+#include "ProcessExecutablePath.h"
 #include "RemoteInspectorHTTPServer.h"
 #include "WebKit2Initialize.h"
 #include <JavaScriptCore/RemoteInspector.h>
@@ -42,7 +43,37 @@
 #include <wtf/SystemTracing.h>
 #endif
 
+#if OS(WINDOWS)
+#include <windows.h>
+#include <wtf/FileSystem.h>
+#endif
+
 namespace WebKit {
+
+#if OS(WINDOWS)
+// GIO loads its modules (TLS) with LoadLibrary, which finds their dependencies
+// (OpenSSL, shipped beside this library) only if the executable is in this
+// library's folder too. Loading them first with that folder searched leaves
+// GIO finding them loaded, in any embedder.
+static void loadGIOModules()
+{
+    auto directory = directoryOfWebKitLibrary();
+    if (directory.isNull())
+        return;
+    auto cookie = ::AddDllDirectory(directory.wideCharacters().span().data());
+    if (!cookie)
+        return;
+    std::array<StringView, 3> components { "lib"_s, "gio"_s, "modules"_s };
+    auto modules = FileSystem::pathByAppendingComponents(directory, components);
+    for (auto& name : FileSystem::listDirectory(modules)) {
+        if (!name.endsWithIgnoringASCIICase(".dll"_s))
+            continue;
+        auto path = FileSystem::pathByAppendingComponent(modules, name);
+        ::LoadLibraryExW(path.wideCharacters().span().data(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    }
+    ::RemoveDllDirectory(cookie);
+}
+#endif
 
 #if ENABLE(REMOTE_INSPECTOR)
 static void initializeRemoteInspectorServer()
@@ -110,6 +141,10 @@ void webkitInitialize()
         SysprofAnnotator::createIfNeeded("WebKit (UI)"_s);
 #endif
         InitializeWebKit2();
+
+#if OS(WINDOWS)
+        loadGIOModules();
+#endif
 
         SkGraphics::Init();
 
