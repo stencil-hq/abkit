@@ -18,31 +18,119 @@ list(APPEND WTF_SOURCES
     glib/SocketConnection.cpp
     glib/TimeZoneGLib.cpp
     glib/URLGLib.cpp
-
-    linux/CurrentProcessMemoryStatus.cpp
-    linux/HighPriorityThreads.cpp
-
-    posix/CPUTimePOSIX.cpp
-    posix/FileHandlePOSIX.cpp
-    posix/FileSystemPOSIX.cpp
-    posix/MappedFileDataPOSIX.cpp
-    posix/OSAllocatorPOSIX.cpp
-    posix/ThreadingPOSIX.cpp
-
-    text/unix/TextBreakIteratorInternalICUUnix.cpp
-
-    unix/LanguageUnix.cpp
-    unix/LoggingUnix.cpp
-    unix/UniStdExtrasUnix.cpp
 )
+
+if (WIN32)
+    # The operating system side is the Win port's; the run loop and the
+    # main thread stay GLib's.
+    list(REMOVE_ITEM WTF_SOURCES
+        generic/MainThreadGeneric.cpp
+    )
+    list(APPEND WTF_SOURCES
+        text/win/StringWin.cpp
+        text/win/TextBreakIteratorInternalICUWin.cpp
+
+        win/CPUTimeWin.cpp
+        win/DbgHelperWin.cpp
+        win/FileHandleWin.cpp
+        win/FileSystemWin.cpp
+        win/LanguageWin.cpp
+        win/LoggingWin.cpp
+        win/MainThreadWin.cpp
+        win/MappedFileDataWin.cpp
+        win/MemoryFootprintWin.cpp
+        win/MemoryPressureHandlerWin.cpp
+        win/OSAllocatorWin.cpp
+        win/PathWalker.cpp
+        win/SignalsWin.cpp
+        win/ThreadingWin.cpp
+        win/WTFCRTDebug.cpp
+        win/Win32Handle.cpp
+    )
+    list(APPEND WTF_PUBLIC_HEADERS
+        text/win/WCharStringExtras.h
+
+        win/DbgHelperWin.h
+        win/GDIObject.h
+        win/PathWalker.h
+        win/SoftLinking.h
+        win/WTFCRTDebug.h
+        win/Win32Handle.h
+    )
+    # GLib's translation macros call libintl, a library of its own there.
+    find_package(Intl REQUIRED)
+    list(APPEND WTF_LIBRARIES
+        DbgHelp
+        Intl::Intl
+        shlwapi
+        synchronization
+        winmm
+        ws2_32
+    )
+else ()
+    list(APPEND WTF_SOURCES
+        posix/CPUTimePOSIX.cpp
+        posix/FileHandlePOSIX.cpp
+        posix/FileSystemPOSIX.cpp
+        posix/MappedFileDataPOSIX.cpp
+        posix/OSAllocatorPOSIX.cpp
+        posix/ThreadingPOSIX.cpp
+
+        text/unix/TextBreakIteratorInternalICUUnix.cpp
+
+        unix/LanguageUnix.cpp
+        unix/LoggingUnix.cpp
+        unix/UniStdExtrasUnix.cpp
+    )
+endif ()
 
 if (ANDROID)
     list(APPEND WTF_SOURCES
         generic/MemoryFootprintGeneric.cpp
         generic/MemoryPressureHandlerGeneric.cpp
+
+        linux/CurrentProcessMemoryStatus.cpp
+        linux/HighPriorityThreads.cpp
     )
-else ()
+elseif (APPLE)
+    # The signal handlers of an Apple OS are Mach exception handlers, whatever
+    # the port (as in PlatformJSCOnly.cmake).
+    file(COPY mac/MachExceptions.defs DESTINATION ${WTF_DERIVED_SOURCES_DIR})
+    add_custom_command(
+        OUTPUT
+            ${WTF_DERIVED_SOURCES_DIR}/MachExceptionsServer.h
+            ${WTF_DERIVED_SOURCES_DIR}/mach_exc.h
+            ${WTF_DERIVED_SOURCES_DIR}/mach_excServer.c
+            ${WTF_DERIVED_SOURCES_DIR}/mach_excUser.c
+        MAIN_DEPENDENCY mac/MachExceptions.defs
+        WORKING_DIRECTORY ${WTF_DERIVED_SOURCES_DIR}
+        COMMAND ${Mig_EXECUTABLE} -header mach_exc.h -user mach_excUser.c
+            -sheader MachExceptionsServer.h -server mach_excServer.c
+            -DMACH_EXC_SERVER_TASKIDTOKEN_STATE -isysroot ${CMAKE_OSX_SYSROOT}
+            MachExceptions.defs
+        VERBATIM)
     list(APPEND WTF_SOURCES
+        cocoa/MemoryFootprintCocoa.cpp
+
+        generic/MemoryPressureHandlerGeneric.cpp
+
+        ${WTF_DERIVED_SOURCES_DIR}/mach_excServer.c
+        ${WTF_DERIVED_SOURCES_DIR}/mach_excUser.c
+    )
+    set_source_files_properties(darwin/OSLogPrintStream.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+    # GLib's translation macros call libintl, which is no part of the C
+    # library there.
+    find_package(Intl REQUIRED)
+    list(APPEND WTF_LIBRARIES
+        Intl::Intl
+        objc
+        "-framework CoreFoundation"
+        "-framework Foundation"
+    )
+elseif (NOT WIN32)
+    list(APPEND WTF_SOURCES
+        linux/CurrentProcessMemoryStatus.cpp
+        linux/HighPriorityThreads.cpp
         linux/MemoryFootprintLinux.cpp
 
         unix/MemoryPressureHandlerUnix.cpp

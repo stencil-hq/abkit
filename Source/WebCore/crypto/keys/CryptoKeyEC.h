@@ -29,7 +29,7 @@
 #include <WebCore/CryptoKeyPair.h>
 
 #include <wtf/Platform.h>
-#if OS(DARWIN) && !PLATFORM(GTK)
+#if OS(DARWIN) && !USE(GLIB)
 #include <WebCore/CommonCryptoUtilities.h>
 
 #include <pal/crypto/CryptoTypes.h>

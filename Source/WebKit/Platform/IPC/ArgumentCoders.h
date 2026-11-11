@@ -50,7 +50,7 @@
 #include "ArgumentCodersGLib.h"
 #include "RendererBufferFormat.h"
 #endif
-#if USE(UNIX_DOMAIN_SOCKETS)
+#if USE(UNIX_DOMAIN_SOCKETS) || (USE(GLIB) && OS(WINDOWS))
 #include "ArgumentCodersUnix.h"
 #endif
 

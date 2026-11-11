@@ -26,7 +26,7 @@
 
 #pragma once
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
 #include <wtf/MachSendRight.h>
 #endif
 
@@ -43,7 +43,7 @@ namespace IPC {
 
 // IPC::Attachment is a type representing objects that cannot be transferred as data,
 // rather they are transferred via operating system cross-process communication primitives.
-#if OS(DARWIN)
+#if USE(MACH_IPC)
 using Attachment = MachSendRight;
 #elif OS(WINDOWS)
 struct Attachment { }; // Windows does not need attachments at the moment.

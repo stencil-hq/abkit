@@ -41,6 +41,14 @@ bool validRepresentation(const UTF8CString& representation)
     return !representation.isEmpty();
 }
 
+#if OS(WINDOWS)
+// GLib's file names are UTF-8 there.
+String stringFromFileSystemRepresentation(UTF8CStringView path)
+{
+    return String::fromUTF8(path.span());
+}
+#endif
+
 // Converts a string to something suitable to be displayed to the user.
 String filenameForDisplay(const String& string)
 {

@@ -29,6 +29,13 @@
 
 #include <glib.h>
 #include <wtf/FileSystem.h>
+#include <wtf/NeverDestroyed.h>
+
+#if OS(WINDOWS)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 namespace WebKit {
 
@@ -42,8 +49,38 @@ static String getExecutablePath()
 }
 #endif
 
+String directoryOfWebKitLibrary()
+{
+    static NeverDestroyed<String> directory = [] {
+#if OS(WINDOWS)
+        HMODULE module = nullptr;
+        if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&directoryOfWebKitLibrary), &module))
+            return String();
+        WCHAR path[MAX_PATH];
+        auto length = ::GetModuleFileNameW(module, path, std::size(path));
+        if (!length || length == std::size(path))
+            return String();
+        return FileSystem::parentPath(String(path));
+#else
+        Dl_info info;
+        if (!dladdr(reinterpret_cast<const void*>(&directoryOfWebKitLibrary), &info) || !info.dli_fname)
+            return String();
+        return FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(info.dli_fname));
+#endif
+    }();
+    return directory;
+}
+
 static String findWebKitProcess(const ASCIILiteral processName)
 {
+    // An embedder shipping the engine inside its own bundle keeps the helper
+    // processes beside the library; the install prefix means nothing there.
+    if (auto libraryDirectory = directoryOfWebKitLibrary(); !libraryDirectory.isNull()) {
+        String processPath = FileSystem::pathByAppendingComponent(libraryDirectory, processName);
+        if (FileSystem::fileExists(processPath))
+            return processPath;
+    }
+
 #if ENABLE(DEVELOPER_MODE)
     static const char* execDirectory = g_getenv("WEBKIT_EXEC_PATH");
     if (execDirectory) {

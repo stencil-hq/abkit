@@ -124,6 +124,23 @@ std::optional<PlatformFileID> FileHandle::id()
     return std::nullopt;
 }
 
+#if USE(FILE_LOCK)
+bool FileHandle::lock(OptionSet<FileLockMode> lockMode)
+{
+    if (!m_handle)
+        return false;
+
+    // The whole file, as flock() locks it; closing the handle unlocks.
+    DWORD flags = 0;
+    if (lockMode.contains(FileLockMode::Exclusive))
+        flags |= LOCKFILE_EXCLUSIVE_LOCK;
+    if (lockMode.contains(FileLockMode::Nonblocking))
+        flags |= LOCKFILE_FAIL_IMMEDIATELY;
+    OVERLAPPED overlapped { };
+    return ::LockFileEx(*m_handle, flags, 0, MAXDWORD, MAXDWORD, &overlapped);
+}
+#endif // USE(FILE_LOCK)
+
 void FileHandle::close()
 {
     if (auto handle = std::exchange(m_handle, std::nullopt))

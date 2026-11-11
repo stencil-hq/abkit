@@ -552,7 +552,7 @@ void NetworkProcessProxy::networkProcessDidTerminate(ProcessTerminationReason re
 
 void NetworkProcessProxy::didClose(IPC::Connection& connection)
 {
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     RELEASE_LOG_ERROR(Process, "%p - NetworkProcessProxy::didClose (Network Process %d crash)", this, connection.remoteProcessID());
 #else
     RELEASE_LOG_ERROR(Process, "%p - NetworkProcessProxy::didClose (Network Process crash)", this);

@@ -37,5 +37,7 @@
 [Nested] struct WebKit::UserMessage::DataMessage {
     UTF8CString name;
     GRefPtr<GVariant> parameters;
+#if USE(UNIX_DOMAIN_SOCKETS)
     GRefPtr<GUnixFDList> fileDescriptors;
+#endif
 };

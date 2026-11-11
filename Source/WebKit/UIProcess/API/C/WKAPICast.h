@@ -438,7 +438,7 @@ inline WKStorageBlockingPolicy toAPI(WebCore::StorageBlockingPolicy policy)
 #include "WKAPICastWPE.h"
 #endif
 
-#if defined(WIN32) || defined(_WIN32)
+#if (defined(WIN32) || defined(_WIN32)) && !defined(BUILDING_WPE__)
 #include "WKAPICastWin.h"
 #endif
 

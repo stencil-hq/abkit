@@ -269,10 +269,10 @@ void AccessibilityAtspi::addClient(const ASCIICString& dbusName)
     addResult.iterator->value = g_dbus_connection_signal_subscribe(m_connection.get(), nullptr, "org.freedesktop.DBus", "NameOwnerChanged", nullptr, dbusName.data(),
         G_DBUS_SIGNAL_FLAGS_MATCH_ARG0_NAMESPACE, [](GDBusConnection*, const gchar*, const gchar*, const gchar*, const gchar*, GVariant* parameters, gpointer userData) {
             auto& atspi = *static_cast<AccessibilityAtspi*>(userData);
-            const char* interface;
+            const char* iface;
             const char* oldName;
             const char* newName;
-            g_variant_get(parameters, "(&s&s&s)", &interface, &oldName, &newName);
+            g_variant_get(parameters, "(&s&s&s)", &iface, &oldName, &newName);
             if (*oldName != '\0' && *newName == '\0')
                 atspi.removeClient(ASCIICString { oldName });
         }, this, nullptr);
@@ -294,7 +294,7 @@ void AccessibilityAtspi::removeClient(const ASCIICString& dbusName)
     m_cacheClearTimer.startOneShot(10_s);
 }
 
-bool AccessibilityAtspi::shouldEmitSignal(const char* interface, const char* name, const char* detail)
+bool AccessibilityAtspi::shouldEmitSignal(const char* iface, const char* name, const char* detail)
 {
     // Always emit signals if we couldn't connect to the registry.
     if (!m_registry)
@@ -303,7 +303,7 @@ bool AccessibilityAtspi::shouldEmitSignal(const char* interface, const char* nam
     if (m_eventListeners.isEmpty())
         return false;
 
-    const char* needle[4] = { interface, name, detail, nullptr };
+    const char* needle[4] = { iface, name, detail, nullptr };
     for (const auto& listeners : m_eventListeners.values()) {
         auto result = listeners.findIf([&](const GUniquePtr<char*>& event) {
             return eventIsSubtype(const_cast<char**>(needle), event.get());
@@ -350,8 +350,8 @@ void AccessibilityAtspi::registerRoot(AccessibilityRootAtspi& rootObject, Vector
 
     ensureCache();
     String path = makeString("/org/a11y/webkit/accessible/"_s, makeStringByReplacingAll(createVersion4UUIDString(), '-', '_'));
-    auto registeredObjects = WTF::map<3>(interfaces, [&](auto& interface) -> unsigned {
-        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), interface.first, interface.second, &rootObject, nullptr, nullptr);
+    auto registeredObjects = WTF::map<3>(interfaces, [&](auto& iface) -> unsigned {
+        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), iface.first, iface.second, &rootObject, nullptr, nullptr);
     });
     m_rootObjects.add(&rootObject, WTF::move(registeredObjects));
     String reference = makeString(m_busName, ':', path);
@@ -391,8 +391,8 @@ String AccessibilityAtspi::registerObject(AccessibilityObjectAtspi& atspiObject,
 
     ensureCache();
     String path = makeString("/org/a11y/atspi/accessible/"_s, makeStringByReplacingAll(createVersion4UUIDString(), '-', '_'));
-    auto registeredObjects = WTF::map<7>(interfaces, [&](auto& interface) -> unsigned {
-        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), interface.first, interface.second, &atspiObject, nullptr, nullptr);
+    auto registeredObjects = WTF::map<7>(interfaces, [&](auto& iface) -> unsigned {
+        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), iface.first, iface.second, &atspiObject, nullptr, nullptr);
     });
     m_atspiObjects.add(&atspiObject, WTF::move(registeredObjects));
 
@@ -438,8 +438,8 @@ String AccessibilityAtspi::registerHyperlink(AccessibilityObjectAtspi& atspiObje
         return { };
 
     String path = makeString("/org/a11y/atspi/accessible/"_s, makeStringByReplacingAll(createVersion4UUIDString(), '-', '_'));
-    auto registeredObjects = WTF::map<1>(interfaces, [&](auto& interface) -> unsigned {
-        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), interface.first, interface.second, &atspiObject, nullptr, nullptr);
+    auto registeredObjects = WTF::map<1>(interfaces, [&](auto& iface) -> unsigned {
+        return g_dbus_connection_register_object(m_connection.get(), path.utf8().legacyCStringPointer(), iface.first, iface.second, &atspiObject, nullptr, nullptr);
     });
     m_atspiHyperlinks.add(&atspiObject, WTF::move(registeredObjects));
 

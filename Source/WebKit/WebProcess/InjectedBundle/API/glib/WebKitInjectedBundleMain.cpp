@@ -26,7 +26,13 @@
 
 using namespace WebKit;
 
-extern "C" __attribute__((visibility("default")))
+#if OS(WINDOWS)
+#define BUNDLE_EXPORT __declspec(dllexport)
+#else
+#define BUNDLE_EXPORT __attribute__((visibility("default")))
+#endif
+
+extern "C" BUNDLE_EXPORT
 void WKBundleInitialize(WKBundleRef bundle, WKTypeRef userData)
 {
     WebProcessExtensionManager::singleton().initialize(toImpl(bundle), toImpl(userData));

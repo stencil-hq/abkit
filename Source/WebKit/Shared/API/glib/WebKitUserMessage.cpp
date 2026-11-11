@@ -21,9 +21,13 @@
 #include "WebKitUserMessage.h"
 
 #include "WebKitUserMessagePrivate.h"
-#include <gio/gunixfdlist.h>
 #include <glib/gi18n-lib.h>
 #include <wtf/CompletionHandler.h>
+
+// Descriptor lists are GIO's Unix-only part.
+#if USE(UNIX_DOMAIN_SOCKETS)
+#include <gio/gunixfdlist.h>
+#endif
 #include <wtf/glib/WTFGType.h>
 
 using namespace WebKit;
@@ -108,9 +112,11 @@ static void webkitUserMessageSetProperty(GObject* object, guint propId, const GV
     case PROP_PARAMETERS:
         message->priv->message.parameters = g_value_get_variant(value);
         break;
+#if USE(UNIX_DOMAIN_SOCKETS)
     case PROP_FD_LIST:
         message->priv->message.fileDescriptors = G_UNIX_FD_LIST(g_value_get_object(value));
         break;
+#endif
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, paramSpec);
     }
@@ -166,6 +172,7 @@ static void webkit_user_message_class_init(WebKitUserMessageClass* klass)
      *
      * Since: 2.28
      */
+#if USE(UNIX_DOMAIN_SOCKETS)
     g_object_class_install_property(
         gObjectClass,
         PROP_FD_LIST,
@@ -174,6 +181,7 @@ static void webkit_user_message_class_init(WebKitUserMessageClass* klass)
             nullptr, nullptr,
             G_TYPE_UNIX_FD_LIST,
             static_cast<GParamFlags>(WEBKIT_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY)));
+#endif
 }
 
 WebKitUserMessage* webkitUserMessageCreate(UserMessage&& message)
@@ -227,9 +235,15 @@ WebKitUserMessage* webkit_user_message_new(const char* name, GVariant* parameter
 WebKitUserMessage* webkit_user_message_new_with_fd_list(const char* name, GVariant* parameters, GUnixFDList* fdList)
 {
     g_return_val_if_fail(name, nullptr);
+#if USE(UNIX_DOMAIN_SOCKETS)
     g_return_val_if_fail(!fdList || G_IS_UNIX_FD_LIST(fdList), nullptr);
 
     return WEBKIT_USER_MESSAGE(g_object_new(WEBKIT_TYPE_USER_MESSAGE, "name", name, "parameters", parameters, "fd-list", fdList, nullptr));
+#else
+    g_return_val_if_fail(!fdList, nullptr);
+
+    return WEBKIT_USER_MESSAGE(g_object_new(WEBKIT_TYPE_USER_MESSAGE, "name", name, "parameters", parameters, nullptr));
+#endif
 }
 
 /**

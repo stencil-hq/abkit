@@ -485,7 +485,7 @@ void NetworkConnectionToWebProcess::didClose(IPC::Connection& connection)
     // Protect ourself as we might be otherwise be deleted during this function.
     Ref<NetworkConnectionToWebProcess> protector(*this);
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     CONNECTION_RELEASE_LOG(Loading, "didClose: WebProcess (%d) closed its connection. Aborting related loaders.", connection.remoteProcessID());
 #else
     CONNECTION_RELEASE_LOG(Loading, "didClose: WebProcess closed its connection. Aborting related loaders.");

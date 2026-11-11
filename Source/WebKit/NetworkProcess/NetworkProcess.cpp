@@ -2063,7 +2063,7 @@ void NetworkProcess::deleteWebsiteData(PAL::SessionID sessionID, OptionSet<Websi
         if (connection->sessionID() != sessionID || activeWebProcesses.contains(identifier))
             continue;
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
         Ref ipcConnection = connection->connection();
         auto remoteProcessID = ipcConnection->remoteProcessID();
         // Connection is not available.

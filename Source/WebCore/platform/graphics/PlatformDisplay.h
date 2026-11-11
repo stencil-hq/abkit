@@ -82,7 +82,7 @@ public:
 #if OS(ANDROID)
         Android,
 #endif
-#if PLATFORM(GTK) || OS(ANDROID)
+#if PLATFORM(GTK) || OS(ANDROID) || !USE(LIBEPOXY)
         Default,
 #endif
     };

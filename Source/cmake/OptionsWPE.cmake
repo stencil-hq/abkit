@@ -11,13 +11,45 @@ list(APPEND WEBKIT_UNSAFE_BUFFER_WARNING_FLAGS -Wno-unsafe-buffer-usage-in-forma
 set(ENABLE_THREAD_SAFETY_WARNING ON)
 
 # Update Source/WTF/wtf/Platform.h to match required GLib versions.
-find_package(GLib 2.70.0 REQUIRED COMPONENTS GioUnix Thread Module)
+if (WIN32)
+    # GIO has no Unix-only types there.
+    find_package(GLib 2.70.0 REQUIRED COMPONENTS Gio Thread Module)
+else ()
+    find_package(GLib 2.70.0 REQUIRED COMPONENTS GioUnix Thread Module)
+endif ()
 find_package(HarfBuzz 2.7.4 REQUIRED COMPONENTS ICU)
 find_package(ICU 70.1 REQUIRED COMPONENTS data i18n uc)
 find_package(JPEG REQUIRED)
-find_package(Epoxy 1.5.4 REQUIRED)
+if (APPLE)
+    # An Apple OS has no EGL of its own: the tree's ANGLE (on Metal) is the
+    # EGL and GLES the compositor draws with. Its Metal backend and WTF's
+    # Darwin sources are Objective-C++.
+    WEBKIT_ENABLE_LANGUAGE(OBJC OBJCXX)
+    set(USE_ANGLE_EGL ON)
+    # The system's ICU (libicucore) exports its functions unversioned.
+    add_definitions(-DU_DISABLE_RENAMING=1)
+    # Type-zoned allocation is the Cocoa port's: the GLib ports' classes are
+    # annotated for the allocator they have on Linux.
+    add_definitions(-DBUSE_TZONE=0 -DUSE_TZONE_MALLOC=0)
+elseif (WIN32)
+    # Windows has no EGL of its own either: the tree's ANGLE (on Direct3D 11)
+    # is the EGL and GLES, as for the Win port, whose compiler (clang-cl) and
+    # platform definitions these are.
+    include(OptionsMSVC)
+    set(USE_ANGLE_EGL ON)
+    add_definitions(-D_WINDOWS -DNTDDI_VERSION=0x0A000006 -D_WIN32_WINNT=0x0A00)
+    add_definitions(-DNOMINMAX -DUNICODE -D_UNICODE -D_CRT_NONSTDC_NO_DEPRECATE)
+    add_definitions(-D_SILENCE_CXX23_DENORM_DEPRECATION_WARNING -D_WINSOCKAPI_=)
+    add_definitions(-DBUSE_TZONE=0 -DUSE_TZONE_MALLOC=0)
+else ()
+    find_package(Epoxy 1.5.4 REQUIRED)
+endif ()
 find_package(Soup3 3.0.0 REQUIRED)
-find_package(XkbCommon 0.4.0 REQUIRED)
+if (NOT WIN32)
+    # XKB keymaps are the Unix desktops': a Windows embedder brings its own
+    # WPEKeymap.
+    find_package(XkbCommon 0.4.0 REQUIRED)
+endif ()
 find_package(LibXml2 2.9.13 REQUIRED)
 find_package(PNG 1.5.0 REQUIRED)
 find_package(SQLite3 REQUIRED)
@@ -414,12 +446,25 @@ if (NOT EXISTS "${TOOLS_DIR}/glib/apply-build-revision-to-files.py")
 endif ()
 
 SET_AND_EXPOSE_TO_BUILD(USE_ATSPI TRUE)
-SET_AND_EXPOSE_TO_BUILD(USE_LIBEPOXY TRUE)
-SET_AND_EXPOSE_TO_BUILD(USE_XDGMIME TRUE)
+if (USE_ANGLE_EGL)
+    SET_AND_EXPOSE_TO_BUILD(USE_LIBEPOXY FALSE)
+else ()
+    SET_AND_EXPOSE_TO_BUILD(USE_LIBEPOXY TRUE)
+endif ()
+if (WIN32)
+    # The shared MIME database is the Unix desktops': Windows has its registry.
+    SET_AND_EXPOSE_TO_BUILD(USE_XDGMIME FALSE)
+else ()
+    SET_AND_EXPOSE_TO_BUILD(USE_XDGMIME TRUE)
+endif ()
 
 SET_AND_EXPOSE_TO_BUILD(USE_CAIRO FALSE)
 SET_AND_EXPOSE_TO_BUILD(USE_COORDINATED_GRAPHICS TRUE)
-SET_AND_EXPOSE_TO_BUILD(USE_ANGLE ${ENABLE_WEBGL})
+if (USE_ANGLE_EGL)
+    SET_AND_EXPOSE_TO_BUILD(USE_ANGLE ON)
+else ()
+    SET_AND_EXPOSE_TO_BUILD(USE_ANGLE ${ENABLE_WEBGL})
+endif ()
 SET_AND_EXPOSE_TO_BUILD(USE_THEME_ADWAITA TRUE)
 SET_AND_EXPOSE_TO_BUILD(HAVE_GL_FENCE TRUE)
 

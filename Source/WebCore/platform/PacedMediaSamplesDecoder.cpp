@@ -24,6 +24,8 @@
  */
 
 #include "config.h"
+
+#if ENABLE(VIDEO)
 #include "PacedMediaSamplesDecoder.h"
 
 #include "TrackInfo.h"
@@ -383,3 +385,5 @@ void PacedMediaSamplesDecoder::updateReadiness()
 }
 
 } // namespace WebCore
+
+#endif // ENABLE(VIDEO)

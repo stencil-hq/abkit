@@ -30,13 +30,13 @@
 
 #include <WebCore/SharedMemory.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 
-#if !PLATFORM(WIN)
+#if !OS(WINDOWS)
 #include <gio/gfiledescriptorbased.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 #include <wtf/MallocSpan.h>
@@ -130,7 +130,9 @@ Data Data::adoptMap(FileSystem::MappedFileData&& mappedFile, FileSystem::FileHan
     size_t size = mappedFile.size();
     auto* map = mappedFile.span().data();
     ASSERT(map);
+#if !OS(WINDOWS)
     ASSERT(map != MAP_FAILED);
+#endif
     MapWrapper* wrapper = new MapWrapper { WTF::move(mappedFile) };
     return { adoptGRef(g_bytes_new_with_free_func(map, size, reinterpret_cast<GDestroyNotify>(deleteMapWrapper), wrapper)), WTF::move(fileHandle) };
 }
@@ -140,9 +142,15 @@ RefPtr<WebCore::SharedMemory> Data::tryCreateSharedMemory() const
     if (isNull() || !isMap())
         return nullptr;
 
+#if OS(WINDOWS)
+    // A mapped cache file is not handed to the web process there: its
+    // bytes are sent.
+    return nullptr;
+#else
     gsize length;
     const auto* data = g_bytes_get_data(m_buffer.get(), &length);
     return WebCore::SharedMemory::wrapMap(const_cast<void*>(data), length, m_fileHandle->platformHandle());
+#endif
 }
 
 } // namespace NetworkCache

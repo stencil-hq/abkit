@@ -27,6 +27,7 @@
 #include "FrameInfoData.h"
 #include "LegacyGlobalSettings.h"
 #include "NetworkProcessMessages.h"
+#include "ProcessExecutablePath.h"
 #include "TextChecker.h"
 #include "TextCheckerState.h"
 #include "WebAutomationSession.h"
@@ -339,6 +340,8 @@ void webkitWebContextWillCloseAutomationSession(WebKitWebContext* webContext)
 
 #if PLATFORM(GTK)
 #define INJECTED_BUNDLE_FILENAME "libwebkit" WEBKITGTK_API_INFIX "gtkinjectedbundle.so"
+#elif PLATFORM(WPE) && OS(WINDOWS)
+#define INJECTED_BUNDLE_FILENAME "WPEInjectedBundle.dll"
 #elif PLATFORM(WPE)
 #define INJECTED_BUNDLE_FILENAME "libWPEInjectedBundle.so"
 #endif
@@ -348,6 +351,12 @@ static UTF8CString injectedBundleDirectory()
     const char* bundleDirectory = g_getenv("WEBKIT_INJECTED_BUNDLE_PATH");
     if (bundleDirectory && g_file_test(bundleDirectory, G_FILE_TEST_IS_DIR))
         return UTF8CString::unsafeFromUTF8(bundleDirectory);
+
+    // Beside the library, where an embedder's bundle keeps it.
+    if (auto libraryDirectory = directoryOfWebKitLibrary(); !libraryDirectory.isNull()) {
+        if (FileSystem::fileExists(FileSystem::pathByAppendingComponent(libraryDirectory, String::fromLatin1(INJECTED_BUNDLE_FILENAME))))
+            return libraryDirectory.utf8();
+    }
 
     return PKGLIBDIR G_DIR_SEPARATOR_S "injected-bundle"_s G_DIR_SEPARATOR_S;
 }
@@ -1423,6 +1432,14 @@ void webkit_web_context_set_sandbox_enabled(WebKitWebContext* context, gboolean 
 #endif
 
 IGNORE_CLANG_WARNINGS_BEGIN("unsafe-buffer-usage-in-libc-call")
+#if OS(WINDOWS)
+// The C runtime's realpath() there.
+static char* realpath(const char* path, char*)
+{
+    return _fullpath(nullptr, path, 0);
+}
+#endif
+
 static bool pathExistsAndIsNotHomeDirectory(const char* path)
 {
     std::unique_ptr<char, decltype(free)*> resolvedPath(realpath(path, nullptr), free);

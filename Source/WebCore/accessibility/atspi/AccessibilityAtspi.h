@@ -122,7 +122,7 @@ private:
     void cacheUpdateTimerFired();
     void cacheClearTimerFired();
 
-    bool shouldEmitSignal(const char* interface, const char* name, const char* detail = "");
+    bool shouldEmitSignal(const char* iface, const char* name, const char* detail = "");
 
 #if ENABLE(DEVELOPER_MODE)
     void notify(AccessibilityObjectAtspi&, const char*, NotificationObserverParameter) const;

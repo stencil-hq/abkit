@@ -232,6 +232,13 @@
 #define HAVE_MACH_MEMORY_ENTRY 1
 #endif
 
+/* DMA-BUF: GPU buffers shared between processes as file descriptors, which
+   only the Linux kernel (and so Android) has. Other systems share IOSurfaces
+   (Darwin) or DXGI shared handles (Windows). */
+#if OS(LINUX) || OS(ANDROID)
+#define HAVE_DMABUF 1
+#endif
+
 #if OS(DARWIN) || OS(FUCHSIA) || ((OS(FREEBSD) || OS(HAIKU) || OS(NETBSD) || OS(OPENBSD) || OS(LINUX) || OS(HURD) || OS(QNX)) && (CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(RISCV64)))
 #define HAVE_MACHINE_CONTEXT 1
 #endif

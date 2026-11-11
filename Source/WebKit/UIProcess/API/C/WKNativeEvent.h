@@ -34,7 +34,7 @@
 extern "C" {
 #endif
 
-#if defined(__APPLE__) && !TARGET_OS_IPHONE && !defined(BUILDING_GTK__)
+#if defined(__APPLE__) && !TARGET_OS_IPHONE && !defined(BUILDING_GTK__) && !defined(BUILDING_WPE__)
 #ifdef __OBJC__
 @class NSEvent;
 #elif __cplusplus
@@ -45,7 +45,7 @@ struct NSEvent;
 typedef NSEvent *WKNativeEventPtr;
 #elif defined(BUILDING_GTK__)
 typedef const GdkEvent* WKNativeEventPtr;
-#elif defined(WIN32) || defined(_WIN32)
+#elif (defined(WIN32) || defined(_WIN32)) && !defined(BUILDING_WPE__)
 typedef const struct tagMSG* WKNativeEventPtr;
 #else
 typedef const void* WKNativeEventPtr;

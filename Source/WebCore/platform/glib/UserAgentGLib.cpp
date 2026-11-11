@@ -62,6 +62,9 @@ static ASCIILiteral platformForUAString(UserAgentType type)
 {
 #if OS(MACOS)
     return "Macintosh"_s;
+#elif OS(WINDOWS)
+    UNUSED_PARAM(type);
+    return "Windows NT 10.0"_s;
 #else
     if (isMobileUA(type))
         return "Linux"_s;
@@ -78,6 +81,10 @@ static const String platformVersionForUAString(UserAgentType type)
     struct utsname name;
     uname(&name);
     static NeverDestroyed<const String> uaOSVersion(makeString(unsafeSpan(name.sysname), ' ', unsafeSpan(name.machine)));
+    return uaOSVersion;
+#elif OS(WINDOWS)
+    UNUSED_PARAM(type);
+    static NeverDestroyed<const String> uaOSVersion(MAKE_STATIC_STRING_IMPL("Win64; x64"));
     return uaOSVersion;
 #else
     // We will always claim to be Safari in Intel Mac OS X, since Safari without

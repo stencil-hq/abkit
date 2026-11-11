@@ -20,6 +20,7 @@
 #pragma once
 
 #include "Module.h"
+#include <WebKit/WKDeclarationSpecifiers.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/Vector.h>
@@ -43,9 +44,10 @@ class InjectedBundle;
 class WebProcessExtensionManager {
     WTF_MAKE_NONCOPYABLE(WebProcessExtensionManager);
 public:
-    __attribute__((visibility("default"))) static WebProcessExtensionManager& singleton();
+    // The injected bundle, a module of its own, calls these two.
+    WK_EXPORT static WebProcessExtensionManager& singleton();
 
-    __attribute__((visibility("default"))) void initialize(InjectedBundle*, API::Object*);
+    WK_EXPORT void initialize(InjectedBundle*, API::Object*);
 
     WebKitWebProcessExtension* extension() const { return m_extension.get(); }
 

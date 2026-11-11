@@ -164,8 +164,15 @@
 #define USE_METAL 1
 #endif
 
-#if PLATFORM(GTK) || PLATFORM(WPE)
+/* On Windows the GLib ports' processes talk as the Win port's do. */
+#if (PLATFORM(GTK) || PLATFORM(WPE)) && !OS(WINDOWS)
 #define USE_UNIX_DOMAIN_SOCKETS 1
+#endif
+
+/* WebKit's processes talk over Mach ports and XPC on Darwin, unless the port
+   speaks Unix domain sockets there as everywhere else. */
+#if OS(DARWIN) && !USE(UNIX_DOMAIN_SOCKETS)
+#define USE_MACH_IPC 1
 #endif
 
 #if !defined(USE_IMLANG_FONT_LINK2)

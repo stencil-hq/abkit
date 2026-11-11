@@ -1501,7 +1501,7 @@ void WebProcess::logDiagnosticMessageForNetworkProcessCrash()
 
 void WebProcess::networkProcessConnectionClosed(NetworkProcessConnection* connection)
 {
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     WEBPROCESS_RELEASE_LOG(Loading, "networkProcessConnectionClosed: NetworkProcess (%d) closed its connection (Crashed)", connection ? connection->connection().remoteProcessID() : 0);
 #else
     WEBPROCESS_RELEASE_LOG(Loading, "networkProcessConnectionClosed: NetworkProcess closed its connection (Crashed)");

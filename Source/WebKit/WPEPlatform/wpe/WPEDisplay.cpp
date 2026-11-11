@@ -31,7 +31,7 @@
 #include "WPEEGLError.h"
 #include "WPEExtensions.h"
 #include "WPEInputMethodContextNone.h"
-#include <epoxy/egl.h>
+#include "WPEEGLPrivate.h"
 #include <gio/gio.h>
 #include <mutex>
 #include <wtf/HashMap.h>
@@ -456,8 +456,10 @@ WPEKeymap* wpe_display_get_keymap(WPEDisplay* display)
         if (wpeDisplayClass->get_keymap)
             priv->keymap = wpeDisplayClass->get_keymap(display);
 
+#if !OS(WINDOWS)
         if (!priv->keymap)
             priv->keymap = adoptGRef(wpe_keymap_xkb_new());
+#endif
     }
     return priv->keymap.get();
 }

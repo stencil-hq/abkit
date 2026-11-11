@@ -27,6 +27,7 @@
 #include "config.h"
 #include "ProcessLauncher.h"
 
+#if USE(UNIX_DOMAIN_SOCKETS)
 #include "BubblewrapLauncher.h"
 #include "Connection.h"
 #include "FlatpakLauncher.h"
@@ -207,6 +208,12 @@ void ProcessLauncher::launchProcess()
     //
     // Please keep this comment in sync with the duplicate comment in XDGDBusProxy::launch.
     GRefPtr<GSubprocessLauncher> launcher = adoptGRef(g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_INHERIT_FDS));
+#if OS(DARWIN)
+    // Darwin's connection is a datagram socket, which has no end of file: a
+    // helper that dies leaves this process's end silent. A copy of the
+    // helper's end, kept here, says it instead once the helper exits.
+    int helperEnd = dupCloseOnExec(webkitSocketPair.client.value());
+#endif
     int webkitClientSocketValue = webkitSocketPair.client.release();
     g_subprocess_launcher_take_fd(launcher.get(), webkitClientSocketValue, webkitClientSocketValue);
 #if OS(LINUX)
@@ -294,6 +301,17 @@ void ProcessLauncher::launchProcess()
     }
 #endif
 
+#if OS(DARWIN)
+    // An empty datagram is how the connection reads its end.
+    g_subprocess_wait_async(process.get(), nullptr, [](GObject*, GAsyncResult*, gpointer data) {
+        int helperEnd = GPOINTER_TO_INT(data);
+        if (helperEnd != -1) {
+            send(helperEnd, "", 0, 0);
+            close(helperEnd);
+        }
+    }, GINT_TO_POINTER(helperEnd));
+#endif
+
     const char* processIdStr = g_subprocess_get_identifier(process.get());
     if (!processIdStr) {
         g_warning("Spawned process died immediately");
@@ -355,3 +373,5 @@ void ProcessLauncher::platformInvalidate()
 }
 
 } // namespace WebKit
+
+#endif // USE(UNIX_DOMAIN_SOCKETS)

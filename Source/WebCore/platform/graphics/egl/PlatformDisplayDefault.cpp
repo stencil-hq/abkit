@@ -26,10 +26,14 @@
 #include "config.h"
 #include "PlatformDisplayDefault.h"
 
-#if PLATFORM(GTK) || OS(ANDROID)
+#if PLATFORM(GTK) || OS(ANDROID) || !USE(LIBEPOXY)
 
 #include "GLContext.h"
+#if USE(LIBEPOXY)
 #include <epoxy/egl.h>
+#else
+#include <EGL/egl.h>
+#endif
 
 namespace WebCore {
 
@@ -49,7 +53,7 @@ PlatformDisplayDefault::PlatformDisplayDefault(Ref<GLDisplay>&& glDisplay)
 {
 #if ENABLE(WEBGL)
     m_anglePlatform = 0;
-    m_angleNativeDisplay = EGL_DEFAULT_DISPLAY;
+    m_angleNativeDisplay = nullptr;
 #endif
 }
 
@@ -57,4 +61,4 @@ PlatformDisplayDefault::~PlatformDisplayDefault() = default;
 
 } // namespace WebCore
 
-#endif // PLATFORM(GTK) || OS(ANDROID)
+#endif // PLATFORM(GTK) || OS(ANDROID) || !USE(LIBEPOXY)

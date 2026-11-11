@@ -296,7 +296,7 @@ String URL::fileSystemPath() const
         return { };
 
     auto result = decodeEscapeSequencesFromParsedURL(path());
-#if PLATFORM(WIN)
+#if OS(WINDOWS)
     if (result.startsWith('/'))
         result = result.substring(1);
 #endif

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "AuxiliaryProcessMain.h"
 
+#if USE(UNIX_DOMAIN_SOCKETS)
 #include <JavaScriptCore/Options.h>
 #include <WebCore/ProcessIdentifier.h>
 #include <signal.h>
@@ -46,14 +47,41 @@
 #include <glib-unix.h>
 #endif
 
+#if OS(DARWIN)
+#include <dispatch/dispatch.h>
+#include <unistd.h>
+#endif
+
 #if ENABLE(LLVM_PROFILE_GENERATION)
 __attribute__((weak)) extern "C" int __llvm_profile_dump(void);
 #endif
 
 namespace WebKit {
 
+#if OS(DARWIN)
+// A helper whose parent is gone has nobody to serve, and its connection does
+// not say so: Darwin's is a datagram socket, which has no end of file.
+static void exitWithParent()
+{
+    pid_t parent = getppid();
+    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_PROC, parent, DISPATCH_PROC_EXIT, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    if (!source)
+        return;
+    dispatch_source_set_event_handler_f(source, [](void*) {
+        _exit(EXIT_SUCCESS);
+    });
+    dispatch_resume(source);
+    // It may have gone before the source watched it.
+    if (getppid() != parent)
+        _exit(EXIT_SUCCESS);
+}
+#endif
+
 AuxiliaryProcessMainCommon::AuxiliaryProcessMainCommon()
 {
+#if OS(DARWIN)
+    exitWithParent();
+#endif
 #if ENABLE(BREAKPAD)
     installBreakpadExceptionHandler();
 #endif
@@ -118,3 +146,5 @@ void AuxiliaryProcess::platformInitialize(const AuxiliaryProcessInitializationPa
 }
 
 } // namespace WebKit
+
+#endif // USE(UNIX_DOMAIN_SOCKETS)

@@ -39,7 +39,7 @@
 #include <wtf/text/StringHash.h>
 #include <wtf/text/WTFString.h>
 
-#if PLATFORM(WIN)
+#if OS(WINDOWS)
 #include <wtf/win/Win32Handle.h>
 #endif
 
@@ -188,7 +188,7 @@ private:
     bool m_isRetryingLaunch { false };
 #endif
 
-#if PLATFORM(WIN)
+#if OS(WINDOWS)
     WTF::Win32Handle m_hProcess;
 #endif
 

@@ -22,6 +22,7 @@
 
 #include "APIWebsitePolicies.h"
 #include "WebKitEnumTypes.h"
+#include "WebKitWebsitePoliciesPrivate.h"
 #include <WebCore/HTTPSByDefaultMode.h>
 #include <glib/gi18n-lib.h>
 #include <wtf/glib/WTFGType.h>
@@ -62,9 +63,9 @@ struct _WebKitWebsitePoliciesPrivate {
 
 WEBKIT_DEFINE_FINAL_TYPE(WebKitWebsitePolicies, webkit_website_policies, G_TYPE_OBJECT, GObject)
 
-API::WebsitePolicies& webkitWebsitePoliciesGetWebsitePolicies(WebKitWebsitePolicies* policies)
+API::WebsitePolicies* webkitWebsitePoliciesGetWebsitePolicies(WebKitWebsitePolicies* policies)
 {
-    return *policies->priv->websitePolicies.get();
+    return policies->priv->websitePolicies.get();
 }
 
 static void webkitWebsitePoliciesGetProperty(GObject* object, guint propID, GValue* value, GParamSpec* paramSpec)

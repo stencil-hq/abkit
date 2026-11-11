@@ -4,7 +4,7 @@ set_property(DIRECTORY . PROPERTY FOLDER "WebKit")
 # directly instead of WebKit, which enables WebKit to keep c++ implementation
 # details out of the exported symbol table. In Xcode, this is built as
 # `libWebKitPlatform.a`.
-if (APPLE)
+if (WEBKIT_PORT_IS_COCOA)
     set(WebKit_USE_PLATFORM_SUBTARGET ON)
 endif ()
 
@@ -811,7 +811,7 @@ set(WebKit_FRAMEWORKS
     WebCore
     bmalloc
 )
-if (APPLE)
+if (WEBKIT_PORT_IS_COCOA)
     list(APPEND WebKit_FRAMEWORKS WebKitLegacy)
 endif ()
 if (USE_APPLE_INTERNAL_SDK)
@@ -1690,7 +1690,7 @@ if (WebKit_USE_PLATFORM_SUBTARGET)
     endif ()
 endif ()
 
-if (WEBKIT_SDK_IS_MACOS OR WEBKIT_SDK_IS_IOS_FAMILY)
+if (WEBKIT_PORT_IS_COCOA)
     # Must run before the WEBKIT_EXECUTABLE() calls below, which read the code
     # signing properties it sets on each service.
     WEBKIT_DEFINE_AUXILIARY_PROCESSES()
@@ -1723,13 +1723,13 @@ if (COMPILER_IS_GCC_OR_CLANG)
     endif ()
 endif ()
 
-if (APPLE)
+if (WEBKIT_PORT_IS_COCOA)
     WEBKIT_ADD_TARGET_CXX_FLAGS(WebKit -fobjc-weak)
     set_property(TARGET WebKit
         PROPERTY LINK_LIBRARY_OVERRIDE_WebKitLegacy REEXPORT_FRAMEWORK)
 endif ()
 
-if (NOT APPLE)
+if (NOT WEBKIT_PORT_IS_COCOA)
     if (NOT ANDROID)
         WEBKIT_POPULATE_LIBRARY_VERSION(WEBKIT)
         set_target_properties(WebKit PROPERTIES VERSION ${WEBKIT_VERSION} SOVERSION ${WEBKIT_VERSION_MAJOR})

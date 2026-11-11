@@ -86,6 +86,18 @@ if (ENABLE_WPE_LEGACY_API)
     list(APPEND WebCore_LIBRARIES WPE::libwpe)
 endif ()
 
+if (APPLE)
+    # The software filters use vImage wherever the OS is Darwin (USE(ACCELERATE)).
+    list(APPEND WebCore_LIBRARIES "-framework Accelerate")
+elseif (WIN32)
+    # The processes share memory as the Win port's do, and file types come
+    # from the registry.
+    list(APPEND WebCore_SOURCES
+        platform/win/MIMETypeRegistryWin.cpp
+        platform/win/SharedMemoryWin.cpp
+    )
+endif ()
+
 list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${UPOWERGLIB_INCLUDE_DIRS}
 )

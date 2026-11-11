@@ -26,7 +26,7 @@
 #include "config.h"
 #include "Connection.h"
 
-#if USE(GLIB)
+#if USE(GLIB) && USE(UNIX_DOMAIN_SOCKETS)
 #include "IPCUtilities.h"
 #include "Logging.h"
 #include "UnixMessage.h"
@@ -481,6 +481,16 @@ bool Connection::sendOutputMessage(UnixMessage&& outputMessage)
     GUniqueOutPtr<GError> error;
     auto bytesWritten = g_socket_send_message(m_socket.get(), nullptr, outputVector, outputVectorLength,
         controlMessagePtr ? &controlMessagePtr : nullptr, controlMessagePtr ? 1 : 0, 0, m_cancellable.get(), &error.outPtr());
+#if OS(DARWIN)
+    // A datagram the receiver has no room for is refused (ENOBUFS, which GIO
+    // reports as a plain failure) while the socket still polls writable: let
+    // the receiver read, then send it again, for up to a second.
+    for (unsigned attempt = 0; bytesWritten < 0 && attempt < 2000 && g_error_matches(error.get(), G_IO_ERROR, G_IO_ERROR_FAILED); ++attempt) {
+        g_usleep(500);
+        bytesWritten = g_socket_send_message(m_socket.get(), nullptr, outputVector, outputVectorLength,
+            controlMessagePtr ? &controlMessagePtr : nullptr, controlMessagePtr ? 1 : 0, 0, m_cancellable.get(), &error.outPtr());
+    }
+#endif
     if (controlMessage) {
         // File descriptors are owned by UnixMessage, so steal them from the control message to avoid a double close.
         g_free(g_unix_fd_message_steal_fds(G_UNIX_FD_MESSAGE(controlMessage.get()), nullptr));
@@ -642,4 +652,4 @@ bool Connection::receiveIncomingHardwareBuffers()
 
 } // namespace IPC
 
-#endif // USE(GLIB)
+#endif // USE(GLIB) && USE(UNIX_DOMAIN_SOCKETS)

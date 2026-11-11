@@ -30,7 +30,7 @@
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 
-#if !USE(CF) && !OS(WINDOWS)
+#if !USE(CF) && (!OS(WINDOWS) || USE(GLIB))
 #include <wtf/CanMakeWeakPtr.h>
 #include <wtf/RunLoop.h>
 #endif
@@ -38,7 +38,7 @@
 namespace WebCore {
 
 class MainThreadSharedTimer final : public SharedTimer
-#if !USE(CF) && !OS(WINDOWS)
+#if !USE(CF) && (!OS(WINDOWS) || USE(GLIB))
     , public CanMakeWeakPtr<MainThreadSharedTimer>
 #endif
 {
@@ -68,7 +68,7 @@ private:
     MainThreadSharedTimer();
 
     Function<void()> m_firedFunction;
-#if !USE(CF) && !OS(WINDOWS)
+#if !USE(CF) && (!OS(WINDOWS) || USE(GLIB))
     RunLoop::Timer m_timer;
 #endif
 };

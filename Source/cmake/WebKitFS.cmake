@@ -104,7 +104,7 @@ endif ()
 # On Apple platforms, some targets build as framework bundles. Point their
 # HEADERS variables to the inside of the framework bundle.
 set(USE_FRAMEWORK_BUNDLES OFF)
-if (APPLE)
+if (WEBKIT_APPLE_FRAMEWORKS)
     set(USE_FRAMEWORK_BUNDLES ON)
     if (WEBKIT_SDK_IS_MACOS)
         # macOS uses a versioned bundle (Versions/A/ + Versions/Current/

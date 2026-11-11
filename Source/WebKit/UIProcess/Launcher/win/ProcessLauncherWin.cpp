@@ -37,6 +37,24 @@ namespace WebKit {
 
 static LPCWSTR processName(ProcessLauncher::ProcessType processType)
 {
+#if PLATFORM(WPE)
+    // The WPE port's helpers keep their names on every system.
+    switch (processType) {
+    case ProcessLauncher::ProcessType::Web:
+        return L"WPEWebProcess.exe";
+    case ProcessLauncher::ProcessType::Network:
+        return L"WPENetworkProcess.exe";
+#if ENABLE(GPU_PROCESS)
+    case ProcessLauncher::ProcessType::GPU:
+        return L"WPEGPUProcess.exe";
+#endif
+#if ENABLE(MODEL_PROCESS)
+    case ProcessLauncher::ProcessType::Model:
+        break;
+#endif
+    }
+    return L"WPEWebProcess.exe";
+#else
     switch (processType) {
     case ProcessLauncher::ProcessType::Web:
         return L"WebKitWebProcess.exe";
@@ -48,6 +66,7 @@ static LPCWSTR processName(ProcessLauncher::ProcessType processType)
 #endif
     }
     return L"WebKitWebProcess.exe";
+#endif
 }
 
 void ProcessLauncher::launchProcess()
@@ -62,9 +81,9 @@ void ProcessLauncher::launchProcess()
     // Ensure that the child process inherits the client identifier.
     ::SetHandleInformation(clientIdentifier, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
 
-    // To get the full file path to WebKit2WebProcess.exe, we fild the location of WebKit2.dll,
-    // remove the last path component.
-    HMODULE webKitModule = ::GetModuleHandle(L"WebKit2.dll");
+    // The helpers are beside the library this code is in, whatever the port names it.
+    HMODULE webKitModule = nullptr;
+    ::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&processName), &webKitModule);
     ASSERT(webKitModule);
     if (!webKitModule)
         return;

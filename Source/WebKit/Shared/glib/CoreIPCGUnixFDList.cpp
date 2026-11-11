@@ -24,9 +24,9 @@
  */
 
 #include "config.h"
-#include "CoreIPCGUnixFDList.h"
 
-#if USE(GLIB)
+#if USE(GLIB) && USE(UNIX_DOMAIN_SOCKETS)
+#include "CoreIPCGUnixFDList.h"
 
 #include <gio/gunixfdlist.h>
 
@@ -57,4 +57,4 @@ Vector<WTF::UnixFileDescriptor> CoreIPCGUnixFDList::fileDescriptors() const
 
 } // namespace WebKit
 
-#endif // USE(GLIB)
+#endif // USE(GLIB) && USE(UNIX_DOMAIN_SOCKETS)

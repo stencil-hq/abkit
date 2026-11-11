@@ -34,7 +34,13 @@
 #include "GLFence.h"
 #include "GraphicsContextGLCoordinated.h"
 #include "PlatformDisplay.h"
+#if USE(LIBEPOXY)
 #include <epoxy/egl.h>
+#else
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES3/gl3.h>
+#endif
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/core/SkImage.h>

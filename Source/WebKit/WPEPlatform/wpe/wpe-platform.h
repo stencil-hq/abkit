@@ -28,7 +28,9 @@
 #define __WPE_PLATFORM_H_INSIDE__
 
 #include <wpe/WPEBuffer.h>
+#ifndef G_OS_WIN32
 #include <wpe/WPEBufferDMABuf.h>
+#endif
 #include <wpe/WPEBufferFormats.h>
 #include <wpe/WPEBufferSHM.h>
 #include <wpe/WPEClipboard.h>
@@ -46,7 +48,9 @@
 #include <wpe/WPEInputMethodContext.h>
 #include <wpe/WPEKeymap.h>
 #include <wpe/WPEKeyUnicode.h>
+#ifndef G_OS_WIN32
 #include <wpe/WPEKeymapXKB.h>
+#endif
 #include <wpe/WPEKeysyms.h>
 #include <wpe/WPEKeysyms.h>
 #include <wpe/WPERectangle.h>

@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if PLATFORM(GTK) || OS(ANDROID)
+#if PLATFORM(GTK) || OS(ANDROID) || !USE(LIBEPOXY)
 
 #include "PlatformDisplay.h"
 
@@ -44,4 +44,4 @@ private:
 
 } // namespace WebCore
 
-#endif // PLATFORM(GTK) || OS(ANDROID)
+#endif // PLATFORM(GTK) || OS(ANDROID) || !USE(LIBEPOXY)

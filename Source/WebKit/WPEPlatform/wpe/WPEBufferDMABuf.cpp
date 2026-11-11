@@ -28,7 +28,7 @@
 
 #include "WPEBufferPrivate.h"
 #include "WPEDisplayPrivate.h"
-#include <epoxy/egl.h>
+#include "WPEEGLPrivate.h"
 #include <fcntl.h>
 #include <mutex>
 #include <unistd.h>

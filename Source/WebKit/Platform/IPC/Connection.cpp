@@ -737,7 +737,7 @@ Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOp
     }
 
     if (shouldNotifyOfQueueGrowingLarge) {
-#if OS(DARWIN)
+#if USE(MACH_IPC)
         RELEASE_LOG_ERROR(IPC, "Connection::sendMessage(): Too many messages (%zu) in the queue to remote PID: %d (most common: %u %" PUBLIC_LOG_STRING " messages), notifying client", outgoingMessagesCount, remoteProcessID(), maxOutgoingMessageNameCount, maxOutgoingMessageName.characters());
 #else
         RELEASE_LOG_ERROR(IPC, "Connection::sendMessage(): Too many messages (%zu) in the queue, notifying client (most common: %u %" PUBLIC_LOG_STRING " messages)", outgoingMessagesCount, maxOutgoingMessageNameCount, maxOutgoingMessageName.characters());
@@ -1081,7 +1081,7 @@ auto Connection::waitForSyncReply(SyncRequestID syncRequestID, MessageName messa
         timedOut = !protect(m_syncState)->wait(timeout);
     }
 
-#if OS(DARWIN)
+#if USE(MACH_IPC)
     RELEASE_LOG_ERROR(IPC, "Connection::waitForSyncReply: Timed-out while waiting for reply for %" PUBLIC_LOG_STRING " from process %d, id=%" PRIu64, description(messageName).characters(), remoteProcessID(), syncRequestID.toUInt64());
 #else
     RELEASE_LOG_ERROR(IPC, "Connection::waitForSyncReply: Timed-out while waiting for reply for %s, id=%" PRIu64, description(messageName).characters(), syncRequestID.toUInt64());

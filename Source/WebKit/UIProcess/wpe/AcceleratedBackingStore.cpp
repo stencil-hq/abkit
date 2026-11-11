@@ -43,6 +43,10 @@
 #include <drm/drm_fourcc.h>
 #elif USE(LIBDRM)
 #include <drm_fourcc.h>
+#else
+// The two formats named here, where the system has no libdrm headers.
+#define DRM_FORMAT_XRGB8888 0x34325258
+#define DRM_FORMAT_ARGB8888 0x34325241
 #endif
 
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
@@ -139,6 +143,13 @@ void AcceleratedBackingStore::notifyBufferConfigurationIfNeeded()
 
 void AcceleratedBackingStore::didCreateDMABufBuffer(RendererBufferIdentifier id, WebCore::DMABufBufferAttributes&& dmaBufAttributes, RendererBufferFormat::Usage usage)
 {
+#if OS(WINDOWS)
+    // WPE Platform has no DMA-BUF buffers there, and no web process a
+    // DMA-BUF to offer: frames are shared memory.
+    UNUSED_PARAM(id);
+    UNUSED_PARAM(dmaBufAttributes);
+    UNUSED_PARAM(usage);
+#else
     Vector<int> fileDescriptors(ReserveCapacityTag { }, dmaBufAttributes.fds.size());
     for (auto& fd : dmaBufAttributes.fds)
         fileDescriptors.append(fd.release());
@@ -148,6 +159,7 @@ void AcceleratedBackingStore::didCreateDMABufBuffer(RendererBufferIdentifier id,
     m_buffers.add(id, WTF::move(buffer));
 
     notifyBufferConfigurationIfNeeded();
+#endif
 }
 
 void AcceleratedBackingStore::didCreateSHMBuffer(RendererBufferIdentifier id, WebCore::ShareableBitmap::Handle&& handle)
@@ -214,6 +226,7 @@ static std::expected<SkImageInfo, String> getImageInfoFromBuffer(const  GRefPtr<
     auto width = wpe_buffer_get_width(buffer.get());
     auto height = wpe_buffer_get_height(buffer.get());
 
+#if !OS(WINDOWS)
     if (WPE_IS_BUFFER_DMA_BUF(buffer.get())) {
         auto* dmaBuffer = WPE_BUFFER_DMA_BUF(buffer.get());
         SkAlphaType alphaType = kPremul_SkAlphaType;
@@ -221,6 +234,7 @@ static std::expected<SkImageInfo, String> getImageInfoFromBuffer(const  GRefPtr<
             alphaType = kOpaque_SkAlphaType;
         return SkImageInfo::Make(width, height, kBGRA_8888_SkColorType, alphaType, SkColorSpace::MakeSRGB());
     }
+#endif
 
     if (WPE_IS_BUFFER_SHM(buffer.get())) {
         SkAlphaType alphaType = kPremul_SkAlphaType;
@@ -335,13 +349,16 @@ RendererBufferDescription AcceleratedBackingStore::bufferDescription() const
     if (!buffer)
         return description;
 
+#if !OS(WINDOWS)
     if (WPE_IS_BUFFER_DMA_BUF(buffer)) {
         auto* dmabuf = WPE_BUFFER_DMA_BUF(buffer);
         description.type = RendererBufferDescription::Type::DMABuf;
         description.fourcc = wpe_buffer_dma_buf_get_format(dmabuf);
         description.modifier = wpe_buffer_dma_buf_get_modifier(dmabuf);
         description.usage = static_cast<RendererBufferFormat::Usage>(GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(buffer), "wk-buffer-format-usage")));
-    } else if (WPE_IS_BUFFER_SHM(buffer)) {
+    } else
+#endif
+    if (WPE_IS_BUFFER_SHM(buffer)) {
         description.type = RendererBufferDescription::Type::SharedMemory;
         switch (wpe_buffer_shm_get_format(WPE_BUFFER_SHM(buffer))) {
         case WPE_PIXEL_FORMAT_ARGB8888:

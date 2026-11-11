@@ -120,9 +120,9 @@ AccessibilityObjectAtspi::CollectionMatchRule::CollectionMatchRule(GVariant* rul
     }
     roles.type = static_cast<Atspi::CollectionMatchType>(rolesMatchType);
 
-    const char* interface;
-    while (g_variant_iter_next(interfacesIter.get(), "&s", &interface))
-        interfaces.value.append(String::fromUTF8(interface));
+    const char* iface;
+    while (g_variant_iter_next(interfacesIter.get(), "&s", &iface))
+        interfaces.value.append(String::fromUTF8(iface));
     interfaces.type = static_cast<Atspi::CollectionMatchType>(interfacesMatchType);
 }
 
@@ -131,32 +131,32 @@ bool AccessibilityObjectAtspi::CollectionMatchRule::matchInterfaces(Accessibilit
     if (interfaces.value.isEmpty())
         return true;
 
-    auto matchInterface = [&](const String& interface) {
-        if (interface == "accessible"_s)
+    auto matchInterface = [&](const String& iface) {
+        if (iface == "accessible"_s)
             return axObject.interfaces().contains(Interface::Accessible);
-        if (interface == "action"_s)
+        if (iface == "action"_s)
             return axObject.interfaces().contains(Interface::Action);
-        if (interface == "component"_s)
+        if (iface == "component"_s)
             return axObject.interfaces().contains(Interface::Component);
-        if (interface == "text"_s)
+        if (iface == "text"_s)
             return axObject.interfaces().contains(Interface::Text);
-        if (interface == "hypertext"_s)
+        if (iface == "hypertext"_s)
             return axObject.interfaces().contains(Interface::Hypertext);
-        if (interface == "hyperlink"_s)
+        if (iface == "hyperlink"_s)
             return axObject.interfaces().contains(Interface::Hyperlink);
-        if (interface == "image"_s)
+        if (iface == "image"_s)
             return axObject.interfaces().contains(Interface::Image);
-        if (interface == "selection"_s)
+        if (iface == "selection"_s)
             return axObject.interfaces().contains(Interface::Selection);
-        if (interface == "table"_s)
+        if (iface == "table"_s)
             return axObject.interfaces().contains(Interface::Table);
-        if (interface == "tablecell"_s)
+        if (iface == "tablecell"_s)
             return axObject.interfaces().contains(Interface::TableCell);
-        if (interface == "value"_s)
+        if (iface == "value"_s)
             return axObject.interfaces().contains(Interface::Value);
-        if (interface == "document"_s)
+        if (iface == "document"_s)
             return axObject.interfaces().contains(Interface::Document);
-        if (interface == "collection"_s)
+        if (iface == "collection"_s)
             return axObject.interfaces().contains(Interface::Collection);
         return false;
     };
@@ -166,22 +166,22 @@ bool AccessibilityObjectAtspi::CollectionMatchRule::matchInterfaces(Accessibilit
     case Atspi::CollectionMatchType::MatchEmpty:
         return false;
     case Atspi::CollectionMatchType::MatchAll:
-        for (const auto& interface : interfaces.value) {
-            if (!matchInterface(interface))
+        for (const auto& iface : interfaces.value) {
+            if (!matchInterface(iface))
                 return false;
         }
 
         return true;
     case Atspi::CollectionMatchType::MatchAny:
-        for (const auto& interface : interfaces.value) {
-            if (matchInterface(interface))
+        for (const auto& iface : interfaces.value) {
+            if (matchInterface(iface))
                 return true;
         }
 
         return false;
     case Atspi::CollectionMatchType::MatchNone:
-        for (const auto& interface : interfaces.value) {
-            if (matchInterface(interface))
+        for (const auto& iface : interfaces.value) {
+            if (matchInterface(iface))
                 return false;
         }
 

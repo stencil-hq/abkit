@@ -52,7 +52,7 @@ set(EGL_LIBRARY_TYPE STATIC)
 # attribute the Khronos headers put on the entry points, leaving them unexported.
 set(_angle_prototypes ${no_gl_prototypes})
 set(_angle_egl_api_definition EGLAPI=)
-if (APPLE)
+if (WEBKIT_PORT_IS_COCOA)
     set(ANGLE_LIBRARY_TYPE OBJECT)
     set(GLESv2_LIBRARY_TYPE OBJECT)
     set(EGL_LIBRARY_TYPE OBJECT)
@@ -238,7 +238,7 @@ if (USE_ANGLE_EGL OR ENABLE_WEBGL)
         add_library(ANGLE::EGL ALIAS EGLFramework)
     endif ()
 
-    if (APPLE)
+    if (WEBKIT_PORT_IS_COCOA)
         # OptionsCocoa.cmake applies -fvisibility=hidden only to C and CXX, so the
         # ObjC++ Metal backend would export all of rx::*Mtl from the dylib.
         foreach (_angle_object_target IN ITEMS ANGLE GLESv2 EGL)
@@ -274,12 +274,17 @@ if (USE_ANGLE_EGL OR ENABLE_WEBGL)
         # FIXME: Only correct for iOS-family platforms. On macOS the Xcode build
         # resolves NORMAL_UMBRELLA_FRAMEWORKS_DIR to
         # /System/Library/Frameworks/WebKit.framework/Versions/A/Frameworks.
-        set_target_properties(ANGLE-shared PROPERTIES
-            LINKER_LANGUAGE CXX
-            MACOSX_RPATH OFF
-            BUILD_WITH_INSTALL_NAME_DIR ON
-            INSTALL_NAME_DIR "${WEBKIT_SDK_SYSTEM_PREFIX}/System/Library/PrivateFrameworks/WebCore.framework/${WEBKIT_FRAMEWORK_VERSION_PATH}Frameworks"
-        )
+        if (WEBKIT_PORT_IS_COCOA)
+            set_target_properties(ANGLE-shared PROPERTIES
+                LINKER_LANGUAGE CXX
+                MACOSX_RPATH OFF
+                BUILD_WITH_INSTALL_NAME_DIR ON
+                INSTALL_NAME_DIR "${WEBKIT_SDK_SYSTEM_PREFIX}/System/Library/PrivateFrameworks/WebCore.framework/${WEBKIT_FRAMEWORK_VERSION_PATH}Frameworks"
+            )
+        else ()
+            # Another port's ANGLE sits beside the libraries using it.
+            set_target_properties(ANGLE-shared PROPERTIES LINKER_LANGUAGE CXX MACOSX_RPATH ON)
+        endif ()
 
         set_property(TARGET GLESv2Framework PROPERTY INTERFACE_LINK_LIBRARIES ANGLE-shared)
         if (USE_ANGLE_EGL)

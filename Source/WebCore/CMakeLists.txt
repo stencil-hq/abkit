@@ -2894,7 +2894,7 @@ if (NOT USE_FRAMEWORK_BUNDLES)
     set(WebCore_INTERFACE_INCLUDE_DIRECTORIES ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR})
 endif ()
 
-if (NOT APPLE)
+if (TARGET WebGPU_CopyCppAPIHeaders)
     # The WebGPU C++ API header, <WebGPU/WebGPUCpp.h>, which ports without WebGPU.framework copy to
     # a plain include directory. WebCore headers include it, so the users of WebCore need it too.
     list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES ${WebGPU_PRIVATE_FRAMEWORK_HEADERS_DIR})
@@ -3425,7 +3425,7 @@ endif ()
 # CXX linker -- swiftc mishandles -I include paths during linking.
 set_target_properties(WebCore PROPERTIES LINKER_LANGUAGE CXX)
 
-if (APPLE)
+if (WEBKIT_PORT_IS_COCOA)
     if (USE_LIBWEBRTC)
         target_link_options(WebCore PRIVATE
             "LINKER:-weak_library,$<TARGET_FILE:webrtc>")
@@ -3506,7 +3506,7 @@ endif ()
 if (${WebCore_LIBRARY_TYPE} MATCHES "SHARED")
     # Unquoted empty PROJECT_VERSION_MAJOR makes CMake parse SOVERSION as VERSION's value
     # -> Versions/SOVERSION/ instead of Versions/A/. Mac builds set FRAMEWORK_VERSION directly.
-    if (APPLE)
+    if (WEBKIT_PORT_IS_COCOA)
         set_target_properties(WebCore PROPERTIES FRAMEWORK_VERSION A)
     elseif (PROJECT_VERSION)
         set_target_properties(WebCore PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})

@@ -250,7 +250,7 @@ WK_EXPORT void WKPageFindStringForTesting(WKPageRef page, void* context, WKStrin
 typedef void (*WKPageDoAfterProcessingAllPendingMouseEventsFunction)(void* functionContext);
 WK_EXPORT void WKPageDoAfterProcessingAllPendingMouseEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingMouseEventsFunction function);
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) || defined(BUILDING_GTK__) || defined(BUILDING_WPE__)
 typedef void (*WKPageDoAfterProcessingAllPendingKeyEventsFunction)(void* functionContext);
 WK_EXPORT void WKPageDoAfterProcessingAllPendingKeyEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingKeyEventsFunction function);
 

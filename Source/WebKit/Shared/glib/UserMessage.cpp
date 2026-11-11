@@ -38,7 +38,12 @@ UserMessage::IPCData UserMessage::toIPCData() const
     case Type::Error:
         return ErrorMessage { name, errorCode };
     case Type::Message:
+#if USE(UNIX_DOMAIN_SOCKETS)
         return DataMessage { name, parameters, fileDescriptors };
+#else
+        // Descriptors cross only where the processes talk over Unix sockets.
+        return DataMessage { name, parameters };
+#endif
     }
 
     ASSERT_NOT_REACHED();
@@ -56,7 +61,12 @@ UserMessage UserMessage::fromIPCData(UserMessage::IPCData&& ipcData)
             return UserMessage { message.name, message.errorCode };
         },
         [&] (DataMessage&& message) {
+#if USE(UNIX_DOMAIN_SOCKETS)
             return UserMessage { message.name, message.parameters, message.fileDescriptors };
+#else
+            GRefPtr<GUnixFDList> none;
+            return UserMessage { message.name, message.parameters, none };
+#endif
         }
     );
 }
