@@ -1609,6 +1609,14 @@ CompositingRepaintCountersVisible:
   inspectorOverride: true
   defaultValue: false
 
+CompositionSuppressed:
+  comment: When enabled, rendering updates keep running as for a visible page, but no
+    tiles are painted and no frame is composited.
+  type: bool
+  status: embedder
+  humanReadableName: "Composition suppressed"
+  defaultValue: false
+
 CompressionDictionaryEnabled:
   type: bool
   status: testable
@@ -2518,6 +2526,13 @@ FindInVideoEnabled:
   condition: ENABLE(VIDEO)
   defaultValue: false
 
+FingerprintingNoiseSeed:
+  comment: When not empty, readback noise (canvas, audio) is always injected and its
+    per-site salt is derived from this seed and the registrable domain.
+  type: String
+  status: embedder
+  defaultValue: '""_str'
+
 FixedFontFamily:
   type: String
   status: embedder
@@ -2528,6 +2543,14 @@ FixedFontFamily:
     default: '"Courier New"_str'
     WebKitLegacy: '"Courier"_str'
     WebCore: '""_str'
+
+FocusEmulationEnabled:
+  comment: When enabled, the page is always focused and its window active, whatever
+    the real focus of the view.
+  type: bool
+  status: embedder
+  humanReadableName: "Focus emulation"
+  defaultValue: false
 
 FontFaceSetConstructorEnabled:
   type: bool
@@ -5398,6 +5421,13 @@ SWVPDecodersAlwaysEnabled:
     "PLATFORM(IOS_FAMILY_SIMULATOR)": true
     default: false
 
+SafariNamespaceEnabled:
+  comment: When enabled, window.safari is exposed.
+  type: bool
+  status: embedder
+  humanReadableName: "Safari namespace"
+  defaultValue: false
+
 SafeBrowsingEnabled:
   type: bool
   status: embedder
@@ -5435,6 +5465,28 @@ ScopedCustomElementRegistryEnabled:
     "PLATFORM(COCOA)": true
     default: false
 
+ScreenAvailableHeightOverride:
+  comment: The four ScreenAvailable*Override values replace screen.availLeft, availTop,
+    availWidth and availHeight when the width and height are both greater than 0.
+  type: double
+  status: embedder
+  defaultValue: 0
+
+ScreenAvailableLeftOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
+
+ScreenAvailableTopOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
+
+ScreenAvailableWidthOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
+
 # FIXME: Is this implemented for WebKitLegacy? If not, this should be excluded from WebKitLegacy entirely.
 # FIXME: This should have it's own ENABLE.
 ScreenCaptureEnabled:
@@ -5447,6 +5499,14 @@ ScreenCaptureEnabled:
   defaultValue:
     default: false
     WebKit: WebKit::defaultShouldEnableScreenCapture()
+
+ScreenHeightOverride:
+  comment: ScreenWidthOverride and ScreenHeightOverride replace the size of the screen
+    reported to web content when both are greater than 0.
+  type: double
+  status: embedder
+  webcoreOnChange: setNeedsRecalcStyleInAllFrames
+  defaultValue: 0
 
 ScreenOrientationAPIEnabled:
   type: bool
@@ -5487,6 +5547,12 @@ ScreenWakeLockAPIEnabled:
   defaultValue:
     default: false
     WebKit: true
+
+ScreenWidthOverride:
+  type: double
+  status: embedder
+  webcoreOnChange: setNeedsRecalcStyleInAllFrames
+  defaultValue: 0
 
 ScriptTrackingPrivacyLoggingEnabled:
   type: bool
@@ -7837,6 +7903,29 @@ WindowFocusRestricted:
     WebKitLegacy:
       PLATFORM(MAC): WebKit::defaultWindowFocusRestricted()
       default: true
+
+WindowHeightOverride:
+  comment: The four Window*Override values replace the window frame reported to web
+    content (screenX/Y, screenLeft/Top, outerWidth/Height) when the width and height
+    are both greater than 0.
+  type: double
+  status: embedder
+  defaultValue: 0
+
+WindowWidthOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
+
+WindowXOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
+
+WindowYOverride:
+  type: double
+  status: embedder
+  defaultValue: 0
 
 WirelessPlaybackMediaPlayerEnabled:
   type: bool

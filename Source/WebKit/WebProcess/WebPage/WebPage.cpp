@@ -55,6 +55,7 @@
 #include "InjectedBundle.h"
 #include "InjectedBundleHitTestResult.h"
 #include "InjectedBundleScriptWorld.h"
+#include "InteractionQueryController.h"
 #include "JavaScriptEvaluationResult.h"
 #include "LibWebRTCCodecs.h"
 #include "LibWebRTCProvider.h"
@@ -5556,6 +5557,13 @@ void WebPage::copyLinkWithHighlight()
 
     if (url.isValid())
         protect(frame->editor())->copyURL(url, { });
+}
+
+void WebPage::runInteractionQuery(const String& request, CompletionHandler<void(const String&)>&& completionHandler)
+{
+    if (!m_interactionQueryController)
+        m_interactionQueryController = makeUnique<InteractionQueryController>(*this);
+    m_interactionQueryController->run(request, WTF::move(completionHandler));
 }
 
 void WebPage::getSelectionOrContentsAsString(FrameIdentifier frameID, CompletionHandler<void(const String&)>&& callback)

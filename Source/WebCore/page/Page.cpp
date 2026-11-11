@@ -236,6 +236,7 @@
 #include "WorkerGlobalScope.h"
 #include "WorkerOrWorkletScriptController.h"
 #include <JavaScriptCore/VM.h>
+#include <pal/crypto/CryptoDigest.h>
 #include <ranges>
 #include <wtf/Borrow.h>
 #include <wtf/FileSystem.h>
@@ -4363,12 +4364,33 @@ void Page::setVisitedLinkStore(Ref<VisitedLinkStore>&& visitedLinkStore)
     invalidateStylesForAllLinks();
 }
 
+static uint64_t seededNoiseInjectionHashSalt(const String& seed, const RegistrableDomain& domain)
+{
+    // A registrable domain never contains a line feed, so the pair (seed, domain) maps to a unique input.
+    auto digest = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
+    digest->addBytes(std::as_bytes(makeString(seed, '\n', domain.string()).utf8().span()));
+    auto hash = digest->computeHash();
+
+    uint64_t salt = 0;
+    for (auto byte : hash.span().first(sizeof(salt)))
+        salt = (salt << 8) | byte;
+    return salt;
+}
+
 std::optional<uint64_t> Page::noiseInjectionHashSaltForDomain(const RegistrableDomain& domain)
 {
     if (!m_noiseInjectionHashSalts.isValidKey(domain))
         return std::nullopt;
 
-    return m_noiseInjectionHashSalts.ensure(domain, [] {
+    auto& seed = settings().fingerprintingNoiseSeed();
+    if (seed.isEmpty() ? !m_noiseInjectionHashSaltsSeed.isEmpty() : seed != m_noiseInjectionHashSaltsSeed) {
+        m_noiseInjectionHashSalts.clear();
+        m_noiseInjectionHashSaltsSeed = seed;
+    }
+
+    return m_noiseInjectionHashSalts.ensure(domain, [&] {
+        if (!seed.isEmpty())
+            return seededNoiseInjectionHashSalt(seed, domain);
         return cryptographicallyRandomNumber<uint64_t>();
     }).iterator->value;
 }

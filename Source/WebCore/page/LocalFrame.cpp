@@ -1231,6 +1231,9 @@ FloatSize LocalFrame::screenSize() const
     if (m_overrideScreenSize)
         return m_overrideScreenSize->size;
 
+    if (auto& settings = this->settings(); settings.screenWidthOverride() > 0 && settings.screenHeightOverride() > 0)
+        return { static_cast<float>(settings.screenWidthOverride()), static_cast<float>(settings.screenHeightOverride()) };
+
     auto defaultSize = screenRect(protect(view()).get()).size();
 
     if (settings().shouldReportViewportSizeAsScreenSize()) {

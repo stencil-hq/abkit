@@ -724,6 +724,7 @@ namespace WebCore {
     macro(response) \
     macro(responseCacheIsValid) \
     macro(retrieveResponse) \
+    macro(safari) \
     macro(self) \
     macro(sessionStorage) \
     macro(setBody) \

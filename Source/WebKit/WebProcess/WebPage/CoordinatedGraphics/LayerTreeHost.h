@@ -103,6 +103,7 @@ private:
 #if USE(SKIA)
     void didPaintPreRenderedTile(WebCore::CoordinatedPlatformLayer&) override;
 #endif
+    bool shouldDeferBackingStoreUpdates() const override { return m_isCompositionSuppressed; }
 
     // GraphicsLayerFactory
     Ref<WebCore::GraphicsLayer> createGraphicsLayer(WebCore::GraphicsLayer::Type, WebCore::GraphicsLayerClient&) override;
@@ -119,6 +120,7 @@ private:
     void sizeDidChange() override;
     void backgroundColorDidChange() override;
     void releaseMemory(WTF::Critical) override;
+    void setCompositionSuppressed(bool) override;
     bool ensureDrawing() override;
     void fillGLInformation(RenderProcessInfo&&, CompletionHandler<void(RenderProcessInfo&&)>&&) override;
     WebCore::GraphicsLayerFactory* graphicsLayerFactory() override;
@@ -151,6 +153,7 @@ private:
     bool m_scheduledWhileWaitingForRenderer { false };
     bool m_forceFrameSync { false };
     bool m_compositionRequired { false };
+    bool m_isCompositionSuppressed { false };
 #if ENABLE(SCROLLING_THREAD)
     bool m_compositionRequiredInScrollingThread { false };
 #endif

@@ -386,6 +386,8 @@ Modules/reporting/ReportBody.cpp
 Modules/reporting/ReportingObserver.cpp
 Modules/reporting/ReportingScope.cpp
 Modules/reporting/TestReportBody.cpp
+Modules/safari/DOMWindowSafari.cpp
+Modules/safari/SafariRemoteNotification.cpp
 Modules/screen-wake-lock/NavigatorScreenWakeLock.cpp
 Modules/screen-wake-lock/WakeLock.cpp
 Modules/screen-wake-lock/WakeLockManager.cpp
@@ -2433,6 +2435,7 @@ page/csp/ContentSecurityPolicySource.cpp
 page/csp/ContentSecurityPolicySourceList.cpp
 page/csp/ContentSecurityPolicySourceListDirective.cpp
 page/csp/ContentSecurityPolicyTrustedTypesDirective.cpp
+page/interaction/InteractionQuery.cpp @header:RenderStyleGetters
 page/scrolling/AsyncScrollingCoordinator.cpp @header:RenderStyleGetters @cost:6
 page/scrolling/ScrollAnchoringController.cpp @header:RenderStyleGetters @cost:6
 page/scrolling/ScrollLatchingController.cpp
@@ -5151,6 +5154,11 @@ JSSVGUseElement.cpp
 JSSVGViewElement.cpp
 JSSVGViewSpec.cpp
 JSSVGZoomAndPan.cpp
+JSSafariNamespace.cpp
+JSSafariRemoteNotification.cpp
+JSSafariRemoteNotificationPermission.cpp
+JSSafariRemoteNotificationPermissionCallback.cpp
+JSSafariRemoteNotificationPermissionState.cpp
 JSScreen.cpp
 JSScreenOrientation.cpp
 JSScriptProcessorNode.cpp

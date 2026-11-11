@@ -73,7 +73,7 @@ inline WheelEvent::WheelEvent(const PlatformWheelEvent& event, RefPtr<WindowProx
         event.timestamp(),
         WTF::move(view),
         0,
-        event.globalPosition(),
+        screenLocationForPlatformEvent(view.get(), event.globalPosition(), event.position()),
         event.position(),
         0,
         0,

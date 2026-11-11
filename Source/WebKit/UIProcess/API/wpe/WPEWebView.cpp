@@ -54,10 +54,19 @@ View::~View()
     m_pageProxy->close();
 }
 
+bool View::isFocusEmulationEnabled() const
+{
+    return m_pageProxy && m_pageProxy->preferences().focusEmulationEnabled();
+}
+
 void View::createWebPage(const API::PageConfiguration& configuration)
 {
     auto& pool = configuration.processPool();
     lazyInitialize(m_pageProxy, pool.createWebPage(*m_pageClient, configuration.copy()));
+
+    // The page computed its activity state while it was being constructed, before the view could reach its preferences.
+    if (isFocusEmulationEnabled())
+        m_pageProxy->updateActivityState();
 
 #if ENABLE(MEMORY_SAMPLER)
     if (getenv("WEBKIT_SAMPLE_MEMORY"))

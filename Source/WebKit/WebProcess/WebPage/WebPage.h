@@ -446,6 +446,7 @@ class GPUProcessConnection;
 class GamepadData;
 class GeolocationPermissionRequestManager;
 class InjectedBundleScriptWorld;
+class InteractionQueryController;
 class LayerHostingContext;
 class MediaDeviceSandboxExtensions;
 class MediaKeySystemPermissionRequestManager;
@@ -2577,6 +2578,7 @@ private:
     void getRenderTreeExternalRepresentation(CompletionHandler<void(const String&)>&&);
     void getSelectionOrContentsAsString(WebCore::FrameIdentifier, CompletionHandler<void(const String&)>&&);
     void getSourceForFrame(WebCore::FrameIdentifier, CompletionHandler<void(const String&)>&&);
+    void runInteractionQuery(const String& request, CompletionHandler<void(const String&)>&&);
 #if PLATFORM(COCOA)
     void getWebArchiveData(CompletionHandler<void(const std::optional<IPC::SharedBufferReference>&)>&&);
     void getWebArchivesForFrames(const Vector<WebCore::FrameIdentifier>& frameIdentifiers, CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Ref<WebCore::LegacyWebArchive>>&&)>&&);
@@ -3110,6 +3112,8 @@ private:
     const UniqueRef<FindController> m_findController;
 
     const UniqueRef<WebFoundTextRangeController> m_foundTextRangeController;
+    // Created on the first native DOM read; most pages are never driven.
+    std::unique_ptr<InteractionQueryController> m_interactionQueryController;
 
     RefPtr<WebInspectorBackend> m_inspector;
     const RefPtr<WebInspectorUI> m_inspectorUI;

@@ -1921,6 +1921,7 @@ private:
     const Ref<HistoryItemClient> m_historyItemClient;
 
     HashMap<RegistrableDomain, uint64_t> m_noiseInjectionHashSalts;
+    String m_noiseInjectionHashSaltsSeed;
 
 #if PLATFORM(IOS_FAMILY)
     String m_sceneIdentifier;

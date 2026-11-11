@@ -708,6 +708,16 @@ void CoordinatedPlatformLayer::setDirtyRegion(Damage&& damage)
     assertIsMainThread();
     assertIsHeld(m_lock);
     auto dirtyRegion = damage.rects();
+    if (m_hasDeferredBackingStoreUpdate && !m_dirtyRegion.isEmpty()) {
+        // The current region was not painted because the backing store update was deferred, so it can't
+        // be replaced. Bounding both in a single rect keeps it small however long the deferral lasts.
+        IntRect bounds;
+        for (const auto& rect : m_dirtyRegion)
+            bounds.unite(rect);
+        for (const auto& rect : dirtyRegion)
+            bounds.unite(rect);
+        dirtyRegion = Damage::Rects { bounds };
+    }
     if (m_dirtyRegion != dirtyRegion) {
         m_dirtyRegion = WTF::move(dirtyRegion);
         notifyCompositionRequired();
@@ -991,6 +1001,12 @@ void CoordinatedPlatformLayer::updateBackingStore()
     if (m_dirtyRegion.isEmpty() && !m_needsTilesUpdate)
         return;
 #endif
+
+    // While the client defers painting, the dirty region and the pending tiles update are left untouched:
+    // setDirtyRegion() accumulates on top of them and the first update after the deferral consumes them.
+    m_hasDeferredBackingStoreUpdate = m_client && m_client->shouldDeferBackingStoreUpdates();
+    if (m_hasDeferredBackingStoreUpdate)
+        return;
 
     FloatSize size;
     float contentsScale;

@@ -85,6 +85,9 @@ public:
 #if USE(SKIA)
         virtual void didPaintPreRenderedTile(CoordinatedPlatformLayer&) = 0;
 #endif
+        // Returns true while tiles must not be painted. Layers keep their dirty region and pending tiles
+        // update meanwhile and paint them in the first backing store update after this returns false.
+        virtual bool shouldDeferBackingStoreUpdates() const { return false; }
     };
 
     static Ref<CoordinatedPlatformLayer> create();
@@ -322,6 +325,7 @@ private:
     FloatRect m_visibleRect WTF_GUARDED_BY_CAPABILITY(mainThread);
     IntRect m_transformedVisibleRect WTF_GUARDED_BY_CAPABILITY(mainThread);
     Vector<IntRect, 1> m_dirtyRegion WTF_GUARDED_BY_CAPABILITY(mainThread);
+    bool m_hasDeferredBackingStoreUpdate WTF_GUARDED_BY_CAPABILITY(mainThread) { false };
 
 #if ENABLE(DAMAGE_TRACKING)
     bool m_damagePropagationEnabled { false };

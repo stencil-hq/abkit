@@ -66,6 +66,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/push-api"
     "${WEBCORE_DIR}/Modules/remoteplayback"
     "${WEBCORE_DIR}/Modules/reporting"
+    "${WEBCORE_DIR}/Modules/safari"
     "${WEBCORE_DIR}/Modules/screen-wake-lock"
     "${WEBCORE_DIR}/Modules/speech"
     "${WEBCORE_DIR}/Modules/storage"
@@ -175,6 +176,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/mathml"
     "${WEBCORE_DIR}/page"
     "${WEBCORE_DIR}/page/csp"
+    "${WEBCORE_DIR}/page/interaction"
     "${WEBCORE_DIR}/page/scrolling"
     "${WEBCORE_DIR}/page/text-extraction"
     "${WEBCORE_DIR}/platform"
@@ -333,6 +335,7 @@ set(WebCore_IDL_INCLUDES
     Modules/permissions
     Modules/push-api
     Modules/reporting
+    Modules/safari
     Modules/speech
     Modules/storage
     Modules/streams
@@ -689,6 +692,12 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/reporting/Report.idl
     Modules/reporting/ReportingObserver.idl
     Modules/reporting/ReportingObserverCallback.idl
+
+    Modules/safari/SafariNamespace.idl
+    Modules/safari/SafariRemoteNotification.idl
+    Modules/safari/SafariRemoteNotificationPermission.idl
+    Modules/safari/SafariRemoteNotificationPermissionCallback.idl
+    Modules/safari/SafariRemoteNotificationPermissionState.idl
 
     Modules/screen-wake-lock/WakeLock.idl
     Modules/screen-wake-lock/WakeLockSentinel.idl
@@ -2024,6 +2033,8 @@ set(WebCore_SUPPLEMENTAL_IDL_FILES
     Modules/push-api/WindowPush.idl
 
     Modules/remoteplayback/HTMLMediaElement+RemotePlayback.idl
+
+    Modules/safari/DOMWindow+Safari.idl
 
     Modules/screen-wake-lock/Navigator+ScreenWakeLock.idl
 

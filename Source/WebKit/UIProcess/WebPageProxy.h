@@ -1896,6 +1896,8 @@ public:
     void getSelectionOrContentsAsString(CompletionHandler<void(const String&)>&&);
     void getSelectionOrContentsAsString(WebCore::FrameIdentifier, CompletionHandler<void(const String&)>&&);
     void getSourceForFrame(WebFrameProxy*, CompletionHandler<void(const String&)>&&);
+    // Answers one request of the native DOM read protocol (JSON in, JSON out) from the main frame's process.
+    void runInteractionQuery(const String& request, CompletionHandler<void(const String&)>&&);
 #if PLATFORM(COCOA)
     void getWebArchiveData(CompletionHandler<void(API::Data*)>&&);
     void getWebArchiveDataWithFrame(WebFrameProxy&, CompletionHandler<void(API::Data*)>&&);

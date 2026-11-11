@@ -12625,7 +12625,7 @@ void Document::resetObservationSizeForContainIntrinsicSize(Element& target)
 OptionSet<NoiseInjectionPolicy> Document::noiseInjectionPolicies() const
 {
     OptionSet<NoiseInjectionPolicy> policies;
-    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections) || quirks().mayBenefitFromFingerprintingProtectionQuirk(topURL()))
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections) || !settings().fingerprintingNoiseSeed().isEmpty() || quirks().mayBenefitFromFingerprintingProtectionQuirk(topURL()))
         policies.add(NoiseInjectionPolicy::Minimal);
     if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
         policies.add(NoiseInjectionPolicy::Enhanced);

@@ -1368,6 +1368,11 @@ bool LocalDOMWindow::offscreenBuffering() const
     return true;
 }
 
+static bool hasWindowFrameOverride(const Settings& settings)
+{
+    return settings.windowWidthOverride() > 0 && settings.windowHeightOverride() > 0;
+}
+
 int LocalDOMWindow::outerHeight() const
 {
     RefPtr frame = this->frame();
@@ -1377,6 +1382,9 @@ int LocalDOMWindow::outerHeight() const
     RefPtr page = frame->page();
     if (!page)
         return 0;
+
+    if (hasWindowFrameOverride(frame->settings()))
+        return static_cast<int>(frame->settings().windowHeightOverride());
 
     if (page->shouldApplyScreenFingerprintingProtections(*protect(document())))
         return innerHeight();
@@ -1405,6 +1413,9 @@ int LocalDOMWindow::outerWidth() const
     RefPtr page = frame->page();
     if (!page)
         return 0;
+
+    if (hasWindowFrameOverride(frame->settings()))
+        return static_cast<int>(frame->settings().windowWidthOverride());
 
     if (page->shouldApplyScreenFingerprintingProtections(*protect(document())))
         return innerWidth();
@@ -1470,6 +1481,9 @@ int LocalDOMWindow::screenX() const
     if (!frame)
         return 0;
 
+    if (hasWindowFrameOverride(frame->settings()))
+        return static_cast<int>(frame->settings().windowXOverride());
+
     RefPtr page = frame->page();
     if (!page || page->shouldApplyScreenFingerprintingProtections(*protect(document())))
         return 0;
@@ -1482,6 +1496,9 @@ int LocalDOMWindow::screenY() const
     RefPtr frame = this->frame();
     if (!frame)
         return 0;
+
+    if (hasWindowFrameOverride(frame->settings()))
+        return static_cast<int>(frame->settings().windowYOverride());
 
     RefPtr page = frame->page();
     if (!page || page->shouldApplyScreenFingerprintingProtections(*protect(document())))

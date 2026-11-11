@@ -624,6 +624,12 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/reporting/Report.idl \
     $(WebCore)/Modules/reporting/ReportingObserver.idl \
     $(WebCore)/Modules/reporting/ReportingObserverCallback.idl \
+    $(WebCore)/Modules/safari/DOMWindow+Safari.idl \
+    $(WebCore)/Modules/safari/SafariNamespace.idl \
+    $(WebCore)/Modules/safari/SafariRemoteNotification.idl \
+    $(WebCore)/Modules/safari/SafariRemoteNotificationPermission.idl \
+    $(WebCore)/Modules/safari/SafariRemoteNotificationPermissionCallback.idl \
+    $(WebCore)/Modules/safari/SafariRemoteNotificationPermissionState.idl \
     $(WebCore)/Modules/screen-wake-lock/Navigator+ScreenWakeLock.idl \
     $(WebCore)/Modules/screen-wake-lock/WakeLock.idl \
     $(WebCore)/Modules/screen-wake-lock/WakeLockSentinel.idl \

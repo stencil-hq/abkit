@@ -181,6 +181,21 @@ void CoordinatedSceneState::invalidateCommittedLayers()
     }
 }
 
+void CoordinatedSceneState::invalidateRemovedLayers()
+{
+    ASSERT(!isMainRunLoop());
+    HashSet<Ref<CoordinatedPlatformLayer>> layersToRemove;
+    {
+        Locker pendingLayersLock { m_pendingLayersLock };
+        layersToRemove = std::exchange(m_pendingLayersToRemove, { });
+    }
+
+    while (!layersToRemove.isEmpty()) {
+        auto layer = layersToRemove.takeAny();
+        layer->invalidateTarget();
+    }
+}
+
 void CoordinatedSceneState::invalidate()
 {
     assertIsMainThread();

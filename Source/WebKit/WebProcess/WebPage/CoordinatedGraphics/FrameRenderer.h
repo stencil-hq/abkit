@@ -80,6 +80,10 @@ public:
 
     virtual void releaseMemory(WTF::Critical) = 0;
 
+    // While suppressed, rendering updates keep running as for a visible page but nothing is painted or
+    // composited. Ending the suppression produces a complete frame, also for a page that did not change.
+    virtual void setCompositionSuppressed(bool) { }
+
     void setLayerTreeStateIsFrozen(bool);
     void updateRenderingWithForcedRepaintAsync(CompletionHandler<void()>&&);
 

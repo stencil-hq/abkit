@@ -4485,3 +4485,99 @@ webkit_settings_set_webrtc_udp_ports_range(WebKitSettings* settings, const gchar
     UNUSED_PARAM(udpPortsRange);
 #endif
 }
+
+/**
+ * webkit_settings_set_fingerprinting_noise_seed:
+ * @settings: a #WebKitSettings
+ * @seed: (nullable): a UTF-8 string, or %NULL
+ *
+ * Sets the seed of the noise added to data read back from canvases and
+ * other fingerprintable sources.
+ *
+ * With a non-empty @seed the noise is always applied, and it is derived
+ * from @seed and the registrable domain of the page: the same seed gives
+ * the same noise for a site across pages, processes and launches, while
+ * a different seed or a different site gives different noise.
+ *
+ * Passing %NULL or an empty string clears the seed, which restores the
+ * default behaviour.
+ *
+ * Since: 2.56
+ */
+void webkit_settings_set_fingerprinting_noise_seed(WebKitSettings* settings, const char* seed)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    settings->priv->preferences->setFingerprintingNoiseSeed(seed && *seed ? String::fromUTF8(seed) : emptyString());
+}
+
+/**
+ * webkit_settings_set_screen_override:
+ * @settings: a #WebKitSettings
+ * @width: the width of the screen, in CSS pixels
+ * @height: the height of the screen, in CSS pixels
+ * @available_left: the horizontal position of the available area of the screen
+ * @available_top: the vertical position of the available area of the screen
+ * @available_width: the width of the available area of the screen
+ * @available_height: the height of the available area of the screen
+ *
+ * Sets the screen geometry reported to web content.
+ *
+ * @width and @height replace the size of the screen (`screen.width`,
+ * `screen.height` and anything else derived from the screen size). The
+ * available values replace `screen.availLeft`, `screen.availTop`,
+ * `screen.availWidth` and `screen.availHeight`; when @available_width or
+ * @available_height is zero, the whole overridden screen is reported as
+ * available.
+ *
+ * Passing zero as @width or @height clears the whole override.
+ *
+ * Since: 2.56
+ */
+void webkit_settings_set_screen_override(WebKitSettings* settings, guint width, guint height, int availableLeft, int availableTop, guint availableWidth, guint availableHeight)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    bool hasOverride = width && height;
+    Ref preferences = *settings->priv->preferences;
+    preferences->startBatchingUpdates();
+    preferences->setScreenWidthOverride(hasOverride ? width : 0);
+    preferences->setScreenHeightOverride(hasOverride ? height : 0);
+    preferences->setScreenAvailableLeftOverride(hasOverride ? availableLeft : 0);
+    preferences->setScreenAvailableTopOverride(hasOverride ? availableTop : 0);
+    preferences->setScreenAvailableWidthOverride(hasOverride ? availableWidth : 0);
+    preferences->setScreenAvailableHeightOverride(hasOverride ? availableHeight : 0);
+    preferences->endBatchingUpdates();
+}
+
+/**
+ * webkit_settings_set_window_frame_override:
+ * @settings: a #WebKitSettings
+ * @x: the horizontal position of the window on the screen
+ * @y: the vertical position of the window on the screen
+ * @width: the outer width of the window, in CSS pixels
+ * @height: the outer height of the window, in CSS pixels
+ *
+ * Sets the window frame reported to web content.
+ *
+ * The values replace `window.screenX`, `window.screenY` (and their
+ * `screenLeft`, `screenTop` aliases), `window.outerWidth` and
+ * `window.outerHeight`.
+ *
+ * Passing zero as @width or @height clears the override.
+ *
+ * Since: 2.56
+ */
+void webkit_settings_set_window_frame_override(WebKitSettings* settings, int x, int y, guint width, guint height)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    bool hasOverride = width && height;
+    Ref preferences = *settings->priv->preferences;
+    preferences->startBatchingUpdates();
+    preferences->setWindowXOverride(hasOverride ? x : 0);
+    preferences->setWindowYOverride(hasOverride ? y : 0);
+    preferences->setWindowWidthOverride(hasOverride ? width : 0);
+    preferences->setWindowHeightOverride(hasOverride ? height : 0);
+    preferences->endBatchingUpdates();
+}

@@ -873,6 +873,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+MediaControls.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+MediaControls.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+RequestIdleCallback.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+RequestIdleCallback.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+Safari.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+Safari.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+Selection.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+Selection.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDOMWindow+SpeechSynthesis.cpp
@@ -2972,6 +2974,16 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSVGViewSpec.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSVGViewSpec.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSVGZoomAndPan.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSVGZoomAndPan.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariNamespace.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariNamespace.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotification.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotification.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermission.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermission.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermissionCallback.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermissionCallback.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermissionState.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSSafariRemoteNotificationPermissionState.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSScreen.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSScreen.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSScreenOrientation.cpp

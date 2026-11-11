@@ -625,6 +625,10 @@ target_include_directories(WPEInjectedBundle SYSTEM PRIVATE
     ${WebKit_SYSTEM_INCLUDE_DIRECTORIES}
 )
 
+if (ENABLE_WPE_PLATFORM AND NOT WIN32)
+    add_subdirectory(${WEBKIT_DIR}/AgentHost)
+endif ()
+
 if (ENABLE_WPE_QT_API)
     list(APPEND WPE_QT_API_INSTALLED_HEADERS
         ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/WPEQtView.h

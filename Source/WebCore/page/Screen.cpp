@@ -80,6 +80,26 @@ static bool shouldReportScreenSizeAsAvailableScreenSize(const LocalFrame& frame)
     return shouldApplyScreenFingerprintingProtections(frame) || frame.settings().shouldReportViewportSizeAsScreenSize();
 }
 
+static std::optional<FloatRect> availableScreenRectOverride(const LocalFrame& frame)
+{
+    auto& settings = frame.settings();
+    if (settings.screenAvailableWidthOverride() > 0 && settings.screenAvailableHeightOverride() > 0) {
+        return FloatRect {
+            static_cast<float>(settings.screenAvailableLeftOverride()),
+            static_cast<float>(settings.screenAvailableTopOverride()),
+            static_cast<float>(settings.screenAvailableWidthOverride()),
+            static_cast<float>(settings.screenAvailableHeightOverride())
+        };
+    }
+
+    // An overridden screen without an available area of its own is entirely available,
+    // rather than paired with the available area of the real screen.
+    if (settings.screenWidthOverride() > 0 && settings.screenHeightOverride() > 0)
+        return FloatRect { 0, 0, static_cast<float>(settings.screenWidthOverride()), static_cast<float>(settings.screenHeightOverride()) };
+
+    return std::nullopt;
+}
+
 int Screen::height() const
 {
     RefPtr frame = this->frame();
@@ -127,6 +147,9 @@ int Screen::availLeft() const
     if (frame->settings().webAPIStatisticsEnabled())
         ResourceLoadObserver::singleton().logScreenAPIAccessed(*protect(frame->document()), ScreenAPIsAccessed::AvailLeft);
 
+    if (auto overrideRect = availableScreenRectOverride(*frame))
+        return static_cast<int>(overrideRect->x());
+
     if (shouldApplyScreenFingerprintingProtections(*frame))
         return 0;
 
@@ -141,6 +164,9 @@ int Screen::availTop() const
 
     if (frame->settings().webAPIStatisticsEnabled())
         ResourceLoadObserver::singleton().logScreenAPIAccessed(*protect(frame->document()), ScreenAPIsAccessed::AvailTop);
+
+    if (auto overrideRect = availableScreenRectOverride(*frame))
+        return static_cast<int>(overrideRect->y());
 
     if (shouldApplyScreenFingerprintingProtections(*frame))
         return 0;
@@ -157,6 +183,9 @@ int Screen::availHeight() const
     if (frame->settings().webAPIStatisticsEnabled())
         ResourceLoadObserver::singleton().logScreenAPIAccessed(*protect(frame->document()), ScreenAPIsAccessed::AvailHeight);
 
+    if (auto overrideRect = availableScreenRectOverride(*frame))
+        return static_cast<int>(overrideRect->height());
+
     if (shouldReportScreenSizeAsAvailableScreenSize(*frame))
         return static_cast<int>(frame->screenSize().height());
 
@@ -171,6 +200,9 @@ int Screen::availWidth() const
 
     if (frame->settings().webAPIStatisticsEnabled())
         ResourceLoadObserver::singleton().logScreenAPIAccessed(*protect(frame->document()), ScreenAPIsAccessed::AvailWidth);
+
+    if (auto overrideRect = availableScreenRectOverride(*frame))
+        return static_cast<int>(overrideRect->width());
 
     if (shouldReportScreenSizeAsAvailableScreenSize(*frame))
         return static_cast<int>(frame->screenSize().width());

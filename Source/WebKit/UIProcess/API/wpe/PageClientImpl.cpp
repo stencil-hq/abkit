@@ -131,12 +131,12 @@ WebCore::IntSize PageClientImpl::viewSize()
 
 bool PageClientImpl::isViewWindowActive()
 {
-    return m_view.viewState().contains(WebCore::ActivityState::WindowIsActive);
+    return m_view.isFocusEmulationEnabled() || m_view.viewState().contains(WebCore::ActivityState::WindowIsActive);
 }
 
 bool PageClientImpl::isViewFocused()
 {
-    return m_view.viewState().contains(WebCore::ActivityState::IsFocused);
+    return m_view.isFocusEmulationEnabled() || m_view.viewState().contains(WebCore::ActivityState::IsFocused);
 }
 
 bool PageClientImpl::isActiveViewVisible()
@@ -163,6 +163,10 @@ void PageClientImpl::pageClosed()
 
 void PageClientImpl::preferencesDidChange()
 {
+    // Focus emulation changes what the view reports without any change in the view itself.
+    auto& page = m_view.page();
+    if (page.isViewFocused() != isViewFocused() || page.isViewWindowActive() != isViewWindowActive())
+        page.activityStateDidChange({ WebCore::ActivityState::IsFocused, WebCore::ActivityState::WindowIsActive });
 }
 
 void PageClientImpl::toolTipChanged(const String&, const String&)

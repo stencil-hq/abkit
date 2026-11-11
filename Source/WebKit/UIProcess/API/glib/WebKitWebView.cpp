@@ -4421,6 +4421,103 @@ gboolean webkit_web_view_can_execute_editing_command_finish(WebKitWebView* webVi
 }
 
 /**
+ * webkit_web_view_run_interaction_query:
+ * @web_view: a #WebKitWebView
+ * @request: a request of the native DOM read protocol, as a JSON object
+ * @cancellable: (allow-none): a #GCancellable or %NULL to ignore
+ * @callback: (scope async): a #GAsyncReadyCallback to call when the request is satisfied
+ * @user_data: the data to pass to callback function
+ *
+ * Asynchronously answer a read-only question about the page.
+ *
+ * The request's `read` member selects the question: what is on the page
+ * (`snapshot`), whether input aimed at a node would reach it and where to aim
+ * (`resolve`), which nodes match a selector (`query`), or when a condition
+ * comes to hold (`wait`). Nodes are named by refs that stay valid for as long
+ * as the node lives.
+ *
+ * The answer is computed natively in the web process: no script runs and
+ * nothing in the document changes, so the page cannot observe the request.
+ * Acting on the answer is left to the caller, using ordinary input events.
+ *
+ * Shared shapes. A ref is an opaque string. Points are `[x, y]` and rects
+ * `[x, y, width, height]` in CSS pixels of the main frame's viewport, the
+ * space input events use, also for nodes inside frames. A node is
+ * `{"ref", "tag", "role", "name"?, "value"?, "description"?, "keyshortcuts"?,
+ * "states": [...], "rect", "frame"?: true, "children"?: [...]}`; `role` is the
+ * computed ARIA role (`generic` when there is none) and `states` draws from
+ * `disabled focused checked mixed pressed expanded collapsed selected required
+ * readonly invalid multiline multiselectable haspopup busy modal editable
+ * clickable`. Reads span same-process frames and pierce open and closed shadow
+ * roots. A `root` ref limits a read to that node's subtree; a frame owner
+ * stands for its document. Text matching ignores ASCII case and collapses
+ * whitespace; `exact` asks for the whole text instead of a part of it. Nodes
+ * nested more than 512 levels deep are not read: nothing that deep is rendered.
+ *
+ * - `{"read": "snapshot", "root"?, "includeAll"?: false, "viewportOnly"?: false, "limit"?: 2000}`
+ *   answers `{"url", "title", "viewport": {"width", "height", "scale"},
+ *   "scroll": {"x", "y", "width", "height", "scrollWidth", "scrollHeight"},
+ *   "nodes": [...], "truncated"}`: the interactive nodes, nested under their
+ *   interactive ancestors, or with `includeAll` every node exposed to
+ *   accessibility plus `{"role": "text", "name", "rect"}` leaves.
+ * - `{"read": "resolve", "ref", "action"?: "click" | "hover" | "type" | "none", "stable"?: 2, "timeout"?: 5000}`
+ *   answers `{"state", "node"?, "point"?, "rect"?, "scroll"?: {"at", "dx", "dy"}, "coveredBy"?}`.
+ *   States, in the order they are checked: `detached`, `hidden`, `disabled`,
+ *   `notEditable`, `offViewport` (send the wheel in `scroll` and resolve
+ *   again), `unstable` (the box was still moving after `timeout` ms; `stable`
+ *   is the number of frames it has to hold still), `covered` (something else
+ *   takes input at `point`; `coveredBy` says what) and `ok` (aim at `point`).
+ * - `{"read": "query", "by": "css" | "xpath" | "text" | "role" | "label" | "attribute" | "ref", "value", "name"?, "attribute"?, "exact"?, "root"?, "visibleOnly"?, "limit"?: 100, "include"?: ["text", "html", "value", "attributes", "checked"]}`
+ *   answers `{"nodes": [...], "total"}` in document order.
+ * - `{"read": "wait", "for": {...a query...}, "state"?: "visible" | "attached" | "hidden" | "detached", "timeout"?: 30000}`
+ *   answers `{"matched": true, "nodes"?: [...]}`, or `{"matched": false}` when
+ *   the timeout passes first.
+ *
+ * When the operation is finished, @callback will be called. You can then call
+ * webkit_web_view_run_interaction_query_finish() to get the reply.
+ *
+ * Since: 2.56
+ */
+void webkit_web_view_run_interaction_query(WebKitWebView* webView, const char* request, GCancellable* cancellable, GAsyncReadyCallback callback, gpointer userData)
+{
+    g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
+    g_return_if_fail(request);
+
+    GRefPtr<GTask> task = adoptGRef(g_task_new(webView, cancellable, callback, userData));
+    getPage(webView).runInteractionQuery(String::fromUTF8(request), [task = WTF::move(task)](const String& reply) {
+        // A null reply means there was no web process to ask, or it went away before answering.
+        if (reply.isNull()) {
+            g_task_return_new_error(task.get(), G_IO_ERROR, G_IO_ERROR_CLOSED, "%s", _("The page has no running web process"));
+            return;
+        }
+        g_task_return_pointer(task.get(), gStrdup(reply.utf8()), g_free);
+    });
+}
+
+/**
+ * webkit_web_view_run_interaction_query_finish:
+ * @web_view: a #WebKitWebView
+ * @result: a #GAsyncResult
+ * @error: return location for error or %NULL to ignore
+ *
+ * Finish an asynchronous operation started with webkit_web_view_run_interaction_query().
+ *
+ * A request the page could not make sense of is answered with a reply that has
+ * an `error` member; @error is only set when no reply could be obtained.
+ *
+ * Returns: (transfer full): the reply as a JSON object, or %NULL in case of error
+ *
+ * Since: 2.56
+ */
+char* webkit_web_view_run_interaction_query_finish(WebKitWebView* webView, GAsyncResult* result, GError** error)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), nullptr);
+    g_return_val_if_fail(g_task_is_valid(result, webView), nullptr);
+
+    return static_cast<char*>(g_task_propagate_pointer(G_TASK(result), error));
+}
+
+/**
  * webkit_web_view_execute_editing_command:
  * @web_view: a #WebKitWebView
  * @command: the command to execute

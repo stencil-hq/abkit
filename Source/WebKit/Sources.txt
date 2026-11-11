@@ -934,6 +934,7 @@ WebProcess/WebPage/EventDispatcher.cpp @cost:3
 WebProcess/WebPage/FindIndicator.cpp
 WebProcess/WebPage/FindController.cpp @cost:3
 WebProcess/WebPage/IPCTestingAPI.cpp
+WebProcess/WebPage/InteractionQueryController.cpp
 WebProcess/WebPage/MomentumEventDispatcher.cpp
 WebProcess/WebPage/PageBanner.cpp
 WebProcess/WebPage/VisitedLinkTableController.cpp

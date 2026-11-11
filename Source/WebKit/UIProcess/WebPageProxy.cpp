@@ -9014,6 +9014,13 @@ void WebPageProxy::getSelectionOrContentsAsString(CompletionHandler<void(const S
     getSelectionOrContentsAsString(frame->frameID(), WTF::move(callback));
 }
 
+void WebPageProxy::runInteractionQuery(const String& request, CompletionHandler<void(const String&)>&& completionHandler)
+{
+    if (!hasRunningProcess())
+        return completionHandler({ });
+    sendWithAsyncReply(Messages::WebPage::RunInteractionQuery(request), WTF::move(completionHandler));
+}
+
 void WebPageProxy::getSelectionOrContentsAsString(FrameIdentifier frameID, CompletionHandler<void(const String&)>&& callback)
 {
     sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::GetSelectionOrContentsAsString(frameID), WTF::move(callback));

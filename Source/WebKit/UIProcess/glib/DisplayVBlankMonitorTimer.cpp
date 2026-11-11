@@ -44,7 +44,18 @@ DisplayVBlankMonitorTimer::DisplayVBlankMonitorTimer()
 
 bool DisplayVBlankMonitorTimer::waitForVBlank() const
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000 / m_refreshRate));
+    // Tick on a fixed grid, as a display does. Sleeping a whole interval after each tick adds the time
+    // every frame took to handle to the period, and the page sees a refresh rate no screen has.
+    using Clock = std::chrono::steady_clock;
+    auto interval = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / m_refreshRate));
+    auto now = Clock::now();
+    if (m_nextTick == Clock::time_point { })
+        m_nextTick = now;
+    do {
+        m_nextTick += interval;
+    } while (m_nextTick <= now);
+
+    std::this_thread::sleep_until(m_nextTick);
     return true;
 }
 

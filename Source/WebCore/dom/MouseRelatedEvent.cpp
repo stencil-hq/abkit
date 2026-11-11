@@ -29,6 +29,7 @@
 #include "LocalFrame.h"
 #include "LocalFrameView.h"
 #include "MouseEventInit.h"
+#include "Page.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderLayer.h"
 #include "RenderLayerInlines.h"
@@ -38,6 +39,28 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MouseRelatedEvent);
+
+DoublePoint MouseRelatedEvent::screenLocationForPlatformEvent(WindowProxy* view, const DoublePoint& globalPosition, const DoublePoint& positionInRootView)
+{
+    RefPtr frameView = frameViewFromWindowProxy(view);
+    if (!frameView)
+        return globalPosition;
+
+    Ref frame = frameView->frame();
+    auto& settings = frame->settings();
+    if (settings.windowWidthOverride() <= 0 || settings.windowHeightOverride() <= 0)
+        return globalPosition;
+
+    RefPtr page = frame->page();
+    RefPtr mainFrame = page ? page->localMainFrame() : nullptr;
+    RefPtr mainFrameView = mainFrame ? mainFrame->view() : nullptr;
+    if (!mainFrameView)
+        return globalPosition;
+
+    // The page fills the bottom of its window: any height the window has beyond it is browser chrome above the page.
+    double chromeHeight = std::max(0., settings.windowHeightOverride() - mainFrameView->frameRect().height());
+    return { settings.windowXOverride() + positionInRootView.x(), settings.windowYOverride() + chromeHeight + positionInRootView.y() };
+}
 
 // FIXME: Remove this variant.
 MouseRelatedEvent::MouseRelatedEvent()

@@ -67,6 +67,9 @@ public:
     const DoublePoint& absoluteLocation() const LIFETIME_BOUND { return m_absoluteLocation; }
 
     static LocalFrameView* frameViewFromWindowProxy(WindowProxy*);
+    // Where a platform event happened on screen: what the port reported, unless the embedder overrides
+    // the window frame (Settings::window*Override), in which case it has to follow from that frame.
+    static DoublePoint screenLocationForPlatformEvent(WindowProxy*, const DoublePoint& globalPosition, const DoublePoint& positionInRootView);
 
     static DoublePoint pagePointToClientPoint(DoublePoint pagePoint, LocalFrameView*);
     static DoublePoint pagePointToAbsolutePoint(DoublePoint pagePoint, LocalFrameView*);
