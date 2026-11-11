@@ -47,6 +47,7 @@ ScreenManager::ScreenManager()
         if (auto* screen = wpe_display_get_screen(display, i))
             addScreen(screen);
     }
+    updatePrimaryDisplayID();
 
     g_signal_connect(display, "screen-added", G_CALLBACK(+[](WPEDisplay*, WPEScreen* screen, ScreenManager* manager) {
         manager->addScreen(screen);
