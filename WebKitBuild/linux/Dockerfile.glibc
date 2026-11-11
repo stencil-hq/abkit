@@ -1,0 +1,37 @@
+# The build environment of the glibc engines (linux-x64, linux-arm64).
+#
+# Ubuntu 22.04 is the base because what is built in it runs wherever the glibc is 2.35 or newer:
+# Ubuntu 22.04 and later, Debian 12 and later, Fedora 36 and later. Its own packages are what WebKit
+# asks for at the least (ICU 70, HarfBuzz 2.7.4, GStreamer 1.20, libxml2 2.9.13); what is too old in
+# it is built by build-deps.sh: GLib (glib-networking needs 2.73.3), libsoup and Mesa.
+# The compiler is Clang from apt.llvm.org on the system's libstdc++ 12, which every distribution
+# that has a glibc new enough has too, so the C++ runtime is the one thing besides glibc that the
+# engine takes from the system.
+FROM ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG LLVM_VERSION=20
+
+# The mirrors' names fail to resolve now and then. apt retries a download, but an index it could
+# not fetch only leaves packages missing, so the update and the install are retried together.
+RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; return 1; } \
+	&& echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80retries \
+	&& retry sh -c 'apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg' \
+	&& curl -fsSL --retry 5 --retry-all-errors https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/apt.llvm.org.gpg \
+	&& echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-$LLVM_VERSION main" > /etc/apt/sources.list.d/llvm.list \
+	&& retry sh -c 'apt-get update && apt-get install -y --no-install-recommends "$@"' packages \
+		clang-$LLVM_VERSION lld-$LLVM_VERSION llvm-$LLVM_VERSION llvm-$LLVM_VERSION-dev libpolly-$LLVM_VERSION-dev libclang-rt-$LLVM_VERSION-dev \
+		gcc g++ libstdc++-12-dev make cmake ninja-build ccache pkg-config patchelf file patch xz-utils bzip2 git \
+		python3 python3-venv perl ruby gperf unifdef bison flex nasm \
+		libicu-dev libharfbuzz-dev libfreetype-dev libfontconfig-dev libjpeg-dev libpng-dev libwebp-dev \
+		libxml2-dev libxslt1-dev libsqlite3-dev zlib1g-dev libepoxy-dev libxkbcommon-dev libwoff-dev \
+		libavif-dev liblcms2-dev libssl-dev libnghttp2-dev libpsl-dev libbrotli-dev libzstd-dev \
+		libffi-dev libpcre2-dev libmount-dev libexpat1-dev libdrm-dev xkb-data \
+		libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
+		gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav \
+		libevent-dev libasound2-dev libopus-dev libvpx-dev \
+		libmanette-0.2-dev flite1-dev \
+		fonts-dejavu-core \
+	&& rm -rf /var/lib/apt/lists/*
+
+ENV CC=clang-$LLVM_VERSION CXX=clang++-$LLVM_VERSION LLVM_CONFIG=llvm-config-$LLVM_VERSION
