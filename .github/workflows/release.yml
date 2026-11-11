@@ -40,7 +40,7 @@ jobs:
          version: ${{ steps.version.outputs.version }}
          publish: ${{ steps.version.outputs.publish }}
          build: ${{ steps.targets.outputs.build }}
-         windows: ${{ steps.targets.outputs.windows }}
+         elsewhere: ${{ steps.targets.outputs.elsewhere }}
       steps:
          # A release tag names the version and publishes; any other ref builds
          # a test version named after its commit.
@@ -59,15 +59,17 @@ jobs:
          # The targets this run builds: all of them for a release; a run by
          # hand may name some. GitHub's macOS arm64 runners are rarely
          # available to this repository, so darwin-arm64 builds on Blacksmith.
-         # Windows targets are cross-compiled, and tested by the smoke-windows
-         # job on Windows.
+         # A target with `test` is tested on that runner by the smoke-elsewhere
+         # job: Windows targets are cross-compiled, and the Intel Mac runners
+         # are virtual machines without a Metal device, which the engine draws
+         # with, so darwin-x64 runs under Rosetta on an Apple-silicon Mac.
          - id: targets
            env:
               TARGETS: ${{ inputs.targets }}
            run: |
               all='[
                  {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
-                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64"},
+                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64", "test": "blacksmith-12vcpu-macos-26"},
                  {"target": "linux-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux", "arch": "x86_64"},
                  {"target": "linux-arm64", "os": "ubuntu-24.04-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
                  {"target": "linux-musl-x64", "os": "ubuntu-24.04", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},
@@ -82,7 +84,7 @@ jobs:
                  [[ $build != '[]' ]] || { echo "::error::no target named in '$TARGETS'"; exit 1; }
               fi
               echo "build={\"include\":$build}" >>"$GITHUB_OUTPUT"
-              echo "windows={\"include\":$(jq -c '[.[] | select(.test)]' <<<"$build")}" >>"$GITHUB_OUTPUT"
+              echo "elsewhere={\"include\":$(jq -c '[.[] | select(.test)]' <<<"$build")}" >>"$GITHUB_OUTPUT"
 
    build:
       name: Build ${{ matrix.target }}
@@ -144,7 +146,7 @@ jobs:
               key: ccache-${{ matrix.target }}-${{ github.sha }}-${{ github.run_attempt }}
 
          - name: Smoke test
-           if: matrix.platform != 'windows'
+           if: ${{ !matrix.test }}
            run: python3 WebKitBuild/smoke-engine.py dist/abkit
 
          - name: Archive
@@ -163,15 +165,15 @@ jobs:
               path: dist/abkit-*
               if-no-files-found: error
 
-   # Each Windows engine is tested on Windows once the builds are done, also
-   # when another target's build failed.
-   smoke-windows:
+   # The engines tested on another runner than the one that built them, once
+   # the builds are done, also when another target's build failed.
+   smoke-elsewhere:
       name: Smoke test ${{ matrix.target }}
       needs: [version, build]
-      if: ${{ !cancelled() && needs.version.outputs.windows != '{"include":[]}' }}
+      if: ${{ !cancelled() && needs.version.outputs.elsewhere != '{"include":[]}' }}
       strategy:
          fail-fast: false
-         matrix: ${{ fromJSON(needs.version.outputs.windows) }}
+         matrix: ${{ fromJSON(needs.version.outputs.elsewhere) }}
       runs-on: ${{ matrix.test }}
       steps:
          - uses: actions/checkout@v7
@@ -182,13 +184,19 @@ jobs:
            with:
               name: ${{ matrix.target }}
               path: dist
-         - shell: pwsh
+         - if: runner.os == 'Windows'
+           shell: pwsh
            run: |
               Expand-Archive -Path (Get-Item dist/abkit-*.zip).FullName -DestinationPath dist
               python WebKitBuild/smoke-engine.py dist/abkit
+         - if: runner.os == 'macOS'
+           run: |
+              /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+              tar -xzf dist/abkit-*.tar.gz -C dist
+              python3 WebKitBuild/smoke-engine.py dist/abkit
 
    publish:
-      needs: [version, build, smoke-windows]
+      needs: [version, build, smoke-elsewhere]
       if: needs.version.outputs.publish == 'true'
       runs-on: ubuntu-24.04
       permissions:
