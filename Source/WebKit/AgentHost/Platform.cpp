@@ -51,11 +51,21 @@ namespace AgentHost::Platform {
 
 #if defined(_WIN32)
 
-// Windows. Not built or run yet: the POSIX half below is what is tested.
+// Windows.
+
+// The engine starts its helper processes inheriting every inheritable handle: the protocol's stay here,
+// so that the parent sees the streams end when this process does.
+static void keepFromChildProcesses(int descriptor)
+{
+    auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(descriptor));
+    if (handle != INVALID_HANDLE_VALUE)
+        SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
+}
 
 int protocolInput()
 {
     _setmode(0, _O_BINARY);
+    keepFromChildProcesses(0);
     return 0;
 }
 
@@ -66,6 +76,7 @@ int claimProtocolOutput()
     if (output < 0)
         return -1;
     _setmode(output, _O_BINARY);
+    keepFromChildProcesses(output);
     if (_dup2(2, 1) < 0) {
         _close(output);
         return -1;
@@ -98,9 +109,28 @@ bool writeAll(int descriptor, const void* buffer, size_t size)
     return true;
 }
 
-void onTerminationRequest(std::function<void()>&&)
+static std::function<void()>* terminationRequested;
+
+static BOOL WINAPI consoleControlled(DWORD event)
 {
-    // Not done here: a parent that wants the host to end closes its standard input.
+    // On a thread of the system's.
+    g_idle_add_full(G_PRIORITY_HIGH, [](gpointer) -> gboolean {
+        (*terminationRequested)();
+        return G_SOURCE_REMOVE;
+    }, nullptr, nullptr);
+    // The process ends as soon as this returns from these: it waits for main() to end it instead, or for the
+    // system to give up waiting.
+    if (event == CTRL_CLOSE_EVENT || event == CTRL_LOGOFF_EVENT || event == CTRL_SHUTDOWN_EVENT)
+        Sleep(INFINITE);
+    return TRUE;
+}
+
+void onTerminationRequest(std::function<void()>&& function)
+{
+    // Windows has no signals to ask a process to end with; a console's Ctrl+C, Ctrl+Break and closing are the
+    // nearest. (TerminateProcess ends the process with no say of its own.)
+    terminationRequested = new std::function<void()>(std::move(function));
+    SetConsoleCtrlHandler(consoleControlled, TRUE);
 }
 
 unsigned long processIdentifier()

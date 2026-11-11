@@ -36,8 +36,8 @@
 #include <string_view>
 #include <utility>
 
-// Diagnostics, on standard error; shown with G_MESSAGES_DEBUG=WPEAgentHost.
-#define AGENT_HOST_DEBUG(...) g_log("WPEAgentHost", G_LOG_LEVEL_DEBUG, __VA_ARGS__)
+// Diagnostics, on standard error; shown with G_MESSAGES_DEBUG=ABHost.
+#define AGENT_HOST_DEBUG(...) g_log("ABHost", G_LOG_LEVEL_DEBUG, __VA_ARGS__)
 
 namespace AgentHost {
 

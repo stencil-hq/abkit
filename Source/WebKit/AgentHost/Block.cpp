@@ -32,7 +32,7 @@
 
 namespace AgentHost {
 
-const char isolatedWorldName[] = "WPEAgentHost";
+const char isolatedWorldName[] = "ABHost";
 
 Block::Block(Host& host, uint64_t identifier, unsigned width, unsigned height, double scale, GRef<WebKitNetworkSession>&& session)
     : m_host(host)
@@ -198,6 +198,7 @@ bool Block::handle(const std::string& name, const Json& operation, const Reply& 
         { "appearance", &Block::setAppearance },
         { "allow", &Block::setAllowedHosts },
         { "insecure", &Block::setInsecure },
+        { "fileAccess", &Block::setFileAccess },
         { "credentials", &Block::setCredentials },
         { "downloads", &Block::setDownloads },
         { "files", &Block::setFiles },

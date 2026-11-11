@@ -40,7 +40,7 @@ namespace AgentHost {
 
 #if defined(__APPLE__)
 
-// The messages (Protocol.md, "The Mach channel"): `msgh_id` is the kind, the payload consecutive native-endian
+// The messages (docs/presentation.md, "The Mach channel"): `msgh_id` is the kind, the payload consecutive native-endian
 // 32-bit words after the header, or after the body and its one port descriptor.
 enum : mach_msg_id_t {
     helloMessage = 1,

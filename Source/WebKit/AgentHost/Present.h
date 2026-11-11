@@ -28,8 +28,9 @@
 // Presenting blocks' frames to another process without copies. On macOS a
 // client checks in a Mach service, and the host sends it the buffers
 // (IOSurfaces) and frames of the blocks presented to it over plain Mach
-// messages, taking back its releases and its display's ticks (Protocol.md,
-// "The Mach channel"). Other systems have no presentation yet.
+// messages, taking back its releases and its display's ticks
+// (docs/presentation.md, "The Mach channel"). Other systems have no
+// presentation yet.
 
 #include <cstdint>
 #include <functional>

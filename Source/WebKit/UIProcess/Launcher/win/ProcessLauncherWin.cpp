@@ -41,19 +41,19 @@ static LPCWSTR processName(ProcessLauncher::ProcessType processType)
     // The WPE port's helpers keep their names on every system.
     switch (processType) {
     case ProcessLauncher::ProcessType::Web:
-        return L"WPEWebProcess.exe";
+        return L"ABWebProcess.exe";
     case ProcessLauncher::ProcessType::Network:
-        return L"WPENetworkProcess.exe";
+        return L"ABNetworkProcess.exe";
 #if ENABLE(GPU_PROCESS)
     case ProcessLauncher::ProcessType::GPU:
-        return L"WPEGPUProcess.exe";
+        return L"ABGPUProcess.exe";
 #endif
 #if ENABLE(MODEL_PROCESS)
     case ProcessLauncher::ProcessType::Model:
         break;
 #endif
     }
-    return L"WPEWebProcess.exe";
+    return L"ABWebProcess.exe";
 #else
     switch (processType) {
     case ProcessLauncher::ProcessType::Web:

@@ -159,8 +159,18 @@ void Host::stop()
     if (m_transport)
         m_transport->finish();
     m_sessions.clear();
-    if (!m_temporaryDirectory.empty())
+    if (m_temporaryDirectory.empty())
+        return;
+    removeTree(m_temporaryDirectory.c_str());
+#if defined(_WIN32)
+    // Windows removes no file another process has open, and the network process keeps the profiles' databases
+    // open until it hears that their sessions are gone, a few turns of the loop from here.
+    for (unsigned attempt = 0; attempt < 60 && g_file_test(m_temporaryDirectory.c_str(), G_FILE_TEST_EXISTS); attempt++) {
+        while (g_main_context_iteration(nullptr, FALSE)) { }
+        g_usleep(50 * G_TIME_SPAN_MILLISECOND);
         removeTree(m_temporaryDirectory.c_str());
+    }
+#endif
 }
 
 void Host::handleClosed(const char* error)
@@ -345,7 +355,7 @@ void Host::open(const Json& operation, const Reply& reply)
 // mode, which a page can tell from an ordinary browser's, and in which the engine reports no console message.
 // Data that is not to be kept goes to a directory of this process's, removed when it ends.
 
-static const char temporaryPrefix[] = "WPEAgentHost-";
+static const char temporaryPrefix[] = "ABHost-";
 
 const std::string& Host::temporaryDirectory()
 {

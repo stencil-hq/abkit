@@ -77,7 +77,7 @@ public:
 
         // Required for GStreamer initialization.
         // FIXME: This should be probably called in other processes as well.
-        g_set_prgname("WPEWebProcess");
+        g_set_prgname("ABWebProcess");
 
         return true;
     }

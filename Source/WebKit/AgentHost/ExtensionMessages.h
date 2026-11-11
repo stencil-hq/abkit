@@ -33,7 +33,7 @@ namespace AgentHost {
 // A console message of the page, or an exception nothing caught. Parameters `(ssssu)`: the level (log, info,
 // warning, error, debug), the source (javascript, console-api, network, security, other), the text, the address
 // of the script it came from (empty when unknown) and the line there (0 when unknown).
-constexpr char consoleMessageName[] = "WPEAgentHost.console";
+constexpr char consoleMessageName[] = "ABHost.console";
 constexpr char consoleMessageFormat[] = "(ssssu)";
 
 // The name of the directory beside the host's executable that holds the extension's module.
