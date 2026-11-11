@@ -829,6 +829,7 @@ bindings/js/JSPopStateEventCustom.cpp
 bindings/js/JSPromiseRejectionEventCustom.cpp
 bindings/js/JSRangeCustom.cpp
 bindings/js/JSReadableStreamSourceCustom.cpp
+bindings/js/JSReportBodyCustom.cpp
 bindings/js/JSReportingObserverCustom.cpp
 bindings/js/JSResizeObserverCustom.cpp @cost:3
 bindings/js/JSResizeObserverEntryCustom.cpp
@@ -1406,6 +1407,7 @@ dom/FragmentDirectiveParser.cpp
 dom/FragmentDirectiveRangeFinder.cpp @header:RenderStyleGetters
 dom/FragmentDirectiveUtilities.cpp @header:RenderStyleGetters
 dom/GCReachableRef.cpp
+dom/GestureEvent.cpp
 dom/HashChangeEvent.cpp
 dom/IdTargetObserver.cpp
 dom/IdTargetObserverRegistry.cpp
@@ -3724,6 +3726,8 @@ svg/SVGPathByteStreamBuilder.cpp
 svg/SVGPathByteStreamSource.cpp
 svg/SVGPathElement.cpp @header:RenderStyleGetters
 svg/SVGPathParser.cpp
+svg/SVGPathSegListBuilder.cpp
+svg/SVGPathSegListSource.cpp
 svg/SVGPathStringBuilder.cpp
 svg/SVGPathStringViewSource.cpp
 svg/SVGPathTraversalStateBuilder.cpp
@@ -4022,6 +4026,9 @@ JSBufferedChangeEvent.cpp
 JSByteLengthQueuingStrategy.cpp
 JSCDATASection.cpp
 JSCallToActionLabel.cpp
+JSCOEPInheritenceViolationReportBody.cpp
+JSCORPViolationReportBody.cpp
+JSCSPViolationReportBody.cpp
 JSCSSAnimation.cpp
 JSCSSAnimationEvent.cpp
 JSCSSConditionRule.cpp
@@ -4265,6 +4272,7 @@ JSDeprecatedCSSOMRGBColor.cpp
 JSDeprecatedCSSOMRect.cpp
 JSDeprecatedCSSOMValue.cpp
 JSDeprecatedCSSOMValueList.cpp
+JSDeprecationReportBody.cpp
 JSDetectedBarcode.cpp
 JSDetectedFace.cpp
 JSDetectedText.cpp
@@ -4668,6 +4676,7 @@ JSInspectorAuditDOMObject.cpp
 JSInspectorAuditResourcesObject.cpp
 JSInspectorFrontendHost.cpp
 JSInstallEvent.cpp
+JSIntegrityPolicyViolationReportBody.cpp
 JSIntersectionObserver.cpp
 JSIntersectionObserverCallback.cpp
 JSIntersectionObserverEntry.cpp
@@ -5020,6 +5029,7 @@ JSRemotePlayback.cpp
 JSRemotePlaybackAvailabilityCallback.cpp
 JSRenderingMode.cpp
 JSReport.cpp
+JSReportBody.cpp
 JSReportingObserver.cpp
 JSReportingObserverCallback.cpp
 JSRequestAnimationFrameCallback.cpp
@@ -5122,6 +5132,27 @@ JSSVGMetadataElement.cpp
 JSSVGNumber.cpp
 JSSVGNumberList.cpp
 JSSVGPathElement.cpp
+JSSVGPathSeg.cpp
+JSSVGPathSegArcAbs.cpp
+JSSVGPathSegArcRel.cpp
+JSSVGPathSegClosePath.cpp
+JSSVGPathSegCurvetoCubicAbs.cpp
+JSSVGPathSegCurvetoCubicRel.cpp
+JSSVGPathSegCurvetoCubicSmoothAbs.cpp
+JSSVGPathSegCurvetoCubicSmoothRel.cpp
+JSSVGPathSegCurvetoQuadraticAbs.cpp
+JSSVGPathSegCurvetoQuadraticRel.cpp
+JSSVGPathSegCurvetoQuadraticSmoothAbs.cpp
+JSSVGPathSegCurvetoQuadraticSmoothRel.cpp
+JSSVGPathSegLinetoAbs.cpp
+JSSVGPathSegLinetoHorizontalAbs.cpp
+JSSVGPathSegLinetoHorizontalRel.cpp
+JSSVGPathSegLinetoRel.cpp
+JSSVGPathSegLinetoVerticalAbs.cpp
+JSSVGPathSegLinetoVerticalRel.cpp
+JSSVGPathSegList.cpp
+JSSVGPathSegMovetoAbs.cpp
+JSSVGPathSegMovetoRel.cpp
 JSSVGPatternElement.cpp
 JSSVGPoint.cpp
 JSSVGPointList.cpp
@@ -5229,6 +5260,7 @@ JSSubscriberCallback.cpp
 JSSubscriptionObserver.cpp
 JSSubscriptionObserverCallback.cpp
 JSSubtleCrypto.cpp
+JSTestReportBody.cpp
 JSText.cpp
 JSTextDecoder.cpp
 JSTextDecoderStream.cpp

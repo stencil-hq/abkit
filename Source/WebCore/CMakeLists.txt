@@ -689,9 +689,13 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/remoteplayback/RemotePlayback.idl
     Modules/remoteplayback/RemotePlaybackAvailabilityCallback.idl
 
+    Modules/reporting/DeprecationReportBody.idl
+    Modules/reporting/IntegrityPolicyViolationReportBody.idl
     Modules/reporting/Report.idl
+    Modules/reporting/ReportBody.idl
     Modules/reporting/ReportingObserver.idl
     Modules/reporting/ReportingObserverCallback.idl
+    Modules/reporting/TestReportBody.idl
 
     Modules/safari/SafariNamespace.idl
     Modules/safari/SafariRemoteNotification.idl
@@ -1441,6 +1445,8 @@ set(WebCore_NON_SVG_IDL_FILES
     inspector/InspectorFrontendHost.idl
     inspector/RTCLogsCallback.idl
 
+    loader/COEPInheritenceViolationReportBody.idl
+    loader/CORPViolationReportBody.idl
 
     mathml/MathMLAnchorElement.idl
     mathml/MathMLElement.idl
@@ -1525,6 +1531,7 @@ set(WebCore_NON_SVG_IDL_FILES
     page/WindowPostMessageOptions.idl
     page/WorkerNavigator.idl
 
+    page/csp/CSPViolationReportBody.idl
 
     plugins/DOMMimeType.idl
     plugins/DOMMimeTypeArray.idl
@@ -1667,6 +1674,27 @@ set(WebCore_SVG_IDL_FILES
     svg/SVGNumber.idl
     svg/SVGNumberList.idl
     svg/SVGPathElement.idl
+    svg/SVGPathSeg.idl
+    svg/SVGPathSegArcAbs.idl
+    svg/SVGPathSegArcRel.idl
+    svg/SVGPathSegClosePath.idl
+    svg/SVGPathSegCurvetoCubicAbs.idl
+    svg/SVGPathSegCurvetoCubicRel.idl
+    svg/SVGPathSegCurvetoCubicSmoothAbs.idl
+    svg/SVGPathSegCurvetoCubicSmoothRel.idl
+    svg/SVGPathSegCurvetoQuadraticAbs.idl
+    svg/SVGPathSegCurvetoQuadraticRel.idl
+    svg/SVGPathSegCurvetoQuadraticSmoothAbs.idl
+    svg/SVGPathSegCurvetoQuadraticSmoothRel.idl
+    svg/SVGPathSegLinetoAbs.idl
+    svg/SVGPathSegLinetoHorizontalAbs.idl
+    svg/SVGPathSegLinetoHorizontalRel.idl
+    svg/SVGPathSegLinetoRel.idl
+    svg/SVGPathSegLinetoVerticalAbs.idl
+    svg/SVGPathSegLinetoVerticalRel.idl
+    svg/SVGPathSegList.idl
+    svg/SVGPathSegMovetoAbs.idl
+    svg/SVGPathSegMovetoRel.idl
     svg/SVGPatternElement.idl
     svg/SVGPoint.idl
     svg/SVGPointList.idl
@@ -2227,6 +2255,10 @@ if (USE_APPLE_INTERNAL_SDK)
         dom/TouchEvent.cpp
         dom/TouchList.cpp
     )
+else ()
+    list(APPEND WebCore_NON_SVG_IDL_FILES
+        dom/GestureEvent.idl
+    )
 endif ()
 
 set(WebCore_IDL_FILES
@@ -2616,6 +2648,10 @@ if (USE_LIBWEBRTC)
     )
     if (NOT APPLE)
         list(APPEND WebCore_LIBRARIES webrtc)
+    endif ()
+    if (ENABLE_AV1 AND NOT WEBKIT_PORT_IS_COCOA)
+        # For LibWebRTCDav1dDecoder.cpp; the Cocoa port adds it in PlatformCocoa.cmake.
+        list(APPEND WebCore_PRIVATE_LIBRARIES dav1d)
     endif ()
     list(APPEND WebCore_UNIFIED_SOURCE_LIST_FILES
         "platform/SourcesLibWebRTC.txt"

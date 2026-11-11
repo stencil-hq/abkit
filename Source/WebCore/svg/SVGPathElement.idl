@@ -28,4 +28,97 @@
     Exposed=Window
 ] interface SVGPathElement : SVGGeometryElement {
     unsigned long getPathSegAtLength(optional unrestricted float distance = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegClosePath createSVGPathSegClosePath();
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegMovetoAbs createSVGPathSegMovetoAbs(optional unrestricted float x = NaN,
+                                                  optional unrestricted float y = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegMovetoRel createSVGPathSegMovetoRel(optional unrestricted float x = NaN,
+                                                  optional unrestricted float y = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoAbs createSVGPathSegLinetoAbs(optional unrestricted float x = NaN,
+                                                  optional unrestricted float y = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoRel createSVGPathSegLinetoRel(optional unrestricted float x = NaN,
+                                                  optional unrestricted float y = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoCubicAbs createSVGPathSegCurvetoCubicAbs(optional unrestricted float x = NaN,
+                                                              optional unrestricted float y = NaN,
+                                                              optional unrestricted float x1 = NaN,
+                                                              optional unrestricted float y1 = NaN,
+                                                              optional unrestricted float x2 = NaN,
+                                                              optional unrestricted float y2 = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoCubicRel createSVGPathSegCurvetoCubicRel(optional unrestricted float x = NaN,
+                                                              optional unrestricted float y = NaN,
+                                                              optional unrestricted float x1 = NaN,
+                                                              optional unrestricted float y1 = NaN,
+                                                              optional unrestricted float x2 = NaN,
+                                                              optional unrestricted float y2 = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoQuadraticAbs createSVGPathSegCurvetoQuadraticAbs(optional unrestricted float x = NaN,
+                                                                      optional unrestricted float y = NaN,
+                                                                      optional unrestricted float x1 = NaN,
+                                                                      optional unrestricted float y1 = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoQuadraticRel createSVGPathSegCurvetoQuadraticRel(optional unrestricted float x = NaN,
+                                                                      optional unrestricted float y = NaN,
+                                                                      optional unrestricted float x1 = NaN,
+                                                                      optional unrestricted float y1 = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegArcAbs createSVGPathSegArcAbs(optional unrestricted float x = NaN,
+                                            optional unrestricted float y = NaN,
+                                            optional unrestricted float r1 = NaN,
+                                            optional unrestricted float r2 = NaN,
+                                            optional unrestricted float angle = NaN,
+                                            optional boolean largeArcFlag = false,
+                                            optional boolean sweepFlag = false);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegArcRel createSVGPathSegArcRel(optional unrestricted float x = NaN,
+                                            optional unrestricted float y = NaN,
+                                            optional unrestricted float r1 = NaN,
+                                            optional unrestricted float r2 = NaN,
+                                            optional unrestricted float angle = NaN,
+                                            optional boolean largeArcFlag = false,
+                                            optional boolean sweepFlag = false);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoHorizontalAbs createSVGPathSegLinetoHorizontalAbs(optional unrestricted float x = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoHorizontalRel createSVGPathSegLinetoHorizontalRel(optional unrestricted float x = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoVerticalAbs createSVGPathSegLinetoVerticalAbs(optional unrestricted float y = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegLinetoVerticalRel createSVGPathSegLinetoVerticalRel(optional unrestricted float y = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoCubicSmoothAbs createSVGPathSegCurvetoCubicSmoothAbs(optional unrestricted float x = NaN,
+                                                                          optional unrestricted float y = NaN,
+                                                                          optional unrestricted float x2 = NaN,
+                                                                          optional unrestricted float y2 = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoCubicSmoothRel createSVGPathSegCurvetoCubicSmoothRel(optional unrestricted float x = NaN,
+                                                                          optional unrestricted float y = NaN,
+                                                                          optional unrestricted float x2 = NaN,
+                                                                          optional unrestricted float y2 = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoQuadraticSmoothAbs createSVGPathSegCurvetoQuadraticSmoothAbs(optional unrestricted float x = NaN,
+                                                                                  optional unrestricted float y = NaN);
+    [EnabledBySetting=PathSegAPIEnabled]
+    SVGPathSegCurvetoQuadraticSmoothRel createSVGPathSegCurvetoQuadraticSmoothRel(optional unrestricted float x = NaN,
+                                                                                  optional unrestricted float y = NaN);
+
+    [EnabledBySetting=PathSegAPIEnabled]
+    readonly attribute SVGPathSegList pathSegList;
+    [EnabledBySetting=PathSegAPIEnabled]
+    readonly attribute SVGPathSegList animatedPathSegList;
 };

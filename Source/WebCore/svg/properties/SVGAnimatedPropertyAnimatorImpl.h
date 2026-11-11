@@ -242,6 +242,7 @@ private:
 
     void animate(SVGElement& targetElement, float progress, unsigned repeatCount) final
     {
+        m_animated->animVal().pathByteStreamWillChange();
         m_function.animate(targetElement, progress, repeatCount, m_animated->animVal().pathByteStream());
     }
 };
