@@ -241,7 +241,7 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
 #endif
 #endif // PLATFORM(WPE)
 
-    m_availableInputDevices = parameters.availableInputDevices;
+    setAvailableInputDevices(parameters.availableInputDevices);
 
 #if USE(GSTREAMER)
     WebCore::setGStreamerOptionsFromUIProcess(WTF::move(parameters.gstreamerOptions));
@@ -341,6 +341,11 @@ std::optional<AvailableInputDevices> WebProcess::primaryPointingDevice() const
 void WebProcess::setAvailableInputDevices(OptionSet<AvailableInputDevices> availableInputDevices)
 {
     m_availableInputDevices = availableInputDevices;
+#if PLATFORM(WPE) && ENABLE(TOUCH_EVENTS)
+    // A display that names its devices and has no touchscreen gives pages no touch interfaces, as a
+    // desktop browser does. One that names none has said nothing, and keeps them.
+    WebCore::setScreenHasTouchDevice(availableInputDevices.isEmpty() || availableInputDevices.contains(AvailableInputDevices::Touchscreen));
+#endif
 }
 #endif // PLATFORM(GTK) || PLATFORM(WPE)
 

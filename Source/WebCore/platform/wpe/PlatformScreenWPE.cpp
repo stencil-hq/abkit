@@ -150,6 +150,20 @@ ColorSpace screenColorSpace(Widget*)
     return ColorSpace::SRGB();
 }
 
+#if ENABLE(TOUCH_EVENTS)
+static bool hasTouchDevice = true;
+
+bool screenHasTouchDevice()
+{
+    return hasTouchDevice;
+}
+
+void setScreenHasTouchDevice(bool value)
+{
+    hasTouchDevice = value;
+}
+#endif
+
 bool screenSupportsExtendedColor(Widget*)
 {
     return false;

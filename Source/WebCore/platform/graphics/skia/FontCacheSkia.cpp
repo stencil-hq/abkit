@@ -211,6 +211,9 @@ static bool isSystemUIFamilyFont(const String& family)
         || family == "-webkit-system-ui"_s
         || family == "system-font"_s
         || family == "system-ui"_s
+#if OS(MACOS)
+        || family == "-apple-system"_s
+#endif
         || family == "ui-sans-serif"_s;
 }
 #endif
@@ -405,8 +408,53 @@ Vector<hb_feature_t> FontCache::computeFeatures(const FontDescription& fontDescr
 
 static bool isUnsupportedFamilyFont(const AtomString& family)
 {
+#if OS(MACOS)
+    // On a Mac these are names of the system font, to this engine as to every other browser there.
+    UNUSED_PARAM(family);
+    return false;
+#else
     return family == "-apple-system"
         || family == "-apple-system-font";
+#endif
+}
+
+// `font-optical-sizing: auto` for an installed variable font: the face is drawn at the optical size
+// of the text when it has that axis. Without this a font such as the Mac's system font keeps the
+// shapes of its largest size, and small text comes out narrower than its designers drew it.
+static sk_sp<SkTypeface> typefaceAtOpticalSize(sk_sp<SkTypeface>&& typeface, const FontDescription& fontDescription, float size)
+{
+    if (fontDescription.opticalSizing() != FontOpticalSizing::Auto)
+        return WTF::move(typeface);
+
+    int axisCount = typeface->getVariationDesignParameters({ });
+    if (axisCount <= 0)
+        return WTF::move(typeface);
+    Vector<SkFontParameters::Variation::Axis> axes(axisCount);
+    if (typeface->getVariationDesignParameters(axes.mutableSpan()) <= 0)
+        return WTF::move(typeface);
+
+    static constexpr SkFourByteTag opticalSizeTag = SkSetFourByteTag('o', 'p', 's', 'z');
+    auto axis = std::ranges::find(axes, opticalSizeTag, &SkFontParameters::Variation::Axis::tag);
+    if (axis == axes.end())
+        return WTF::move(typeface);
+
+    // The other axes stay where the match for the requested style put them.
+    Vector<SkFontArguments::VariationPosition::Coordinate> position;
+    if (int count = typeface->getVariationDesignPosition({ }); count > 0) {
+        position.grow(count);
+        if (typeface->getVariationDesignPosition(position.mutableSpan()) <= 0)
+            position.clear();
+    }
+    position.removeAllMatching([](auto& coordinate) {
+        return coordinate.axis == opticalSizeTag;
+    });
+    position.append({ opticalSizeTag, std::clamp(size, axis->min, axis->max) });
+
+    SkFontArguments arguments;
+    arguments.setVariationDesignPosition({ position.span().data(), static_cast<int>(position.size()) });
+    if (auto sized = typeface->makeClone(arguments))
+        return sized;
+    return WTF::move(typeface);
 }
 
 std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDescription& fontDescription, const AtomString& family, const FontCreationContext& fontCreationContext, OptionSet<FontLookupOptions> options)
@@ -420,6 +468,7 @@ std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDe
         return nullptr;
 
     auto size = fontDescription.adjustedSizeForFontFace(fontCreationContext.sizeAdjust());
+    typeface = typefaceAtOpticalSize(WTF::move(typeface), fontDescription, size);
     auto features = computeFeatures(fontDescription, fontCreationContext);
     auto [syntheticBold, syntheticOblique] = computeSynthesisProperties(*typeface, fontDescription, options);
     FontPlatformData platformData(WTF::move(typeface), size, syntheticBold, syntheticOblique, fontDescription.orientation(), fontDescription.widthVariant(), fontDescription.textRenderingMode(), WTF::move(features), fontCreationContext.metricsOverrides());

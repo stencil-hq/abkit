@@ -175,10 +175,14 @@ WEBCORE_EXPORT float screenScaleFactor(UIScreen * = nullptr);
 #endif
 
 #if ENABLE(TOUCH_EVENTS)
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
 WEBCORE_EXPORT bool screenHasTouchDevice();
 #else
 constexpr bool screenHasTouchDevice() { return true; }
+#endif
+#if PLATFORM(WPE)
+// True until the embedder's display names its input devices and a touchscreen is not among them.
+WEBCORE_EXPORT void setScreenHasTouchDevice(bool);
 #endif
 #endif
 
