@@ -35,7 +35,10 @@ its command line tools) and Homebrew. Its steps can be run alone:
 The engine has what Safari has: media through GStreamer (played silently), Web Audio, MediaStream, WebRTC (the
 bundled libwebrtc), MSE, WebCodecs, Encrypted Media (ClearKey), WebGL and WebGPU, WebAuthn, gamepads, pointer
 lock, PDF.js, speech, device orientation and gesture events, `<model>`; `configure-wpe-darwin.sh` says why each is
-on or off. It bundles Homebrew's libraries, so it runs on the macOS version it was built on and later.
+on or off. It bundles Homebrew's libraries, so it runs on the macOS version it was built on and later. It draws
+with Metal (through ANGLE), so it needs a Metal device: every Mac that runs a current macOS has one, but a virtual
+machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI therefore tests
+darwin-x64 under Rosetta on an Apple-silicon Mac.
 
 ## Linux
 
