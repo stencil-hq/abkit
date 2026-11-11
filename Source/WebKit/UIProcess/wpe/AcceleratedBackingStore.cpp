@@ -45,6 +45,7 @@
 
 #if OS(WINDOWS)
 #include <cmath>
+#include <dwmapi.h>
 #include <windows.h>
 #endif
 
@@ -211,9 +212,17 @@ void AcceleratedBackingStore::sendNativeWindow()
     if (!legacyMainFrameProcess)
         return;
 
+    // Without desktop composition (session 0, a service's) no swap chain can
+    // present into a window: frames stay buffers.
+    BOOL compositionEnabled = FALSE;
+    bool canPresent = SUCCEEDED(::DwmIsCompositionEnabled(&compositionEnabled)) && compositionEnabled;
+
+    auto processID = legacyMainFrameProcess->processID();
+    bool failedBefore = m_failedPresentationSurfaceID == m_surfaceID && m_failedPresentationProcessID == processID;
+
     uintptr_t window = 0;
-    if (auto* parent = wpe_view_get_native_window(m_wpeView.get())) {
-        auto processID = legacyMainFrameProcess->processID();
+    auto* parent = wpe_view_get_native_window(m_wpeView.get());
+    if (parent && canPresent && !failedBefore) {
         if (!m_presentationWindow || !::IsWindow(static_cast<HWND>(m_presentationWindow)) || m_presentationParent != parent
             || m_presentationSurfaceID != m_surfaceID || m_presentationProcessID != processID) {
             auto* previous = static_cast<HWND>(m_presentationWindow);
@@ -228,6 +237,23 @@ void AcceleratedBackingStore::sendNativeWindow()
         window = reinterpret_cast<uintptr_t>(m_presentationWindow);
     }
     legacyMainFrameProcess->send(Messages::AcceleratedSurface::SetNativeWindow(window), m_surfaceID);
+}
+
+void AcceleratedBackingStore::didFailToPresentIntoWindow()
+{
+    // The web process sends buffers again: the view's window shows what the
+    // embedder paints, and this surface is not handed a window again.
+    if (RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get()) {
+        m_failedPresentationSurfaceID = m_surfaceID;
+        m_failedPresentationProcessID = legacyMainFrameProcess->processID();
+    }
+    if (m_presentationWindow && m_presentationSurfaceID == m_surfaceID) {
+        ::DestroyWindow(static_cast<HWND>(m_presentationWindow));
+        m_presentationWindow = nullptr;
+        m_presentationParent = nullptr;
+        m_presentationSurfaceID = 0;
+        m_presentationProcessID = 0;
+    }
 }
 #endif
 

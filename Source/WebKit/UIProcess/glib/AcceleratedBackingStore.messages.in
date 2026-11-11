@@ -37,6 +37,10 @@ messages -> AcceleratedBackingStore {
     DidCreateIOSurfaceBuffer(WebKit::RendererBufferIdentifier id)
 #endif
 
+#if OS(WINDOWS) && ENABLE(WPE_PLATFORM)
+    DidFailToPresentIntoWindow()
+#endif
+
     DidDestroyBuffer(WebKit::RendererBufferIdentifier id)
     Frame(WebKit::RendererBufferIdentifier id, Vector<WebCore::IntRect, 1> damage, UnixFileDescriptor syncFD)
 
