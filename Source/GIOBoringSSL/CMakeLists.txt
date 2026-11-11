@@ -22,7 +22,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # libgioboringssl.so: a GIO TLS backend on BoringSSL whose clients send Safari's ClientHello and
-# whose trust decisions are the Security framework's.
+# whose trust decisions are the Security framework's on an Apple OS, and elsewhere those of the
+# system's CA bundle.
 #
 # The connection, certificate and BIO code is glib-networking's OpenSSL backend, compiled from a
 # pinned, patched source tree (WebKitBuild/darwin/build-deps.sh prepares it and passes its path);
@@ -50,7 +51,6 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h" "#define GETTEXT_PACKAGE \"gli
 set(tls_dir "${GLIB_NETWORKING_SOURCE_DIR}/tls")
 add_library(gioboringssl MODULE
     GIOBoringSSLModule.c
-    GTlsDatabaseSecTrust.c
     SafariClientHello.c
 
     ${tls_dir}/base/gtlsconnection-base.c
@@ -69,6 +69,9 @@ add_library(gioboringssl MODULE
     ${tls_dir}/openssl/gtlsfiledatabase-openssl.c
     ${tls_dir}/openssl/gtlsserverconnection-openssl.c
 )
+if (APPLE)
+    target_sources(gioboringssl PRIVATE GTlsDatabaseSecTrust.c)
+endif ()
 
 set_target_properties(gioboringssl PROPERTIES
     PREFIX "lib"
@@ -84,6 +87,9 @@ target_compile_definitions(gioboringssl PRIVATE
     G_LOG_USE_STRUCTURED
     G_DISABLE_DEPRECATED
     GLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_70
+    # What glib-networking-boringssl.patch does as Safari on an Apple OS, the Linux overlay
+    # (WebKitBuild/linux/patches/glib-networking-boringssl-linux.patch) does wherever this is set.
+    GIO_BORINGSSL_SAFARI
 )
 
 target_include_directories(gioboringssl PRIVATE
@@ -97,16 +103,30 @@ target_include_directories(gioboringssl PRIVATE
 
 target_compile_options(gioboringssl PRIVATE -Werror=implicit-function-declaration)
 
-# BoringSSL is C++ inside; -load_hidden keeps every symbol of the two archives out of the module's
-# export table whatever visibility they were compiled with.
-target_link_libraries(gioboringssl PRIVATE
-    PkgConfig::GIO
-    ZLIB::ZLIB
-    "-Wl,-load_hidden,${BORINGSSL_ROOT}/lib/libssl.a"
-    "-Wl,-load_hidden,${BORINGSSL_ROOT}/lib/libcrypto.a"
-    c++
-    "-framework Security"
-    "-framework CoreFoundation"
-)
+# BoringSSL is C++ inside; -load_hidden (--exclude-libs for ELF) keeps every symbol of the two
+# archives out of the module's export table whatever visibility they were compiled with.
+if (APPLE)
+    target_link_libraries(gioboringssl PRIVATE
+        PkgConfig::GIO
+        ZLIB::ZLIB
+        "-Wl,-load_hidden,${BORINGSSL_ROOT}/lib/libssl.a"
+        "-Wl,-load_hidden,${BORINGSSL_ROOT}/lib/libcrypto.a"
+        c++
+        "-framework Security"
+        "-framework CoreFoundation"
+    )
+else ()
+    find_package(Threads REQUIRED)
+    target_link_libraries(gioboringssl PRIVATE
+        PkgConfig::GIO
+        ZLIB::ZLIB
+        "${BORINGSSL_ROOT}/lib/libssl.a"
+        "${BORINGSSL_ROOT}/lib/libcrypto.a"
+        "-Wl,--exclude-libs,libssl.a:libcrypto.a"
+        "-Wl,--no-undefined"
+        stdc++
+        Threads::Threads
+    )
+endif ()
 
 install(TARGETS gioboringssl LIBRARY DESTINATION lib/gio/modules)

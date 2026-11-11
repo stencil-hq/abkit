@@ -58,7 +58,7 @@ namespace WebCore {
 
 void FontCache::platformInit()
 {
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
     // fontconfig reads its configuration on first use, which is after this.
     useBundledRuntimePathsIfPresent();
 #endif

@@ -87,7 +87,7 @@ RefPtr<WebGPUCompositorIntegration> WebGPUIntegrationImpl::createCompositorInteg
     return WebGPUCompositorIntegrationImpl::create(m_workQueue.get());
 }
 
-#if ENABLE(VIDEO) && PLATFORM(COCOA)
+#if ENABLE(VIDEO) && (PLATFORM(COCOA) || OS(DARWIN))
 NODELETE static ::WebGPU::VideoFrameRotation convertToAPI(VideoFrameRotation rotation)
 {
     switch (rotation) {

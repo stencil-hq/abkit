@@ -15,7 +15,7 @@ if (WTF_OS_MACOS)
 endif ()
 
 if (WIN32)
-    list(APPEND jsc_LIBRARIES Winmm)
+    list(APPEND jsc_LIBRARIES winmm)
 endif ()
 
 if (ENABLE_FUZZILLI)

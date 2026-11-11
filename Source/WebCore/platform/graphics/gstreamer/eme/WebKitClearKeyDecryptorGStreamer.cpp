@@ -27,7 +27,7 @@
 #include "WebKitClearKeyDecryptorGStreamer.h"
 #include "WebKitCommonEncryptionDecryptorGStreamer.h"
 
-#if ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
 
 #include "CDMProxyClearKey.h"
 #include "GStreamerCommon.h"
@@ -153,4 +153,4 @@ static DecryptionResult decrypt(WebKitMediaCommonEncryptionDecrypt* decryptor, G
 
 #undef GST_CAT_DEFAULT
 
-#endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#endif // ENABLE(ENCRYPTED_MEDIA) && USE(GSTREAMER) && PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)

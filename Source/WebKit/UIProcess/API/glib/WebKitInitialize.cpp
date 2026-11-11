@@ -29,6 +29,7 @@
 #include "ProcessExecutablePath.h"
 #include "RemoteInspectorHTTPServer.h"
 #include "WebKit2Initialize.h"
+#include <WebCore/BundledRuntime.h>
 #include <JavaScriptCore/RemoteInspector.h>
 #include <JavaScriptCore/RemoteInspectorServer.h>
 #include <limits>
@@ -137,7 +138,7 @@ static void initializeRemoteInspectorServer()
 }
 #endif
 
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
 // A packaged engine has no install prefix: the inspector resources sit beside the library, which the embedder
 // that ships the engine in its own bundle may put anywhere, so point the loader at them before the paths built
 // into the library.
@@ -153,7 +154,7 @@ static void pointInspectorResourcesAtEngineBundle()
     if (!FileSystem::fileExists(FileSystem::pathByAppendingComponent(directory, "inspector.gresource"_s)))
         return;
 
-    g_setenv("WEBKIT_INSPECTOR_RESOURCES_PATH", directory.utf8().spanIncludingNullTerminator().data(), TRUE);
+    g_setenv("WEBKIT_INSPECTOR_RESOURCES_PATH", directory.utf8().legacyCStringPointer(), TRUE);
 }
 #endif
 
@@ -179,8 +180,11 @@ void webkitInitialize()
 
         SkGraphics::Init();
 
-#if PLATFORM(WPE) && OS(DARWIN)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
         pointInspectorResourcesAtEngineBundle();
+#endif
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX))
+        WebCore::useBundledRuntimePathsIfPresent();
 #endif
 
 #if ENABLE(REMOTE_INSPECTOR)

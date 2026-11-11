@@ -27,6 +27,7 @@
 
 #if ENABLE(MODEL_ELEMENT)
 
+#include "DocumentSettingsValues.h"
 #include "HTMLDocument.h"
 
 namespace WebCore {

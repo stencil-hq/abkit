@@ -958,7 +958,7 @@ PlatformLayer* MediaPlayer::platformLayer() const
     
 #if ENABLE(VIDEO_PRESENTATION_MODE)
 
-RetainPtr<PlatformLayer> MediaPlayer::createVideoFullscreenLayer()
+PlatformLayerContainer MediaPlayer::createVideoFullscreenLayer()
 {
     return protect(m_private)->createVideoFullscreenLayer();
 }

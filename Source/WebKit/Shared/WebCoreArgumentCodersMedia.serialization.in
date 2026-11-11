@@ -57,6 +57,28 @@ enum class WebCore::MediaSessionReadyState : uint8_t {
 };
 #endif // ENABLE(MEDIA_SESSION_COORDINATOR)
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+# Used as enum and OptionSet
+header: <WebCore/MediaPlaybackTarget.h>
+[CustomHeader, OptionSet] enum class WebCore::MediaPlaybackTargetType : uint8_t {
+    None,
+    AVOutputContext,
+    Mock,
+    WirelessPlayback,
+    Serialized,
+};
+
+# Used as enum and OptionSet
+header: <WebCore/MediaPlaybackTarget.h>
+[CustomHeader] enum class WebCore::MediaPlaybackTargetType : uint8_t {
+    None,
+    AVOutputContext,
+    Mock,
+    WirelessPlayback,
+    Serialized,
+};
+#endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
+
 #if ENABLE(WEB_RTC)
 header: <WebCore/RTCErrorDetailType.h>
 enum class WebCore::RTCErrorDetailType : uint8_t {

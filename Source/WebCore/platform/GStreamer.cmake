@@ -95,6 +95,14 @@ if (APPLE AND PORT STREQUAL "WPE")
     )
 endif ()
 
+if (ENABLE_VIDEO)
+    # The windowless Picture-in-Picture answers take nothing of Darwin, so a Linux build with the
+    # video presentation mode gives the same ones.
+    list(APPEND WebCore_SOURCES
+        platform/graphics/gstreamer/PictureInPictureSupportDarwin.cpp
+    )
+endif ()
+
 if (ENABLE_VIDEO AND APPLE)
     # On a Mac the questions about media types are put to AVFoundation, as the
     # system's WebKit puts them (MediaTypeSupportDarwin.h), and WebGPU is
@@ -102,7 +110,6 @@ if (ENABLE_VIDEO AND APPLE)
     list(APPEND WebCore_SOURCES
         platform/graphics/gstreamer/MediaTypeSupportDarwin.mm
         platform/graphics/gstreamer/VideoFrameGStreamerDarwin.cpp
-        platform/graphics/gstreamer/PictureInPictureSupportDarwin.cpp
     )
     list(APPEND WebCore_LIBRARIES
         "-framework AVFoundation"

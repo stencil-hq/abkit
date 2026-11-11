@@ -34,7 +34,7 @@
 #include "CDMClearKey.h"
 #include "CDMProxy.h"
 
-#if PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
 #include "CDMProxyClearKey.h"
 #endif
 
@@ -49,7 +49,7 @@ void CDMFactory::platformRegisterFactories(Vector<WeakRef<CDMFactory>>& factorie
 #if ENABLE(THUNDER)
     factories.append(CDMFactoryThunder::singleton());
 #endif
-#if PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
     // Safari answers for the W3C reference key system, and the in-tree ClearKey CDM implements
     // it. Thunder is off here, so ClearKey is the only key system this port advertises.
     factories.append(CDMFactoryClearKey::singleton());
@@ -65,7 +65,7 @@ Vector<CDMProxyFactory*> CDMProxyFactory::platformRegisterFactories()
     factories.reserveInitialCapacity(1);
     factories.append(&CDMFactoryThunder::singleton());
 #endif
-#if PLATFORM(WPE) && OS(DARWIN) && !ENABLE(THUNDER)
+#if PLATFORM(WPE) && (OS(DARWIN) || OS(LINUX)) && !ENABLE(THUNDER)
     // The proxy the in-tree ClearKey CDM instance decrypts through.
     factories.append(&CDMProxyFactoryClearKey::singleton());
 #endif

@@ -12,7 +12,7 @@
 
 // IWYU pragma: begin_keep
 #if defined(WEBRTC_LINUX)
-#include <linux/prctl.h>
+// musl's <sys/prctl.h> defines what <linux/prctl.h> does, and the two clash; glibc's includes it.
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 

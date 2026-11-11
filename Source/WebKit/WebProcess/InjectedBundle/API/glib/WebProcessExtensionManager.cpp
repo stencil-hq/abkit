@@ -39,7 +39,11 @@ void WebProcessExtensionManager::scanModules(const String& webProcessExtensionsD
 {
     auto moduleNames = FileSystem::listDirectory(webProcessExtensionsDirectory);
     for (auto& moduleName : moduleNames) {
+#if OS(WINDOWS)
+        if (!moduleName.endsWith(".dll"_s))
+#else
         if (!moduleName.endsWith(".so"_s))
+#endif
             continue;
 
         auto modulePath = FileSystem::pathByAppendingComponent(webProcessExtensionsDirectory, moduleName);

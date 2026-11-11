@@ -400,7 +400,7 @@ void GStreamerVideoCaptureSource::applyFrameRateAndZoomWithPreset(double request
 
 // ImageCapture.takePhoto() answers with the most recent frame of the live capture, encoded as
 // JPEG, so a page gets real camera pixels and the bytes ImageIO produces, as it does in Safari.
-Ref<TakePhotoNativePromise> GStreamerVideoCaptureSource::takePhotoInternal(PhotoSettings&&)
+Ref<RealtimeMediaSource::TakePhotoNativePromise> GStreamerVideoCaptureSource::takePhotoInternal(PhotoSettings&&)
 {
     RefPtr<VideoFrame> frame;
     {

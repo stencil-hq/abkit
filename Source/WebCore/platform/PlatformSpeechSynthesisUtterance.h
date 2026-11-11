@@ -76,7 +76,7 @@ public:
     
     PlatformSpeechSynthesisUtteranceClient* client() const { return m_client.get(); }
 
-#ifdef __OBJC__
+#if PLATFORM(COCOA) && defined(__OBJC__)
     id wrapper() const { return m_wrapper.get(); }
     void setWrapper(id utterance) { m_wrapper = utterance; }
 #endif

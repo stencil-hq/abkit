@@ -55,7 +55,10 @@ if (NOT CMAKE_HOST_WIN32 AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif ()
 
 # Swift only ships a release-CRT swiftrt.obj: https://github.com/swiftlang/swift/issues/87468
-set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
+# A toolchain file may choose another release CRT.
+if (NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
+endif ()
 
 # applocal looks in debug/bin for Debug builds, which release-only vcpkg doesn't have.
 if (DEFINED VCPKG_TARGET_TRIPLET AND DEFINED _VCPKG_INSTALLED_DIR)

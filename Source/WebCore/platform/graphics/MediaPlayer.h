@@ -61,6 +61,11 @@
 #include <wtf/WeakHashSet.h>
 #include <wtf/text/StringHash.h>
 
+#if ENABLE(VIDEO_PRESENTATION_MODE) && USE(COORDINATED_GRAPHICS)
+// The fullscreen layer is held by a RefPtr here, which needs the complete type.
+#include <WebCore/CoordinatedPlatformLayer.h>
+#endif
+
 OBJC_CLASS AVPlayer;
 OBJC_CLASS NSArray;
 
@@ -401,7 +406,7 @@ public:
     void reloadAndResumePlaybackIfNeeded();
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    RetainPtr<PlatformLayer> createVideoFullscreenLayer();
+    PlatformLayerContainer createVideoFullscreenLayer();
     void setVideoFullscreenLayer(PlatformLayer*, Function<void()>&& completionHandler = [] { });
     void setVideoFullscreenFrame(const FloatRect&);
     void updateVideoFullscreenInlineImage();

@@ -33,6 +33,9 @@
 #include <epoxy/egl.h>
 #else
 #include <EGL/egl.h>
+#if OS(WINDOWS)
+#include <EGL/eglext.h>
+#endif
 #endif
 
 namespace WebCore {
@@ -40,6 +43,18 @@ namespace WebCore {
 std::unique_ptr<PlatformDisplayDefault> PlatformDisplayDefault::create()
 {
     auto glDisplay = GLDisplay::create(eglGetDisplay(EGL_DEFAULT_DISPLAY));
+#if OS(WINDOWS)
+    // ANGLE's default is a Direct3D 11 hardware device. A machine that has none (a server or a virtual machine
+    // without a GPU, a remote session) still has WARP, Direct3D 11's software rasterizer.
+    if (!glDisplay) {
+        const EGLint warp[] = {
+            EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
+            EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D_WARP_ANGLE,
+            EGL_NONE,
+        };
+        glDisplay = GLDisplay::create(eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, warp));
+    }
+#endif
     if (!glDisplay) {
         WTFLogAlways("Could not create default EGL display: %s. Aborting...", GLContext::lastErrorString());
         CRASH();

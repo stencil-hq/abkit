@@ -237,6 +237,11 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
         return GST_FLOW_ERROR;
 
     GstFlowReturn flow = GST_FLOW_OK;
+    // Assigned below; declared here, uninitialised, because the gotos to `done` jump past them.
+    guint32 chunkType;
+    guint64 chunkSize;
+    const guint8* payload;
+    guint64 total;
 
     if (self->state == WEBKIT_CAF_DEMUX_STATE_SIGNATURE) {
         if (map.size < 8) {
@@ -258,12 +263,12 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
         goto done;
     }
 
-    guint32 chunkType = GST_READ_UINT32_LE(map.data);
-    guint64 chunkSize = GST_READ_UINT64_BE(map.data + 4);
-    const guint8* payload = map.data + 12;
+    chunkType = GST_READ_UINT32_LE(map.data);
+    chunkSize = GST_READ_UINT64_BE(map.data + 4);
+    payload = map.data + 12;
     // A chunk whose size is the all-ones marker reaches to the end of the stream (the data chunk
     // of a streamed file), which baseparse's skip cannot express.
-    guint64 total = chunkSize > (guint64)G_MAXINT - 12 ? G_MAXUINT64 : 12 + chunkSize;
+    total = chunkSize > (guint64)G_MAXINT - 12 ? G_MAXUINT64 : 12 + chunkSize;
 
     if (chunkType == CAF_FOURCC('d', 'e', 's', 'c')) {
         if (chunkSize < 32) {

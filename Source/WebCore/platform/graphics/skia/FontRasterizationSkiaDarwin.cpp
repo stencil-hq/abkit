@@ -59,6 +59,9 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkTypeface.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 
+// Core Graphics SPI, exported by the framework; the PAL declaration is Cocoa-only.
+extern "C" void CGContextSetShouldAntialiasFonts(CGContextRef, bool shouldAntialiasFonts);
+
 namespace WebCore {
 
 namespace {
@@ -157,7 +160,7 @@ RetainPtr<CTFontRef> createCoreTextFont(SkTypeface& typeface, float size)
     int axisCount = typeface.getVariationDesignPosition(SkSpan<SkFontArguments::VariationPosition::Coordinate>(noCoordinates, 0));
     if (axisCount > 0) {
         Vector<SkFontArguments::VariationPosition::Coordinate> coordinates(axisCount);
-        if (typeface.getVariationDesignPosition(SkSpan<SkFontArguments::VariationPosition::Coordinate>(coordinates.data(), coordinates.size())) == axisCount) {
+        if (typeface.getVariationDesignPosition(SkSpan<SkFontArguments::VariationPosition::Coordinate>(coordinates.mutableSpan().data(), coordinates.size())) == axisCount) {
             RetainPtr<CFMutableDictionaryRef> variation = adoptCF(CFDictionaryCreateMutable(kCFAllocatorDefault, axisCount, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
             for (const auto& coordinate : coordinates) {
                 int32_t axis = static_cast<int32_t>(coordinate.axis);
@@ -183,7 +186,7 @@ RetainPtr<CTFontRef> coreTextFont(const FontPlatformData& platformData)
     if (!typeface)
         return nullptr;
 
-    uint64_t key = (static_cast<uint64_t>(typeface->uniqueID()) << 32) ^ static_cast<uint64_t>(bitwise_cast<uint32_t>(platformData.size()));
+    uint64_t key = (static_cast<uint64_t>(typeface->uniqueID()) << 32) ^ static_cast<uint64_t>(std::bit_cast<uint32_t>(platformData.size()));
     Locker locker { coreTextFontCacheLock() };
     auto& cache = coreTextFontCache();
     if (auto iterator = cache.find(key); iterator != cache.end())
@@ -213,8 +216,8 @@ RetainPtr<CGColorRef> coreTextColor(const std::optional<Color>& color)
 {
     if (!color)
         return adoptCF(CGColorCreateGenericRGB(0, 0, 0, 1));
-    auto srgb = color->toColorTypeLossy<SRGBA<float>>();
-    return adoptCF(CGColorCreateGenericRGB(srgb.red, srgb.green, srgb.blue, srgb.alpha));
+    auto [red, green, blue, alpha] = color->toColorTypeLossy<SRGBA<float>>().resolved();
+    return adoptCF(CGColorCreateGenericRGB(red, green, blue, alpha));
 }
 
 } // namespace
@@ -326,7 +329,7 @@ std::optional<CoreTextGlyphRunBitmap> rasterizeGlyphRunWithCoreText(const FontBa
             Vector<CGFloat> intervals(dashCount % 2 ? dashCount * 2 : dashCount);
             for (size_t i = 0; i < intervals.size(); ++i)
                 intervals[i] = options.lineDash[i % dashCount];
-            CGContextSetLineDash(bitmapContext.get(), options.lineDashOffset, intervals.data(), intervals.size());
+            CGContextSetLineDash(bitmapContext.get(), options.lineDashOffset, intervals.span().data(), intervals.size());
         }
     }
     RetainPtr<CGColorRef> color = coreTextColor(options.solidColor);
