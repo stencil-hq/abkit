@@ -33,6 +33,7 @@
 #include "GUniquePtrSoup.h"
 #include "Logging.h"
 #include "WebKitAutoconfigProxyResolver.h"
+#include "WebKitWindowsTLSDatabase.h"
 #include <glib/gstdio.h>
 #include <libsoup/soup.h>
 #include <pal/crypto/CryptoDigest.h>
@@ -129,6 +130,11 @@ SoupNetworkSession::SoupNetworkSession(PAL::SessionID sessionID)
 
     if (soup_auth_negotiate_supported() && !m_sessionID.isEphemeral())
         soup_session_add_feature_by_type(m_soupSession.get(), SOUP_TYPE_AUTH_NEGOTIATE);
+
+#if OS(WINDOWS)
+    if (GRefPtr<GTlsDatabase> systemDatabase = adoptGRef(g_tls_backend_get_default_database(g_tls_backend_get_default())))
+        soup_session_set_tls_database(m_soupSession.get(), webkitWindowsTLSDatabaseNew(systemDatabase.get()).get());
+#endif
 
 #if ENABLE(DEVELOPER_MODE)
     // Optionally load a custom path with the TLS CAFile. This is used on the GTK/WPE bundles. See script generate-bundle
