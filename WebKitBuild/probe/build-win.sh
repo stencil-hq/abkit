@@ -9,7 +9,7 @@ sdk=$here/../../WebKitLibraries/windows
 deps=$here/../win/sysroot/clang64
 # clang-cl reads an absolute path as a flag: compile from here.
 cd "$here"
-exec /opt/homebrew/opt/llvm/bin/clang-cl --target=x86_64-pc-windows-msvc /nologo /MD /O1 -fuse-ld=lld-link \
+exec /opt/homebrew/opt/llvm/bin/clang-cl --target=x86_64-pc-windows-msvc /nologo /MD /O1 -fuse-ld=lld-link $PROBE_CFLAGS \
 	-Wno-unused-command-line-argument \
 	-imsvc "$sdk/crt/include" -imsvc "$sdk/sdk/include/ucrt" -imsvc "$sdk/sdk/include/um" -imsvc "$sdk/sdk/include/shared" \
 	-I"$build/DerivedSources/WebKit" \
@@ -24,4 +24,4 @@ exec /opt/homebrew/opt/llvm/bin/clang-cl --target=x86_64-pc-windows-msvc /nologo
 	/Feprobe.exe /Foprobe.obj probe.c \
 	/link -libpath:"$sdk/crt/lib/x64" -libpath:"$sdk/sdk/lib/ucrt/x64" -libpath:"$sdk/sdk/lib/um/x64" \
 	-libpath:"$build/lib" -libpath:"$deps/lib" \
-	WPEWebKit-2.0.lib glib-2.0.lib gobject-2.0.lib gio-2.0.lib
+	WPEWebKit-2.0.lib glib-2.0.lib gobject-2.0.lib gio-2.0.lib user32.lib gdi32.lib

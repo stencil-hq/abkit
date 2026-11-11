@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>anim</title>
+<style>
+	html, body { margin: 0; height: 100%; overflow: hidden; background: #10151f; }
+	/* A full-view composited layer moved every frame: the compositor
+	   redraws the whole view each frame, the painting threads do not. */
+	#spin { position: absolute; inset: -25%; will-change: transform; animation: spin 4s linear infinite;
+		background: conic-gradient(#e63946, #f1faee, #a8dadc, #457b9d, #1d3557, #e63946); }
+	@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body><div id="spin"></div></body>
+</html>
