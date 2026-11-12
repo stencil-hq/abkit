@@ -97,7 +97,7 @@
 #define WTF_ATTRIBUTE_NSSTRING WTF_ATTRIBUTE_PRINTF
 #endif
 
-#define WTF_ATTRIBUTE_PRINTF(formatStringArgument, extraArguments) __attribute__((__format__(printf, formatStringArgument, extraArguments)))
+#define WTF_ATTRIBUTE_PRINTF(formatStringArgument, extraArguments) __attribute__((__format__(__printf__, formatStringArgument, extraArguments)))
 
 #if COMPILER_HAS_ATTRIBUTE(format_matches)
 #define WTF_ATTRIBUTE_PRINTF_MATCHES(formatStringArgument, formatStringTemplate) __attribute__((format_matches(printf, formatStringArgument, formatStringTemplate)))

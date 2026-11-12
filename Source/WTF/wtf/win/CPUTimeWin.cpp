@@ -43,7 +43,8 @@ static Seconds fileTimeToSeconds(const FILETIME& fileTime)
     // Instead, you should copy the low- and high-order parts of the file time to a ULARGE_INTEGER structure,
     // perform 64-bit arithmetic on the QuadPart member, and copy the LowPart and HighPart members into the FILETIME structure."
     ULARGE_INTEGER durationIn100NS;
-    memcpy(&durationIn100NS, &fileTime, sizeof(durationIn100NS));
+    durationIn100NS.LowPart = fileTime.dwLowDateTime;
+    durationIn100NS.HighPart = fileTime.dwHighDateTime;
     return Seconds { durationIn100NS.QuadPart / hundredsOfNanosecondsPerSecond };
 }
 

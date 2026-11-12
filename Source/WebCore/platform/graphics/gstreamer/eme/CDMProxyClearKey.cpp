@@ -56,10 +56,10 @@ constexpr size_t aes128KeySize = 16;
 
 // A CENC subsample table entry is the number of clear bytes of the subsample, then the number of
 // encrypted bytes (ISO/IEC 23001-7:2016 section 9.6), both big endian.
-static bool readBigEndianUInt16(const uint8_t* buffer, size_t bufferSize, size_t& offset, uint16_t& value)
+static bool readBigEndianUInt16(std::span<const uint8_t> buffer, size_t& offset, uint16_t& value)
 {
-    ASSERT_ARG(offset, offset <= bufferSize);
-    if (bufferSize - offset < sizeof(value))
+    ASSERT_ARG(offset, offset <= buffer.size());
+    if (buffer.size() - offset < sizeof(value))
         return false;
 
     value = (static_cast<uint16_t>(buffer[offset]) << 8) | static_cast<uint16_t>(buffer[offset + 1]);
@@ -67,10 +67,10 @@ static bool readBigEndianUInt16(const uint8_t* buffer, size_t bufferSize, size_t
     return true;
 }
 
-static bool readBigEndianUInt32(const uint8_t* buffer, size_t bufferSize, size_t& offset, uint32_t& value)
+static bool readBigEndianUInt32(std::span<const uint8_t> buffer, size_t& offset, uint32_t& value)
 {
-    ASSERT_ARG(offset, offset <= bufferSize);
-    if (bufferSize - offset < sizeof(value))
+    ASSERT_ARG(offset, offset <= buffer.size());
+    if (buffer.size() - offset < sizeof(value))
         return false;
 
     value = (static_cast<uint32_t>(buffer[offset]) << 24) | (static_cast<uint32_t>(buffer[offset + 1]) << 16)
@@ -81,20 +81,20 @@ static bool readBigEndianUInt32(const uint8_t* buffer, size_t bufferSize, size_t
 
 // The AES-CTR counter of a sample: the least significant 8 bytes of a 16 byte counter are zero when
 // the sample carries an 8 byte IV (ISO/IEC 23001-7:2016 section 9.3).
-static std::optional<std::array<uint8_t, aesBlockSize>> makeCounter(const uint8_t* iv, size_t ivSize)
+static std::optional<std::array<uint8_t, aesBlockSize>> makeCounter(std::span<const uint8_t> iv)
 {
-    if (ivSize != 8 && ivSize < aesBlockSize)
+    if (iv.size() != 8 && iv.size() < aesBlockSize)
         return std::nullopt;
 
     std::array<uint8_t, aesBlockSize> counter { 0 };
-    memcpy(counter.data(), iv, ivSize == 8 ? 8 : counter.size());
+    memcpySpan(std::span { counter }.first(iv.size() == 8 ? 8 : counter.size()), iv.first(iv.size() == 8 ? 8 : counter.size()));
     return counter;
 }
 
 // AES-128-CTR over the encrypted bytes of one sample, in place. ClearKey has no keys smaller or
 // larger than AES-128, and CTR needs the encrypt operation for both directions.
 #if OS(DARWIN)
-static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, uint8_t* data, size_t size)
+static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, std::span<uint8_t> data)
 {
     CCCryptorRef cryptor = nullptr;
     if (CCCryptorCreateWithMode(kCCEncrypt, kCCModeCTR, kCCAlgorithmAES, ccNoPadding, counter.data(), key.span().data(), key.size(), nullptr, 0, 0, kCCModeOptionCTR_BE, &cryptor) != kCCSuccess) {
@@ -107,29 +107,29 @@ static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_
     });
 
     // The output buffer must not overlap the input one, so the plaintext is written aside.
-    Vector<uint8_t> plainText(CCCryptorGetOutputLength(cryptor, size, true));
+    Vector<uint8_t> plainText(CCCryptorGetOutputLength(cryptor, data.size(), true));
     size_t bytesWritten = 0;
-    if (CCCryptorUpdate(cryptor, data, size, plainText.mutableSpan().data(), plainText.size(), &bytesWritten) != kCCSuccess) {
+    if (CCCryptorUpdate(cryptor, data.data(), data.size(), plainText.mutableSpan().data(), plainText.size(), &bytesWritten) != kCCSuccess) {
         GST_ERROR("CommonCrypto AES-128-CTR update failed");
         return false;
     }
 
     size_t finalBytesWritten = 0;
-    if (CCCryptorFinal(cryptor, plainText.mutableSpan().data() + bytesWritten, plainText.size() - bytesWritten, &finalBytesWritten) != kCCSuccess) {
+    if (CCCryptorFinal(cryptor, plainText.mutableSpan().subspan(bytesWritten).data(), plainText.size() - bytesWritten, &finalBytesWritten) != kCCSuccess) {
         GST_ERROR("CommonCrypto AES-128-CTR finalization failed");
         return false;
     }
 
-    if (bytesWritten + finalBytesWritten != size) {
-        GST_ERROR("CommonCrypto AES-128-CTR produced %zu bytes of %zu", bytesWritten + finalBytesWritten, size);
+    if (bytesWritten + finalBytesWritten != data.size()) {
+        GST_ERROR("CommonCrypto AES-128-CTR produced %zu bytes of %zu", bytesWritten + finalBytesWritten, data.size());
         return false;
     }
 
-    memcpy(data, plainText.span().data(), size);
+    memcpySpan(data, plainText.span().first(data.size()));
     return true;
 }
 #else
-static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, uint8_t* data, size_t size)
+static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_t, aesBlockSize>& counter, std::span<uint8_t> data)
 {
     EVP_CIPHER_CTX* context = EVP_CIPHER_CTX_new();
     if (!context || !EVP_EncryptInit_ex(context, EVP_aes_128_ctr(), nullptr, key.span().data(), counter.data())) {
@@ -144,10 +144,11 @@ static bool decryptAES128CTR(const Vector<uint8_t>& key, const std::array<uint8_
 
     // CTR is a stream cipher, so it decrypts in place; EVP takes an int's worth of bytes per call.
     size_t offset = 0;
-    while (offset < size) {
-        int chunk = static_cast<int>(std::min<size_t>(size - offset, 1 << 30));
+    while (offset < data.size()) {
+        int chunk = static_cast<int>(std::min<size_t>(data.size() - offset, 1 << 30));
         int bytesWritten = 0;
-        if (!EVP_EncryptUpdate(context, data + offset, &bytesWritten, data + offset, chunk) || bytesWritten != chunk) {
+        auto* chunkData = data.subspan(offset).data();
+        if (!EVP_EncryptUpdate(context, chunkData, &bytesWritten, chunkData, chunk) || bytesWritten != chunk) {
             GST_ERROR("OpenSSL AES-128-CTR update failed");
             return false;
         }
@@ -198,7 +199,7 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
     }
 
     auto iv = mappedIV.createVector();
-    auto counter = makeCounter(iv.span().data(), iv.size());
+    auto counter = makeCounter(iv.span());
     if (!counter) {
         GST_ERROR("ClearKey IV of %zu bytes is neither 8 nor 16 bytes", iv.size());
         return DecryptionResult::Failure;
@@ -234,8 +235,8 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
             uint16_t numClearBytes = 0;
             uint32_t numEncryptedBytes = 0;
             if (subsampleIndex < input.numSubsamples) {
-                if (!readBigEndianUInt16(mappedSubsamples.data(), mappedSubsamples.size(), offsetInSubsamples, numClearBytes)
-                    || !readBigEndianUInt32(mappedSubsamples.data(), mappedSubsamples.size(), offsetInSubsamples, numEncryptedBytes)) {
+                if (!readBigEndianUInt16(mappedSubsamples.span<uint8_t>(), offsetInSubsamples, numClearBytes)
+                    || !readBigEndianUInt32(mappedSubsamples.span<uint8_t>(), offsetInSubsamples, numEncryptedBytes)) {
                     GST_ERROR("Could not read subsample %u of the sample", subsampleIndex);
                     return DecryptionResult::Failure;
                 }
@@ -243,6 +244,10 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
             } else
                 numEncryptedBytes = mappedData.size() - offsetInData;
 
+            if (numClearBytes > mappedData.size() - offsetInData) {
+                GST_ERROR("Subsample %u is larger than the sample", subsampleIndex);
+                return DecryptionResult::Failure;
+            }
             offsetInData += numClearBytes;
             if (!numEncryptedBytes)
                 continue;
@@ -269,16 +274,16 @@ DecryptionResult CDMProxyClearKey::decrypt(CDMProxyClearKey::DecryptionContext& 
     Vector<uint8_t> encryptedData(totalEncryptedBytes);
     size_t offset = 0;
     for (auto& range : encryptedRanges) {
-        memcpy(encryptedData.mutableSpan().data() + offset, mappedData.data() + range.first, range.second);
+        memcpySpan(encryptedData.mutableSpan().subspan(offset, range.second), mappedData.span<uint8_t>().subspan(range.first, range.second));
         offset += range.second;
     }
 
-    if (!decryptAES128CTR(key, *counter, encryptedData.mutableSpan().data(), encryptedData.size()))
+    if (!decryptAES128CTR(key, *counter, encryptedData.mutableSpan()))
         return DecryptionResult::Failure;
 
     offset = 0;
     for (auto& range : encryptedRanges) {
-        memcpy(mappedData.data() + range.first, encryptedData.span().data() + offset, range.second);
+        memcpySpan(mappedData.mutableSpan<uint8_t>().subspan(range.first, range.second), encryptedData.span().subspan(offset, range.second));
         offset += range.second;
     }
 

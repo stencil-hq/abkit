@@ -23,6 +23,8 @@ list(APPEND WebKit_SERIALIZATION_IN_FILES
     Shared/skia/WebCoreArgumentCodersSkia.serialization.in
 )
 
-list(APPEND WebKit_LIBRARIES
-    Skia::Skia
-)
+if (NOT (APPLE AND PORT STREQUAL "WPE"))
+    list(APPEND WebKit_LIBRARIES
+        Skia::Skia
+    )
+endif ()

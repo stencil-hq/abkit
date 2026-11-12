@@ -290,7 +290,7 @@ std::optional<CoreTextGlyphRunBitmap> rasterizeGlyphRunWithCoreText(const FontBa
     CGBitmapInfo bitmapInfo;
     if (isColorBitmap) {
         colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
-        bitmapInfo = static_cast<CGBitmapInfo>(kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+        bitmapInfo = static_cast<CGBitmapInfo>(kCGBitmapByteOrder32Little | static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedFirst));
     } else
         bitmapInfo = static_cast<CGBitmapInfo>(kCGImageAlphaOnly);
     RetainPtr<CGContextRef> bitmapContext = adoptCF(CGBitmapContextCreate(pixels->writable_data(), deviceRect.width(), deviceRect.height(), 8, rowBytes, colorSpace.get(), bitmapInfo));

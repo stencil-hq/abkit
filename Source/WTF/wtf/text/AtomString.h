@@ -118,10 +118,10 @@ public:
 
 #if OS(WINDOWS)
     AtomString(const wchar_t* characters, unsigned length)
-        : AtomString({ ucharFrom(characters), length }) { }
+        : AtomString(unsafeMakeSpan(ucharFrom(characters), length)) { }
 
     AtomString(const wchar_t* characters)
-        : AtomString(characters, characters ? wcslen(characters) : 0) { }
+        : AtomString(unsafeSpan(ucharFrom(characters))) { }
 #endif
 
     // AtomString::fromUTF8 will return a null string if the input data contains invalid UTF-8 sequences.

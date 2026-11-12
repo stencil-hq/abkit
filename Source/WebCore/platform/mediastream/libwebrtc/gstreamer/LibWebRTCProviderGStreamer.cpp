@@ -79,7 +79,7 @@ public:
 
 private:
     std::vector<webrtc::SdpVideoFormat> GetSupportedFormats() const final { return m_factory->GetSupportedFormats(); }
-    CodecSupport QueryCodecSupport(const webrtc::SdpVideoFormat& format, bool referenceScaling) const final { return m_factory->QueryCodecSupport(format, referenceScaling); }
+    CodecSupport QueryCodecSupport(const webrtc::SdpVideoFormat& format, bool referenceScaling, std::optional<webrtc::Resolution> resolution) const final { return m_factory->QueryCodecSupport(format, referenceScaling, resolution); }
 
     std::unique_ptr<webrtc::VideoDecoder> Create(const webrtc::Environment& environment, const webrtc::SdpVideoFormat& format) final
     {

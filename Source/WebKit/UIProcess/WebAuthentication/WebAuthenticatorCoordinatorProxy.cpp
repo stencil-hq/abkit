@@ -91,7 +91,7 @@ void WebAuthenticatorCoordinatorProxy::makeCredential(IPC::Connection&, FrameIde
     RefPtr frame = WebFrameProxy::webFrame(frameId);
     if (!frame) {
         RELEASE_LOG_ERROR(WebAuthn, "Frame not found for WebAuthn MakeCredential request");
-        return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError });
+        return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError, { } });
     }
 
     handleRequest({ { }, WTF::move(options), *webPageProxy, WebAuthenticationPanelResult::Unavailable, nullptr, GlobalFrameIdentifier { webPageProxy->webPageIDInMainFrameProcess(), frameId }, WTF::move(frameInfo), String(), nullptr, mediation, std::nullopt }, WTF::move(handler));
@@ -113,7 +113,7 @@ void WebAuthenticatorCoordinatorProxy::getAssertion(IPC::Connection& connection,
     RefPtr frame = WebFrameProxy::webFrame(frameId);
     if (!frame) {
         RELEASE_LOG_ERROR(WebAuthn, "Frame not found for WebAuthn GetAssertion request");
-        return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError });
+        return handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError, { } });
     }
 
     if (parentOrigin) {
@@ -131,7 +131,7 @@ void WebAuthenticatorCoordinatorProxy::getAssertion(IPC::Connection& connection,
         }
         if (hasHTTPAncestor) {
             MESSAGE_CHECK_COMPLETION_BASE(foundMatchingAncestor, connection,
-                handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError }));
+                handler({ }, static_cast<AuthenticatorAttachment>(0), ExceptionData { ExceptionCode::InvalidStateError, { } }));
         }
     }
 
@@ -141,7 +141,7 @@ void WebAuthenticatorCoordinatorProxy::getAssertion(IPC::Connection& connection,
 void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestData&& data, RequestCompletionHandler&& handler)
 {
     if (!data.frameInfo)
-        return handler({ }, AuthenticatorAttachment::Platform, ExceptionData { ExceptionCode::InvalidStateError });
+        return handler({ }, AuthenticatorAttachment::Platform, ExceptionData { ExceptionCode::InvalidStateError, { } });
 
     auto origin = API::SecurityOrigin::create(data.callerOrigin());
 
@@ -160,7 +160,7 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
     CompletionHandler<void(bool)> afterConsent = [weakThis = WeakPtr { *this }, data = WTF::move(data), handler = WTF::move(handler)] (bool result) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
-            return handler({ }, AuthenticatorAttachment::Platform, ExceptionData { ExceptionCode::InvalidStateError });
+            return handler({ }, AuthenticatorAttachment::Platform, ExceptionData { ExceptionCode::InvalidStateError, { } });
 
         Ref authenticatorManager = protectedThis->m_webPageProxy->websiteDataStore().authenticatorManager();
         if (result) {

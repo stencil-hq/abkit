@@ -34,17 +34,19 @@
 #else
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <string.h>
+#include <wtf/text/StringView.h>
 
 static inline bool epoxy_has_egl_extension(EGLDisplay display, const char* extension)
 {
     const char* extensions = eglQueryString(display, EGL_EXTENSIONS);
     if (!extensions)
         return false;
-    size_t length = strlen(extension);
-    for (const char* at = strstr(extensions, extension); at; at = strstr(at + length, extension)) {
-        bool startsName = at == extensions || at[-1] == ' ';
-        bool endsName = at[length] == ' ' || !at[length];
+    auto extensionsView = StringView::fromLatin1(extensions);
+    auto extensionView = StringView::fromLatin1(extension);
+    for (size_t at = extensionsView.find(extensionView); at != WTF::notFound; at = extensionsView.find(extensionView, at + extensionView.length())) {
+        bool startsName = !at || extensionsView[at - 1] == ' ';
+        auto end = at + extensionView.length();
+        bool endsName = end == extensionsView.length() || extensionsView[end] == ' ';
         if (startsName && endsName)
             return true;
     }

@@ -1,0 +1,34 @@
+--- a/src/gallium/auxiliary/gallivm/lp_bld_nir_soa.c
++++ b/src/gallium/auxiliary/gallivm/lp_bld_nir_soa.c
+@@ -3571,8 +3571,7 @@
+       return LLVMBuildSelect(builder, src[0], src[1], src[2], "");
+    }
+    default:
+-      assert(0);
+-      break;
++      unreachable("Unhandled instruction type");
+    }
+    return result;
+ }
+--- a/src/mesa/state_tracker/st_atom_framebuffer.c
++++ b/src/mesa/state_tracker/st_atom_framebuffer.c
+@@ -207,7 +207,7 @@
+    else
+       framebuffer.zsbuf = NULL;
+ 
+-   framebuffer.viewmask = BITFIELD_MASK(num_multiview_layer);
++   framebuffer.viewmask = (uint8_t)BITFIELD_MASK(num_multiview_layer);
+ 
+ #ifndef NDEBUG
+    /* Make sure the resource binding flags were set properly */
+--- a/src/util/os_file_notify.c
++++ b/src/util/os_file_notify.c
+@@ -11,7 +11,7 @@
+ #if DETECT_OS_LINUX
+ #include <sys/eventfd.h>
+ #include <sys/inotify.h>
+-#include <sys/poll.h>
++#include <poll.h>
+ 
+ #include <errno.h>
+ #include <stdatomic.h>

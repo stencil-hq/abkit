@@ -1193,7 +1193,8 @@ size_t VM::updateSoftReservedZoneSize(size_t softReservedZoneSize)
 static void preCommitStackMemory(void* stackLimit)
 {
     const int pageSize = 4096;
-    for (volatile char* p = reinterpret_cast<char*>(&stackLimit); p > stackLimit; p -= pageSize) {
+    for (uintptr_t address = reinterpret_cast<uintptr_t>(&stackLimit); address > reinterpret_cast<uintptr_t>(stackLimit); address -= pageSize) {
+        auto* p = reinterpret_cast<volatile char*>(address);
         char ch = *p;
         *p = ch;
     }

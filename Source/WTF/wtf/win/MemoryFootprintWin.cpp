@@ -109,9 +109,8 @@ static size_t memoryFootprintFromWorkingSetList()
     auto countSizeOfPrivateWorkingSet = [] (const PSAPI_WORKING_SET_INFORMATION& workingSets) {
         constexpr const size_t pageSize = 4 * KB;
         size_t numberOfPrivateWorkingSetPages = 0;
-        for (size_t i = 0; i < workingSets.NumberOfEntries; ++i) {
+        for (auto workingSetBlock : unsafeMakeSpan(workingSets.WorkingSetInfo, workingSets.NumberOfEntries)) {
             // https://msdn.microsoft.com/en-us/library/windows/desktop/ms684902(v=vs.85).aspx
-            PSAPI_WORKING_SET_BLOCK workingSetBlock = workingSets.WorkingSetInfo[i];
             if (!workingSetBlock.Shared)
                 numberOfPrivateWorkingSetPages++;
         }

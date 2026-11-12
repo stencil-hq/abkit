@@ -196,7 +196,7 @@ std::optional<MappedFileData> FileHandle::map(MappedFileMode, FileOpenMode openM
     if (!data)
         return { };
 
-    std::span fileData = { static_cast<uint8_t*>(data), static_cast<size_t>(*size) };
+    auto fileData = unsafeMakeSpan(static_cast<uint8_t*>(data), static_cast<size_t>(*size));
     return MappedFileData { fileData, WTF::move(fileMapping) };
 }
 

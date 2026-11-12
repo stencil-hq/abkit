@@ -59,7 +59,7 @@ String MIMETypeRegistry::preferredExtensionForMIMEType(const String& type)
     HRESULT result = getRegistryValue(HKEY_CLASSES_ROOT, path.wideCharacters().span().data(), L"Extension", &keyType, extStr, &extStrLen);
 
     if (result == ERROR_SUCCESS && keyType == REG_SZ)
-        return String(extStr + 1, extStrLen / sizeof(extStr[0]) - 2);
+        return String(spanReinterpretCast<char16_t>(std::span { extStr }.subspan(1, extStrLen / sizeof(extStr[0]) - 2)));
 
     return String();
 }

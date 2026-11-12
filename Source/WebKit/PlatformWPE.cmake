@@ -178,6 +178,16 @@ list(APPEND WebKit_DERIVED_SOURCES
     ${DERIVED_SOURCES_WPE_API_DIR}/WebKitWebProcessEnumTypes.cpp
 )
 
+if (WIN32)
+    set_source_files_properties(
+        ${WebKit_DERIVED_SOURCES_DIR}/ModernMediaControlsGResourceBundle.c
+        ${WebKit_DERIVED_SOURCES_DIR}/WebKitResourcesGResourceBundle.c
+        ${WebKit_DERIVED_SOURCES_DIR}/PdfJSGResourceBundle.c
+        ${WebKit_DERIVED_SOURCES_DIR}/PdfJSGResourceBundleExtras.c
+        PROPERTIES COMPILE_OPTIONS "-Wno-undef"
+    )
+endif ()
+
 WEBKIT_BUILD_MODERN_MEDIA_CONTROLS_GRESOURCES(${WebKit_DERIVED_SOURCES_DIR})
 
 if (ENABLE_PDFJS)

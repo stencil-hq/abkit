@@ -49,7 +49,9 @@ typedef struct _WebKitWindowsTLSDatabaseClass {
     GTlsDatabaseClass parentClass;
 } WebKitWindowsTLSDatabaseClass;
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 G_DEFINE_TYPE(WebKitWindowsTLSDatabase, webkit_windows_tls_database, G_TYPE_TLS_DATABASE)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static GTlsDatabase* systemDatabase(GTlsDatabase* database)
 {

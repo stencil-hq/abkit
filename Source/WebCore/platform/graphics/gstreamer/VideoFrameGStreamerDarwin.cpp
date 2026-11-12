@@ -163,24 +163,32 @@ static bool copyPlanesToPixelBuffer(const GstVideoFrame& gstFrame, const GstVide
     for (size_t plane = 0; plane < planeCount; ++plane) {
         // The bytes of a row of a plane are those of the first component stored in that plane.
         size_t component = 0;
+        auto componentPlanes = std::span { formatInfo->plane };
         for (size_t candidate = 0; candidate < GST_VIDEO_FORMAT_INFO_N_COMPONENTS(formatInfo); ++candidate) {
-            if (static_cast<size_t>(GST_VIDEO_FORMAT_INFO_PLANE(formatInfo, candidate)) == plane) {
+            if (static_cast<size_t>(componentPlanes[candidate]) == plane) {
                 component = candidate;
                 break;
             }
         }
 
-        auto* source = static_cast<const uint8_t*>(GST_VIDEO_FRAME_PLANE_DATA(&gstFrame, plane));
-        size_t sourceStride = GST_VIDEO_FRAME_PLANE_STRIDE(&gstFrame, plane);
+        auto* source = static_cast<const uint8_t*>(std::span { gstFrame.data }[plane]);
+        size_t sourceStride = std::span { gstFrame.info.stride }[plane];
         auto* destination = static_cast<uint8_t*>(CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, plane));
         size_t destinationStride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, plane);
         if (!source || !destination || !sourceStride || !destinationStride)
             return false;
 
-        size_t rows = std::min<size_t>(GST_VIDEO_FRAME_COMP_HEIGHT(&gstFrame, component), CVPixelBufferGetHeightOfPlane(pixelBuffer, plane));
-        size_t rowBytes = std::min<size_t>(GST_VIDEO_FRAME_COMP_WIDTH(&gstFrame, component) * GST_VIDEO_FRAME_COMP_PSTRIDE(&gstFrame, component), destinationStride);
+        auto widthSubsampling = std::span { formatInfo->w_sub };
+        auto heightSubsampling = std::span { formatInfo->h_sub };
+        auto pixelStrides = std::span { formatInfo->pixel_stride };
+        size_t rows = std::min<size_t>(GST_VIDEO_SUB_SCALE(heightSubsampling[component], GST_VIDEO_INFO_FIELD_HEIGHT(&gstFrame.info)), CVPixelBufferGetHeightOfPlane(pixelBuffer, plane));
+        size_t rowBytes = std::min<size_t>(GST_VIDEO_SUB_SCALE(widthSubsampling[component], gstFrame.info.width) * pixelStrides[component], destinationStride);
+        if (!rows)
+            continue;
+        auto sourceBytes = unsafeMakeSpan(source, (rows - 1) * sourceStride + rowBytes);
+        auto destinationBytes = unsafeMakeSpan(destination, (rows - 1) * destinationStride + rowBytes);
         for (size_t row = 0; row < rows; ++row)
-            memcpy(destination + row * destinationStride, source + row * sourceStride, rowBytes);
+            memcpySpan(destinationBytes.subspan(row * destinationStride, rowBytes), sourceBytes.subspan(row * sourceStride, rowBytes));
     }
     return true;
 }

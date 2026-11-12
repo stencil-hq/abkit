@@ -24,16 +24,6 @@
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
 
-extern "C" {
-void* g_malloc(size_t);
-void* g_malloc0(size_t);
-void* g_realloc(void*, size_t);
-void* g_try_malloc(size_t);
-void* g_try_malloc0(size_t);
-void* g_try_realloc(void*, size_t);
-void g_strfreev(char**);
-}
-
 namespace WTF {
 
 class UTF8CStringView;

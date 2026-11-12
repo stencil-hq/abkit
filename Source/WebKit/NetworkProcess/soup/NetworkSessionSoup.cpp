@@ -76,7 +76,8 @@ NetworkSessionSoup::NetworkSessionSoup(NetworkProcess& networkProcess, const Net
 
 NetworkSessionSoup::~NetworkSessionSoup()
 {
-    for (auto& load : std::exchange(m_dataTaskLoads, { }).values())
+    auto loads = std::exchange(m_dataTaskLoads, { });
+    for (auto& load : loads.values())
         load->cancel();
 }
 

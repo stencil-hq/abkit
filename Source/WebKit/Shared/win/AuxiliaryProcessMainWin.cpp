@@ -27,8 +27,8 @@
 #include "AuxiliaryProcessMain.h"
 
 #include <JavaScriptCore/ExecutableAllocator.h>
-#include <cstring>
 #include <wtf/text/StringToIntegerConversion.h>
+#include <wtf/text/UTF8CStringView.h>
 #include <wtf/win/WTFCRTDebug.h>
 
 namespace WebKit {
@@ -42,14 +42,16 @@ void AuxiliaryProcess::platformInitialize(const AuxiliaryProcessInitializationPa
 
 bool AuxiliaryProcessMainCommon::parseCommandLine(int argc, char** argv)
 {
+    auto arguments = unsafeMakeSpan(argv, argc);
     for (int i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "-clientIdentifier") && i + 1 < argc)
-            m_parameters.connectionIdentifier = IPC::Connection::Identifier { reinterpret_cast<HANDLE>(parseIntegerAllowingTrailingJunk<uint64_t>(StringView::fromLatin1(argv[++i])).value_or(0)) };
-        else if (!strcmp(argv[i], "-processIdentifier") && i + 1 < argc)
-            m_parameters.processIdentifier = ObjectIdentifier<WebCore::ProcessIdentifierType>(parseIntegerAllowingTrailingJunk<uint64_t>(StringView::fromLatin1(argv[++i])).value_or(0));
-        else if (!strcmp(argv[i], "-configure-jsc-for-testing"))
+        auto argument = UTF8CStringView::unsafeFromUTF8(arguments[i]);
+        if (argument == "-clientIdentifier"_s && i + 1 < argc)
+            m_parameters.connectionIdentifier = IPC::Connection::Identifier { reinterpret_cast<HANDLE>(parseIntegerAllowingTrailingJunk<uint64_t>(StringView::fromLatin1(arguments[++i])).value_or(0)) };
+        else if (argument == "-processIdentifier"_s && i + 1 < argc)
+            m_parameters.processIdentifier = ObjectIdentifier<WebCore::ProcessIdentifierType>(parseIntegerAllowingTrailingJunk<uint64_t>(StringView::fromLatin1(arguments[++i])).value_or(0));
+        else if (argument == "-configure-jsc-for-testing"_s)
             JSC::Config::configureForTesting();
-        else if (!strcmp(argv[i], "-disable-jit"))
+        else if (argument == "-disable-jit"_s)
             JSC::ExecutableAllocator::disableJIT();
     }
     return true;

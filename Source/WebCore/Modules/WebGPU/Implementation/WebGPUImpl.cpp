@@ -106,6 +106,7 @@ NODELETE static ::WebGPU::VideoFrameRotation convertToAPI(VideoFrameRotation rot
 }
 #endif
 
+#if HAVE(IOSURFACE)
 // The IOSurface format an accelerated ImageBuffer of this pixel format is backed by, expressed as the
 // equivalent texture format, plus whether its alpha channel holds meaningful data. std::nullopt for
 // the formats GPUQueue::copyExternalImageToTexture keeps on the CPU readback path.
@@ -150,6 +151,7 @@ NODELETE static std::optional<SourceTextureFormat> sourceTextureFormat(PixelForm
     ASSERT_NOT_REACHED();
     return std::nullopt;
 }
+#endif
 
 void WebGPUIntegrationImpl::copyExternalImageToTexture(WebGPU::Queue& queue, const WebGPUExternalImageSource& source, const WebGPUImageCopyTextureTagged& destination, const WebGPU::Extent3D& copySize)
 {
