@@ -12,8 +12,8 @@ name: Release
 # are vmon microVMs on our cluster (`vmon-small`, `vmon-xlarge`: 16 vCPU), which
 # build linux-x64 and linux-musl-x64 in containers and cross-compile both
 # Windows targets; vmon has no arm64 or macOS hosts, so the arm64 Linux
-# targets and darwin-arm64 build on Blacksmith, darwin-x64 on GitHub's Intel
-# Macs. Compiles go through ccache, saved
+# targets and both Macs build on Blacksmith (darwin-x64 under Rosetta, see
+# WebKitBuild/darwin/build-engine.sh). Compiles go through ccache, saved
 # after every build step that ran, also one the time limit stopped: a run that
 # timed out is re-run (`gh run rerun --failed`) and resumes from its cache.
 on:
@@ -61,19 +61,15 @@ jobs:
               fi
               echo "version=$version" >>"$GITHUB_OUTPUT"
          # The targets this run builds: all of them for a release; a run by
-         # hand may name some. A target with `test` is tested on that runner
-         # by the smoke-elsewhere job: the Windows targets are cross-compiled,
-         # and darwin-x64 builds on GitHub's Intel Macs (the only x86_64
-         # Homebrew left: its installer refuses Intel Macs now), virtual
-         # machines without the Metal device the engine draws with, so it runs
-         # under Rosetta on an Apple-silicon Mac.
+         # hand may name some. A target with `test` is cross-compiled and
+         # tested on that runner by the smoke-elsewhere job.
          - id: targets
            env:
               TARGETS: ${{ inputs.targets }}
            run: |
               all='[
                  {"target": "darwin-arm64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "arm64"},
-                 {"target": "darwin-x64", "os": "macos-15-intel", "script": "darwin", "platform": "macos", "arch": "x86_64", "test": "blacksmith-12vcpu-macos-26"},
+                 {"target": "darwin-x64", "os": "blacksmith-12vcpu-macos-26", "script": "darwin", "platform": "macos", "arch": "x86_64"},
                  {"target": "linux-x64", "os": "vmon-xlarge", "script": "linux", "platform": "linux", "arch": "x86_64"},
                  {"target": "linux-arm64", "os": "blacksmith-16vcpu-ubuntu-2404-arm", "script": "linux", "platform": "linux", "arch": "arm64"},
                  {"target": "linux-musl-x64", "os": "vmon-xlarge", "script": "linux", "platform": "linux-musl", "arch": "x86_64"},

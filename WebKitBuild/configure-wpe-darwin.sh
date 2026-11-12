@@ -35,12 +35,13 @@
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$root/WebKitBuild/darwin/prefix/lib/pkgconfig/libsoup-3.0.pc" ] || { echo "run WebKitBuild/darwin/build-deps.sh first" >&2; exit 1; }
-# /opt/homebrew on arm64 Macs, /usr/local on Intel ones; keg-only formulas sit under opt/.
-brew=$(brew --prefix)
+# /opt/homebrew on arm64 Macs, /usr/local on Intel ones and for darwin/x86-homebrew.py's
+# bottles (HOMEBREW_PREFIX, without a brew); keg-only formulas sit under opt/.
+brew=${HOMEBREW_PREFIX:-$(brew --prefix)}
 exec cmake -S "$root" -B "$root/WebKitBuild/wpe-darwin" -G Ninja \
 	-U 'Soup3_*' -U 'PC_Soup3*' -U 'pkgcfg_lib_PC_Soup3*' \
 	-DPORT=WPE -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_BUILD_TYPE=Release \
-	-DCMAKE_PREFIX_PATH="$root/WebKitBuild/darwin/prefix;$brew;$(brew --prefix icu4c);$brew/opt/sqlite;$brew/opt/curl;$brew/opt/openssl@3" \
+	-DCMAKE_PREFIX_PATH="$root/WebKitBuild/darwin/prefix;$brew;$brew/opt/icu4c;$brew/opt/sqlite;$brew/opt/curl;$brew/opt/openssl@3" \
 	-DENABLE_TOOLS=OFF -DENABLE_API_TESTS=OFF -DENABLE_LAYOUT_TESTS=OFF -DENABLE_MINIBROWSER=OFF \
 	-DENABLE_DOCUMENTATION=OFF -DENABLE_INTROSPECTION=OFF -DENABLE_JOURNALD_LOG=OFF \
 	-DENABLE_WPE_PLATFORM_DRM=OFF -DENABLE_WPE_PLATFORM_WAYLAND=OFF -DENABLE_WPE_PLATFORM_HEADLESS=ON \
