@@ -16,8 +16,10 @@ system, and on a `v<version>` tag publishes the archives to build.stencil.so.
 
 ## macOS
 
-`WebKitBuild/darwin/build-engine.sh darwin-arm64|darwin-x64 OUT_DIR`, on a Mac of that architecture with Xcode (or
-its command line tools) and Homebrew. Its steps can be run alone:
+`WebKitBuild/darwin/build-engine.sh darwin-arm64|darwin-x64 OUT_DIR`, on a Mac with Xcode (or its command line
+tools) and Homebrew. Homebrew no longer builds for Intel Macs, so on Apple silicon darwin-x64 takes the Brewfile's
+last x86_64 bottles from ghcr.io, poured into `/usr/local` (`WebKitBuild/darwin/x86-homebrew.py`, with `sudo`), and
+runs the steps below under Rosetta, with Apple silicon's clang compiling for x86_64. Its steps can be run alone:
 
 1. `brew bundle --file=WebKitBuild/darwin/Brewfile`: the libraries and tools.
 2. `WebKitBuild/darwin/build-deps.sh`: libsoup with Safari's HTTP/2 preface, ALPN list and request header order
@@ -37,9 +39,8 @@ bundled libwebrtc), MSE, WebCodecs, Encrypted Media (ClearKey), WebGL and WebGPU
 lock, PDF.js, speech, device orientation and gesture events, `<model>`; `configure-wpe-darwin.sh` says why each is
 on or off. It bundles Homebrew's libraries, so it runs on the macOS version it was built on and later. It draws
 with Metal (through ANGLE), so it needs a Metal device: every Mac that runs a current macOS has one, but a virtual
-machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI therefore builds
-darwin-x64 on GitHub's Intel runners, whose preinstalled Homebrew is the x86_64 one left (Homebrew's installer
-refuses Intel Macs), and tests it under Rosetta on an Apple-silicon Mac.
+machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI builds and tests
+both targets on Apple-silicon Macs.
 
 ## Linux
 
