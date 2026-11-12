@@ -104,7 +104,7 @@ static String storageDirectory(DWORD pathIdentifier)
     if (FAILED(SHGetFolderPathW(nullptr, pathIdentifier | CSIDL_FLAG_CREATE, nullptr, 0, wcharFrom(buffer.mutableSpan().data()))))
         return String();
 
-    buffer.shrink(wcslen(wcharFrom(buffer.span().data())));
+    buffer.shrink(unsafeSpan(buffer.span().data()).size());
     String directory = String::adopt(WTF::move(buffer));
 
     directory = pathByAppendingComponent(directory, "Apple Computer\\WebKit"_s);
@@ -139,15 +139,15 @@ static String generateTemporaryPath(NOESCAPE const Function<bool(const String&)>
     do {
         wchar_t tempFile[] = L"XXXXXXXX.tmp"; // Use 8.3 style name (more characters aren't helpful due to 8.3 short file names)
         const int randomPartLength = 8;
-        cryptographicallyRandomValues({ reinterpret_cast<uint8_t*>(tempFile), randomPartLength * sizeof(wchar_t) });
+        cryptographicallyRandomValues(asMutableByteSpan(std::span { tempFile }.first(randomPartLength)));
 
         // Limit to valid filesystem characters, also excluding others that could be problematic, like punctuation.
         // don't include both upper and lowercase since Windows file systems are typically not case sensitive.
-        const char validChars[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-        for (int i = 0; i < randomPartLength; ++i)
-            tempFile[i] = validChars[tempFile[i] % (sizeof(validChars) - 1)];
+        constexpr std::span validChars { "0123456789abcdefghijklmnopqrstuvwxyz" };
+        for (auto& character : std::span { tempFile }.first(randomPartLength))
+            character = validChars[character % (validChars.size() - 1)];
 
-        ASSERT(wcslen(tempFile) == std::size(tempFile) - 1);
+        ASSERT(unsafeSpan(ucharFrom(tempFile)).size() == std::size(tempFile) - 1);
 
         proposedPath = pathByAppendingComponent(String(tempPath), String(tempFile));
         if (proposedPath.isEmpty())

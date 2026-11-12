@@ -391,7 +391,7 @@ NODELETE JS_EXPORT_PRIVATE bool isFromJSCode(void* returnAddress);
             : "rbp" /* clobber rbp */ \
         ); \
         ASSERT(JSC::isFromJSCode(removeCodePtrTag<void*>(__builtin_return_address(0)))); \
-        std::bit_cast<JSC::CallFrame*>(*((uintptr_t**) _AddressOfReturnAddress() - 1)); \
+        std::bit_cast<JSC::CallFrame*>(*reinterpret_cast<uintptr_t**>(reinterpret_cast<uintptr_t>(_AddressOfReturnAddress()) - sizeof(uintptr_t*))); \
     })
 #else // !OS(WINDOWS) || !CPU(X86_64)
 // FIXME (see rdar://72897291): Work around a Clang bug where __builtin_return_address()

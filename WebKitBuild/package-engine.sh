@@ -30,6 +30,15 @@ cp "$build/bin/ABWebProcess" "$build/bin/ABNetworkProcess" "$build/bin/ABHost" "
 cp "$build/bin/extensions/libABHostExtension.so" "$out/extensions/"
 # The viewer shows the host's pages in windows; clients look for it beside the host.
 cp "$build/bin/ABView" "$out/"
+
+remove_signature() {
+	if codesign -d "$1" >/dev/null 2>&1; then
+		codesign --remove-signature "$1"
+	fi
+}
+
+chmod u+w "$out/$library"
+remove_signature "$out/$library"
 strip -x "$out/$library"
 deps=$(cd "$(dirname "$0")" && pwd)/darwin/prefix
 soup=libsoup-3.0.0.dylib
@@ -40,10 +49,14 @@ cp "$build/lib/$webrtc" "$out/"
 # The remote inspector's frontend, which the engine loads from beside the library.
 cp "$build/share/inspector.gresource" "$out/"
 linked_soup=$(otool -L "$out/$library" | awk '/libsoup-3\.0/ { print $1 }')
+chmod u+w "$out/$soup"
+remove_signature "$out/$soup"
 install_name_tool -id "@rpath/$soup" "$out/$soup"
 install_name_tool -change "$linked_soup" "@loader_path/$soup" "$out/$library"
 dependents="ABWebProcess ABNetworkProcess ABHost libWPEInjectedBundle.so extensions/libABHostExtension.so"
 for file in $dependents; do
+	chmod u+w "$out/$file"
+	remove_signature "$out/$file"
 	# Each finds the library in the engine directory, wherever that is.
 	for rpath in $(otool -l "$out/$file" | awk '/LC_RPATH/ { getline; getline; print $2 }'); do
 		install_name_tool -delete_rpath "$rpath" "$out/$file"
@@ -188,6 +201,8 @@ while [ -s "$queue" ]; do
 	: > "$next"
 	while IFS= read -r file; do
 		is_macho "$file" || continue
+		chmod u+w "$file"
+		remove_signature "$file"
 
 		# An install name that still spells out a prefix is a reference to it.
 		install_name=$(otool -D "$file" 2>/dev/null | tail -n +2 | head -n 1)
@@ -253,10 +268,10 @@ while [ -s "$queue" ]; do
 	cp "$next" "$queue"
 done
 
-# Every edit above invalidated the ad hoc signature.
+# Sign every Mach-O after its last modification, including copied dependencies.
 find "$out" -type f | while IFS= read -r file; do
 	if is_macho "$file"; then
-		codesign --force --sign - "$file" 2>/dev/null || true
+		codesign --force --sign - "$file"
 	fi
 done
 du -sh "$out"

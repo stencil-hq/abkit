@@ -682,7 +682,10 @@
    and not stored to the heap or in a global state for later use. The compiler does not verify this claim. */
 
 #if !defined(NOESCAPE)
-#if COMPILER_HAS_CPP_ATTRIBUTE(clang::noescape)
+// Apple Clang 17 (Xcode 16) ignores the attribute, with a warning, on non-pointer parameters (references,
+// forwarding packs). Apple Clang that supports them advertises it as a feature (21 does); upstream Clang
+// supports them from 20 on without one.
+#if COMPILER_HAS_CPP_ATTRIBUTE(clang::noescape) && (!defined(__apple_build_version__) || COMPILER_HAS_CLANG_FEATURE(attribute_noescape_nonpointer))
 #define NOESCAPE [[clang::noescape]]
 #else
 #define NOESCAPE

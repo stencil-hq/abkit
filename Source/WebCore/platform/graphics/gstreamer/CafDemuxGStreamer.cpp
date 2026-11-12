@@ -28,8 +28,11 @@
 
 #if ENABLE(VIDEO) && USE(GSTREAMER) && OS(DARWIN)
 
+#include "GStreamerCommon.h"
 #include <CoreAudioTypes/CoreAudioTypes.h>
-#include <string.h>
+#include <bit>
+#include <wtf/StdLibExtras.h>
+#include <wtf/text/ASCIILiteral.h>
 
 GST_DEBUG_CATEGORY_STATIC(webkitCafDemuxDebug);
 #define GST_CAT_DEFAULT webkitCafDemuxDebug
@@ -38,7 +41,9 @@ GST_DEBUG_CATEGORY_STATIC(webkitCafDemuxDebug);
 // GST_MAKE_FOURCC expects, so GST_FOURCC_ARGS prints them as they appear in the file.
 #define CAF_FOURCC(a, b, c, d) GST_MAKE_FOURCC(a, b, c, d)
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 G_DEFINE_TYPE(WebKitCafDemux, webkit_caf_demux, GST_TYPE_BASE_PARSE);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static GstStaticPadTemplate cafDemuxSinkTemplate = GST_STATIC_PAD_TEMPLATE("sink",
     GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -104,17 +109,19 @@ static GstCaps* webkit_caf_demux_opus_caps(WebKitCafDemux* self, guint32 channel
     gint mappingFamily = 0;
     gint streamCount = 0;
     gint coupledCount = 0;
-    GstMapInfo map;
-    if (self->cookie && gst_buffer_map(self->cookie, &map, GST_MAP_READ)) {
-        if (map.size >= 19 && !memcmp(map.data, "OpusHead", 8)) {
-            // OpusHead's fields are little-endian, as in Ogg Opus.
-            mappingFamily = map.data[18];
-            if (mappingFamily != 0 && map.size >= 21) {
-                streamCount = map.data[19];
-                coupledCount = map.data[20];
+    if (self->cookie) {
+        WebCore::GstMappedBuffer map(self->cookie, GST_MAP_READ);
+        if (map) {
+            auto bytes = map.span<uint8_t>();
+            if (bytes.size() >= 19 && equalSpans(bytes.first(8), byteCast<uint8_t>("OpusHead"_span))) {
+                // OpusHead's fields are little-endian, as in Ogg Opus.
+                mappingFamily = bytes[18];
+                if (mappingFamily != 0 && bytes.size() >= 21) {
+                    streamCount = bytes[19];
+                    coupledCount = bytes[20];
+                }
             }
         }
-        gst_buffer_unmap(self->cookie, &map);
     }
 
     if (mappingFamily == 0)
@@ -232,23 +239,24 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
         return gst_base_parse_finish_frame(parse, frame, (gint)consumed);
     }
 
-    GstMapInfo map;
-    if (!gst_buffer_map(buffer, &map, GST_MAP_READ))
+    WebCore::GstMappedBuffer map(buffer, GST_MAP_READ);
+    if (!map)
         return GST_FLOW_ERROR;
+    auto bytes = map.span<uint8_t>();
 
     GstFlowReturn flow = GST_FLOW_OK;
     // Assigned below; declared here, uninitialised, because the gotos to `done` jump past them.
     guint32 chunkType;
     guint64 chunkSize;
-    const guint8* payload;
+    std::span<const guint8> payload;
     guint64 total;
 
     if (self->state == WEBKIT_CAF_DEMUX_STATE_SIGNATURE) {
-        if (map.size < 8) {
+        if (bytes.size() < 8) {
             gst_base_parse_set_min_frame_size(parse, 8);
             goto done;
         }
-        if (memcmp(map.data, "caff", 4)) {
+        if (!equalSpans(bytes.first(4), byteCast<uint8_t>("caff"_span))) {
             *skipsize = 1;
             goto done;
         }
@@ -258,14 +266,14 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
     }
 
     // CHUNKS: one chunk header (fourcc and a big-endian 64-bit size) at a time.
-    if (map.size < 12) {
+    if (bytes.size() < 12) {
         gst_base_parse_set_min_frame_size(parse, 12);
         goto done;
     }
 
-    chunkType = GST_READ_UINT32_LE(map.data);
-    chunkSize = GST_READ_UINT64_BE(map.data + 4);
-    payload = map.data + 12;
+    chunkType = GST_READ_UINT32_LE(bytes.data());
+    chunkSize = GST_READ_UINT64_BE(bytes.subspan(4).data());
+    payload = bytes.subspan(12);
     // A chunk whose size is the all-ones marker reaches to the end of the stream (the data chunk
     // of a streamed file), which baseparse's skip cannot express.
     total = chunkSize > (guint64)G_MAXINT - 12 ? G_MAXUINT64 : 12 + chunkSize;
@@ -276,38 +284,37 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
             flow = GST_FLOW_ERROR;
             goto done;
         }
-        if (map.size < 44) {
+        if (bytes.size() < 44) {
             gst_base_parse_set_min_frame_size(parse, 44);
             goto done;
         }
 
-        guint64 rateBits = GST_READ_UINT64_BE(payload);
-        gdouble sampleRate = 0;
-        memcpy(&sampleRate, &rateBits, sizeof(sampleRate));
+        guint64 rateBits = GST_READ_UINT64_BE(payload.data());
+        gdouble sampleRate = std::bit_cast<gdouble>(rateBits);
         self->rate = (guint32)(sampleRate + 0.5);
-        self->formatId = GST_READ_UINT32_LE(payload + 8);
-        self->formatFlags = GST_READ_UINT32_BE(payload + 12);
-        self->bytesPerPacket = GST_READ_UINT32_BE(payload + 16);
-        self->framesPerPacket = GST_READ_UINT32_BE(payload + 20);
-        self->channels = GST_READ_UINT32_BE(payload + 24);
-        self->bitsPerChannel = GST_READ_UINT32_BE(payload + 28);
+        self->formatId = GST_READ_UINT32_LE(payload.subspan(8).data());
+        self->formatFlags = GST_READ_UINT32_BE(payload.subspan(12).data());
+        self->bytesPerPacket = GST_READ_UINT32_BE(payload.subspan(16).data());
+        self->framesPerPacket = GST_READ_UINT32_BE(payload.subspan(20).data());
+        self->channels = GST_READ_UINT32_BE(payload.subspan(24).data());
+        self->bitsPerChannel = GST_READ_UINT32_BE(payload.subspan(28).data());
         self->haveDesc = TRUE;
     } else if (chunkType == CAF_FOURCC('p', 'a', 'k', 't')) {
         if (chunkSize >= 16) {
-            if (map.size < 28) {
+            if (bytes.size() < 28) {
                 gst_base_parse_set_min_frame_size(parse, 28);
                 goto done;
             }
-            self->validFrames = GST_READ_UINT64_BE(payload);
+            self->validFrames = GST_READ_UINT64_BE(payload.data());
             self->haveValidFrames = TRUE;
         }
     } else if (chunkType == CAF_FOURCC('c', 'h', 'a', 'n')) {
         if (chunkSize >= 12) {
-            if (map.size < 24) {
+            if (bytes.size() < 24) {
                 gst_base_parse_set_min_frame_size(parse, 24);
                 goto done;
             }
-            self->channelLayoutTag = GST_READ_UINT32_BE(payload);
+            self->channelLayoutTag = GST_READ_UINT32_BE(payload.data());
             self->haveChannelLayout = TRUE;
         }
     } else if (chunkType == CAF_FOURCC('k', 'u', 'k', 'i')) {
@@ -316,7 +323,7 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
             flow = GST_FLOW_ERROR;
             goto done;
         }
-        if (map.size < total) {
+        if (bytes.size() < total) {
             gst_base_parse_set_min_frame_size(parse, (guint)total);
             goto done;
         }
@@ -330,7 +337,11 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
         }
         GstCaps* caps = webkit_caf_demux_src_caps(self);
         if (!caps) {
-            GST_ELEMENT_ERROR(parse, STREAM, FORMAT, ("Unsupported CAF codec '%" GST_FOURCC_FORMAT "'", GST_FOURCC_ARGS(self->formatId)), (nullptr));
+            auto printableCharacter = [](guint32 value) {
+                auto character = value & 0xff;
+                return character >= 0x20 && character <= 0x7e ? static_cast<char>(character) : '.';
+            };
+            GST_ELEMENT_ERROR(parse, STREAM, FORMAT, ("Unsupported CAF codec '%" GST_FOURCC_FORMAT "'", printableCharacter(self->formatId), printableCharacter(self->formatId >> 8), printableCharacter(self->formatId >> 16), printableCharacter(self->formatId >> 24)), (nullptr));
             flow = GST_FLOW_ERROR;
             goto done;
         }
@@ -361,7 +372,6 @@ static GstFlowReturn webkit_caf_demux_handle_frame(GstBaseParse* parse, GstBaseP
     *skipsize = (gint)total;
 
 done:
-    gst_buffer_unmap(buffer, &map);
     return flow;
 }
 

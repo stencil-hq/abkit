@@ -190,8 +190,13 @@ static bool isSinglePlaneGLMemory(GstGLMemory* memory, GstVideoInfo* videoInfo, 
 void CoordinatedPlatformLayerBufferVideo::createSkiaImageIfNeeded(const sk_sp<GrContextThreadSafeProxy>& threadSafeGrContext, bool gstGLEnabled, Origin origin)
 {
     const auto& sample = m_videoFrame->sample();
+#if USE(GBM) || USE(GSTREAMER_GL)
     auto* buffer = gst_sample_get_buffer(sample.get());
     auto* memory = gst_buffer_peek_memory(buffer, 0);
+#else
+    UNUSED_PARAM(threadSafeGrContext);
+    UNUSED_PARAM(origin);
+#endif
 
 #if USE(GBM)
     if (gst_is_fd_memory(memory) && m_videoDecoderPlatform && *m_videoDecoderPlatform == GstVideoDecoderPlatform::Qualcomm) {

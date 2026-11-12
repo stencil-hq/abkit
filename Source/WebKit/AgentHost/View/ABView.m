@@ -554,8 +554,9 @@ static NSString *modifierKey(unsigned short keyCode, NSEventModifierFlags *flag)
 
 - (void)handle:(const uint8_t *)bytes size:(mach_msg_size_t)size
 {
-    const mach_msg_header_t *header = (const mach_msg_header_t *)bytes;
-    BOOL complex = (header->msgh_bits & MACH_MSGH_BITS_COMPLEX) != 0;
+    mach_msg_header_t header;
+    memcpy(&header, bytes, sizeof(header));
+    BOOL complex = (header.msgh_bits & MACH_MSGH_BITS_COMPLEX) != 0;
     size_t wordsOffset = complex ? ComplexWordsOffset : SimpleWordsOffset;
     uint32_t words[4] = { 0, 0, 0, 0 };
     if (size > wordsOffset)
@@ -564,7 +565,7 @@ static NSString *modifierKey(unsigned short keyCode, NSEventModifierFlags *flag)
     if (complex && size >= ComplexWordsOffset)
         memcpy(&port, bytes + ComplexPortOffset, sizeof(port));
 
-    switch (header->msgh_id) {
+    switch (header.msgh_id) {
     case MessageHello:
         if (hostPort != MACH_PORT_NULL)
             mach_port_deallocate(mach_task_self(), hostPort);

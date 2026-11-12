@@ -61,6 +61,7 @@ static bool isMobileUA(UserAgentType type)
 static ASCIILiteral platformForUAString(UserAgentType type)
 {
 #if OS(MACOS)
+    UNUSED_PARAM(type);
     return "Macintosh"_s;
 #elif OS(WINDOWS)
     UNUSED_PARAM(type);

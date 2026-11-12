@@ -100,7 +100,7 @@ safari_deps_build_boringssl
 safari_deps_build_gioboringssl
 
 fetch "$mesa_url" "mesa-$mesa_version.tar.xz" "$mesa_sha256"
-unpack mesa "mesa-$mesa_version.tar.xz"
+unpack mesa "mesa-$mesa_version.tar.xz" "$here/patches/mesa-warnings.patch"
 llvm_config=$(command -v "${LLVM_CONFIG:-llvm-config}")
 printf '[binaries]\nllvm-config = '"'%s'"'\n' "$llvm_config" > "$build/mesa-native.ini"
 meson_build mesa --native-file "$build/mesa-native.ini" \

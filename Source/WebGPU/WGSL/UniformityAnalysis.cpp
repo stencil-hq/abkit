@@ -30,6 +30,7 @@
 #include "ASTIdentifier.h"
 #include "WGSL.h"
 #include "WGSLShaderModule.h"
+#include <array>
 #include <wtf/DataLog.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -106,7 +107,7 @@ struct LoopSwitchInfo {
 
 struct FunctionInfo {
     AST::Function* astNode;
-    Node* requiredToBeUniform[3] { nullptr, nullptr, nullptr }; // indexed: 0=Error, 1=Warning, 2=Info
+    std::array<Node*, 3> requiredToBeUniform { nullptr, nullptr, nullptr }; // indexed: 0=Error, 1=Warning, 2=Info
     Node* mayBeNonUniform { nullptr };
     Node* cfStart { nullptr };
     Node* valueReturn { nullptr };

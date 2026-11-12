@@ -271,10 +271,10 @@ public:
 
 #if OS(WINDOWS)
     String(const wchar_t* characters, unsigned length)
-        : String({ ucharFrom(characters), length }) { }
+        : String(unsafeMakeSpan(ucharFrom(characters), length)) { }
 
     String(const wchar_t* characters)
-        : String({ ucharFrom(characters), static_cast<size_t>(characters ? wcslen(characters) : 0) }) { }
+        : String(unsafeSpan(ucharFrom(characters))) { }
 
     WTF_EXPORT_PRIVATE Vector<wchar_t> wideCharacters() const;
 #endif

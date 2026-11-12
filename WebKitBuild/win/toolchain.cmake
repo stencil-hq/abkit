@@ -63,7 +63,8 @@ set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
 
 # CMake checks the compilers before the port's options name the SDK.
 get_filename_component(WEBKIT_WIN_SDK "${CMAKE_CURRENT_LIST_DIR}/../../WebKitLibraries/windows" ABSOLUTE)
-set(WEBKIT_WIN_INCLUDES "-imsvc ${WEBKIT_WIN_SDK}/crt/include -imsvc ${WEBKIT_WIN_SDK}/sdk/include/ucrt -imsvc ${WEBKIT_WIN_SDK}/sdk/include/um -imsvc ${WEBKIT_WIN_SDK}/sdk/include/shared -imsvc ${WEBKIT_WIN_SDK}/sdk/include/winrt")
+set(WEBKIT_WIN_DEPS "${CMAKE_CURRENT_LIST_DIR}/sysroot/${WEBKIT_WIN_DEPS_ENVIRONMENT}")
+set(WEBKIT_WIN_INCLUDES "-imsvc ${WEBKIT_WIN_SDK}/crt/include -imsvc ${WEBKIT_WIN_SDK}/sdk/include/ucrt -imsvc ${WEBKIT_WIN_SDK}/sdk/include/um -imsvc ${WEBKIT_WIN_SDK}/sdk/include/shared -imsvc ${WEBKIT_WIN_SDK}/sdk/include/winrt -imsvc ${WEBKIT_WIN_DEPS}/include/glib-2.0 -imsvc ${WEBKIT_WIN_DEPS}/lib/glib-2.0/include")
 set(WEBKIT_WIN_LIBPATHS "-libpath:${WEBKIT_WIN_SDK}/crt/lib/${WEBKIT_WIN_ARCH} -libpath:${WEBKIT_WIN_SDK}/sdk/lib/ucrt/${WEBKIT_WIN_ARCH} -libpath:${WEBKIT_WIN_SDK}/sdk/lib/um/${WEBKIT_WIN_ARCH}")
 # Precompiled headers without their inputs' timestamps: the same headers make
 # the same PCH in every build directory, so that ccache finds what was compiled
@@ -74,7 +75,6 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}")
 
-set(WEBKIT_WIN_DEPS "${CMAKE_CURRENT_LIST_DIR}/sysroot/${WEBKIT_WIN_DEPS_ENVIRONMENT}")
 set(CMAKE_FIND_ROOT_PATH "${WEBKIT_WIN_DEPS}" "${WEBKIT_WIN_SDK}")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)

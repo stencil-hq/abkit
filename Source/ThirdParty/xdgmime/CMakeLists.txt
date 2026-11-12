@@ -20,6 +20,11 @@ include_directories("${XDGMIME_INCLUDE_DIRECTORIES}")
 add_definitions(-DXDG_PREFIX=_wk_xdg)
 add_library(xdgmime STATIC ${XDGMIME_SOURCES})
 
+# OptionsCommon.cmake detects HAVE_MMAP everywhere but on Apple platforms, which all have mmap.
+if (APPLE)
+    target_compile_definitions(xdgmime PRIVATE HAVE_MMAP=1)
+endif ()
+
 if (CMAKE_CXX_BYTE_ORDER STREQUAL "LITTLE_ENDIAN")
     add_definitions(-DLITTLE_ENDIAN=1)
 else ()

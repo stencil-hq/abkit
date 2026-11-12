@@ -335,7 +335,7 @@ void Connection::EventListener::open(Function<void()>&& handler)
 {
     m_handler = WTF::move(handler);
 
-    memset(&m_state, 0, sizeof(m_state));
+    m_state = { };
     m_state.hEvent = ::CreateEventW(0, FALSE, FALSE, 0);
 
     BOOL result;

@@ -87,8 +87,9 @@ static GRefPtr<GstBuffer> interleavedCopy(GstBuffer* buffer, const GstAudioInfo&
     {
         GstMappedBuffer map(interleaved, GST_MAP_WRITE);
         auto destination = map.mutableSpan<uint8_t>();
+        auto planeData = unsafeMakeSpan(planes.planes, channels);
         for (size_t channel = 0; channel < channels; ++channel) {
-            auto source = unsafeMakeSpan(static_cast<const uint8_t*>(GST_AUDIO_BUFFER_PLANE_DATA(&planes, channel)), frames * bytesPerSample);
+            auto source = unsafeMakeSpan(static_cast<const uint8_t*>(planeData[channel]), frames * bytesPerSample);
             for (size_t frame = 0; frame < frames; ++frame)
                 memcpySpan(destination.subspan((frame * channels + channel) * bytesPerSample, bytesPerSample), source.subspan(frame * bytesPerSample, bytesPerSample));
         }

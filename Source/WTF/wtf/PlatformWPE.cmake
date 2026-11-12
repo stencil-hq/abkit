@@ -117,6 +117,9 @@ elseif (APPLE)
         ${WTF_DERIVED_SOURCES_DIR}/mach_excServer.c
         ${WTF_DERIVED_SOURCES_DIR}/mach_excUser.c
     )
+    WEBKIT_ADD_COMPILER_FLAGS(C SOURCE
+        ${WTF_DERIVED_SOURCES_DIR}/mach_excServer.c
+        -Wno-unsafe-buffer-usage)
     set_source_files_properties(darwin/OSLogPrintStream.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
     # USE(DARWIN_SYSTEM_TYPES): what the Cocoa ports' source list has of it.
     list(APPEND WTF_SOURCES

@@ -192,6 +192,7 @@ int32_t Dav1dDecoder::Decode(const webrtc::EncodedImage& encodedImage, bool /*mi
 
     if (int res = dav1d_send_data(m_context, &dav1dData)) {
         RELEASE_LOG_ERROR(WebRTC, "Dav1dDecoder::Decode decoding failed with error code %d", res);
+        UNUSED_PARAM(res);
         return WEBRTC_VIDEO_CODEC_ERROR;
     }
 
@@ -201,6 +202,7 @@ int32_t Dav1dDecoder::Decode(const webrtc::EncodedImage& encodedImage, bool /*mi
 
     if (int res = dav1d_get_picture(m_context, &dav1dPicture)) {
         RELEASE_LOG_ERROR(WebRTC, "Dav1dDecoder::Decode getting picture failed with error code %d", res);
+        UNUSED_PARAM(res);
         return WEBRTC_VIDEO_CODEC_ERROR;
     }
 

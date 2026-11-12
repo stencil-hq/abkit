@@ -190,8 +190,9 @@ bool OSAllocator::tryProtect(void* address, size_t bytes, bool readable, bool wr
     // VirtualAlloc(MEM_COMMIT) cannot span multiple MEM_RESERVE regions, so walk
     // the range with VirtualQuery and commit one region at a time. See 306171@main.
     size_t totalSeen = 0;
-    char* currentPtr = static_cast<char*>(address);
+    auto memory = unsafeMakeSpan(static_cast<char*>(address), bytes);
     while (totalSeen < bytes) {
+        auto* currentPtr = memory.subspan(totalSeen).data();
         MEMORY_BASIC_INFORMATION memInfo;
         if (!VirtualQuery(currentPtr, &memInfo, sizeof(memInfo)))
             return false;
@@ -200,7 +201,6 @@ bool OSAllocator::tryProtect(void* address, size_t bytes, bool readable, bool wr
         size_t chunkSize = std::min(static_cast<size_t>(memInfo.RegionSize), bytes - totalSeen);
         if (!tryCommitWithRetry(currentPtr, chunkSize, protection))
             return false;
-        currentPtr += chunkSize;
         totalSeen += chunkSize;
     }
     return true;
@@ -216,7 +216,7 @@ void OSAllocator::protect(void* address, size_t bytes, bool readable, bool writa
 
 void OSAllocator::zeroFill(void* base, size_t size)
 {
-    memset(base, 0, size);
+    memsetSpan(unsafeMakeSpan(static_cast<uint8_t*>(base), size), 0);
 }
 
 } // namespace WTF

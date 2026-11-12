@@ -135,14 +135,14 @@ public:
 
     template<typename U = StorageType>
         requires (std::same_as<U, StorageType> && NSType<U>)
-    [[nodiscard]] StorageType leakRef() NS_RETURNS_RETAINED RETURNS_NONNULL {
+    [[nodiscard]] StorageType leakRef() NS_RETURNS_RETAINED {
         ASSERT(m_ptr);
         return std::exchange(m_ptr, nullptr);
     }
 
     template<typename U = StorageType>
         requires (std::same_as<U, StorageType> && !NSType<U>)
-    [[nodiscard]] StorageType leakRef() CF_RETURNS_RETAINED RETURNS_NONNULL {
+    [[nodiscard]] StorageType leakRef() CF_RETURNS_RETAINED {
         ASSERT(m_ptr);
         return std::exchange(m_ptr, nullptr);
     }

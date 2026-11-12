@@ -1751,17 +1751,19 @@ std::optional<std::array<float, 9>> primariesConversionMatrixForPixelBuffer(CVPi
 // simd matrix columns are padded, so the arguments buffer carries them as plain floats instead.
 static std::array<float, 6> flattenedColumns(const simd::float3x2& matrix)
 {
-    return { matrix.columns[0].x, matrix.columns[0].y,
-        matrix.columns[1].x, matrix.columns[1].y,
-        matrix.columns[2].x, matrix.columns[2].y };
+    auto columns = std::span { matrix.columns };
+    return { columns[0].x, columns[0].y,
+        columns[1].x, columns[1].y,
+        columns[2].x, columns[2].y };
 }
 
 static std::array<float, 12> flattenedColumns(const simd::float4x3& matrix)
 {
-    return { matrix.columns[0].x, matrix.columns[0].y, matrix.columns[0].z,
-        matrix.columns[1].x, matrix.columns[1].y, matrix.columns[1].z,
-        matrix.columns[2].x, matrix.columns[2].y, matrix.columns[2].z,
-        matrix.columns[3].x, matrix.columns[3].y, matrix.columns[3].z };
+    auto columns = std::span { matrix.columns };
+    return { columns[0].x, columns[0].y, columns[0].z,
+        columns[1].x, columns[1].y, columns[1].z,
+        columns[2].x, columns[2].y, columns[2].z,
+        columns[3].x, columns[3].y, columns[3].z };
 }
 
 id<MTLRenderPipelineState> Queue::copyExternalImagePipelineState(MTLPixelFormat pixelFormat)

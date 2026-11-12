@@ -88,7 +88,7 @@ unpack libsoup "libsoup-$libsoup_version.tar.xz" "$patches/libsoup-safari.patch"
 # the TLS module only and never by the engine, which builds against OpenSSL.
 boringssl=$build/boringssl-install
 cmake -S "$sources/boringssl" -B "$build/boringssl" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-	-DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="$boringssl" >/dev/null
+	-DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$boringssl" >/dev/null
 ninja -C "$build/boringssl" ssl crypto
 mkdir -p "$boringssl/lib"
 rm -rf "$boringssl/include"

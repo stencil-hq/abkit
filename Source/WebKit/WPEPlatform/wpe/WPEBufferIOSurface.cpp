@@ -71,7 +71,7 @@ static GBytes* wpeBufferIOSurfaceImportToPixels(WPEBuffer* buffer, GError** erro
     auto width = IOSurfaceGetWidth(priv->surface);
     auto height = IOSurfaceGetHeight(priv->surface);
     auto stride = IOSurfaceGetBytesPerRow(priv->surface);
-    std::span<const uint8_t> data(static_cast<const uint8_t*>(IOSurfaceGetBaseAddress(priv->surface)), stride * height);
+    auto data = unsafeMakeSpan(static_cast<const uint8_t*>(IOSurfaceGetBaseAddress(priv->surface)), stride * height);
     // The returned rows must not be padded, and must outlive the lock.
     priv->pixels = wpeBufferCopyPixelsWithoutRowPadding(data, width, height, stride);
     IOSurfaceUnlock(priv->surface, kIOSurfaceLockReadOnly, nullptr);

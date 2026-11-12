@@ -175,6 +175,8 @@ static Ref<JSON::Object> process(InspectorCanvas& inspectorCanvas, const GPUExte
 #else // ENABLE(WEB_CODECS)
     object->setArray("source"_s, process(inspectorCanvas, descriptor.source));
 #endif // !ENABLE(WEB_CODECS)
+#else
+    UNUSED_PARAM(inspectorCanvas);
 #endif // ENABLE(VIDEO)
     return object;
 }

@@ -394,7 +394,9 @@ ALWAYS_INLINE JSONCache::TextWindow JSONCache::loadTextWindow(NameSource<Charact
     } else {
         auto first = simde_vld2q_u8(std::bit_cast<const uint8_t*>(source.data()));
         auto last = simde_vld2q_u8(std::bit_cast<const uint8_t*>(source.template last<stride>().data()));
-        return { { first.val[0], last.val[0] }, { first.val[1], last.val[1] } };
+        auto firstValues = std::span { first.val };
+        auto lastValues = std::span { last.val };
+        return { { firstValues[0], lastValues[0] }, { firstValues[1], lastValues[1] } };
     }
 }
 

@@ -309,6 +309,8 @@ void MediaSessionManagerInterface::applicationWillEnterForeground(bool suspended
     }, [](auto& session) {
         session.endInterruption(PlatformMediaSession::EndInterruptionFlags::MayResumePlaying);
     });
+#else
+    UNUSED_PARAM(suspendedUnderLock);
 #endif
 }
 
@@ -328,6 +330,8 @@ void MediaSessionManagerInterface::applicationDidEnterBackground(bool suspendedU
         else if (restrictions(session.mediaType()).contains(MediaSessionRestriction::BackgroundProcessPlaybackRestricted))
             session.beginInterruption(PlatformMediaSession::InterruptionType::EnteringBackground);
     });
+#else
+    UNUSED_PARAM(suspendedUnderLock);
 #endif
 }
 
@@ -598,6 +602,7 @@ Ref<GenericPromise> MediaSessionManagerInterface::startSessionAdmission(Platform
             return completeWillBeginPlayback(result.has_value());
         });
 #else
+    UNUSED_PARAM(stateAtStart);
     return GenericPromise::createAndReject();
 #endif
 }

@@ -34,4 +34,13 @@ RUN retry() { for attempt in 1 2 3 4 5; do "$@" && return 0; sleep 30; done; ret
 		fonts-dejavu-core \
 	&& rm -rf /var/lib/apt/lists/*
 
+# libstdc++ 12's std::stable_sort calls its own deprecated std::get_temporary_buffer, and clang
+# reports that at every stable_sort of the build; libstdc++ 13 wraps the call in the pragmas added
+# here. Only diagnostics change.
+RUN sed -i \
+		-e '/std::pair<pointer, size_type> __p(/i #pragma GCC diagnostic push\n#pragma GCC diagnostic ignored "-Wdeprecated-declarations"' \
+		-e '/std::get_temporary_buffer<value_type>(_M_original_len));/a #pragma GCC diagnostic pop' \
+		/usr/include/c++/12/bits/stl_tempbuf.h \
+	&& grep -q 'diagnostic ignored "-Wdeprecated-declarations"' /usr/include/c++/12/bits/stl_tempbuf.h
+
 ENV CC=clang-$LLVM_VERSION CXX=clang++-$LLVM_VERSION LLVM_CONFIG=llvm-config-$LLVM_VERSION
