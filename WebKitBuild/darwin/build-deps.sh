@@ -47,7 +47,7 @@ if [ "$1" = clean ]; then
 fi
 mkdir -p "$downloads" "$sources" "$build" "$prefix"
 
-homebrew=$(brew --prefix)
+homebrew=${HOMEBREW_PREFIX:-$(brew --prefix)}
 # sqlite is keg-only; without its directory libsoup would use the system's while the engine uses Homebrew's.
 PKG_CONFIG_PATH="$homebrew/opt/sqlite/lib/pkgconfig:$homebrew/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export PKG_CONFIG_PATH
