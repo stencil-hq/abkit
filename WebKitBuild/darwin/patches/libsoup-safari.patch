@@ -11,6 +11,26 @@ diff --git a/libsoup/content-decoder/soup-content-decoder.c b/libsoup/content-de
  		g_string_free (accept_encoding, TRUE);
  	}
  
+diff --git a/libsoup/cookies/soup-cookie-jar.c b/libsoup/cookies/soup-cookie-jar.c
+--- a/libsoup/cookies/soup-cookie-jar.c
++++ b/libsoup/cookies/soup-cookie-jar.c
+@@ -643,11 +643,15 @@
+ 		return;
+ 	}
+ 
+-	/* SameSite=None cookies are rejected unless the Secure attribute is set. */
++	/* SameSite=None cookies are rejected unless the Secure attribute is set. Safari keeps them, and
++	 * there a cookie that names no SameSite policy is one of them (soup-cookie.c): rejecting them
++	 * would drop every such cookie that is not Secure, which is every cookie of a plain http site. */
++#ifndef __APPLE__
+ 	if (soup_cookie_get_same_site_policy (cookie) == SOUP_SAME_SITE_POLICY_NONE && !soup_cookie_get_secure (cookie)) {
+ 		soup_cookie_free (cookie);
+ 		return;
+ 	}
++#endif
+ 
+         /* See https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-cookie-prefixes-00 for handling the prefixes,
+          * which has been implemented by Firefox and Chrome. */
 diff --git a/libsoup/cookies/soup-cookie.c b/libsoup/cookies/soup-cookie.c
 --- a/libsoup/cookies/soup-cookie.c
 +++ b/libsoup/cookies/soup-cookie.c
