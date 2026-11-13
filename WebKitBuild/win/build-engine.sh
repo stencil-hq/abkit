@@ -119,8 +119,16 @@ if [ -z "$XWIN_DIR" ]; then
 			xwin=$here/tools/xwin
 		fi
 		rm -rf "$XWIN_DIR"
-		"$xwin" --accept-license --cache-dir "$here/xwin-cache" --arch x86_64,aarch64 \
-			--sdk-version "$sdk_version" --crt-version "$crt_version" splat --output "$XWIN_DIR"
+		xwin_sdk() {
+			"$xwin" --accept-license --cache-dir "$here/xwin-cache" --arch x86_64,aarch64 \
+				--sdk-version "$sdk_version" --crt-version "$crt_version" "$@"
+		}
+		# xwin splats its packages in parallel, and each SDK headers or libs package links
+		# sdk/include/$sdk_version or sdk/lib/$sdk_version to . once it finds the link missing,
+		# so two of them can both find it missing and the second fails with "File exists"
+		# (xwin 0.10.0, splat.rs). The packages download in parallel; the splat uses one thread.
+		xwin_sdk download
+		(export RAYON_NUM_THREADS=1; xwin_sdk splat --output "$XWIN_DIR")
 		rm -rf "$here/xwin-cache"
 	fi
 fi
