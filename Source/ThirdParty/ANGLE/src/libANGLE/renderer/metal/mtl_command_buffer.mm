@@ -10,6 +10,7 @@
 
 #include "libANGLE/renderer/metal/mtl_command_buffer.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <random>
@@ -470,17 +471,6 @@ void RandomizeClearValue(ObjCAttachmentDescriptor *objCRenderPassAttachment)
 
 }  // namespace
 
-// AtomicSerial implementation
-void AtomicSerial::storeMaxValue(uint64_t value)
-{
-    uint64_t prevValue = load();
-    while (prevValue < value &&
-           !mValue.compare_exchange_weak(prevValue, value, std::memory_order_release,
-                                         std::memory_order_consume))
-    {
-    }
-}
-
 // AtomicCommandBufferError implementation
 void AtomicCommandBufferError::store(MTLCommandBufferError value)
 {
@@ -512,14 +502,21 @@ void CommandQueue::set(id<MTLCommandQueue> metalQueue)
 
 void CommandQueue::finishAllCommands()
 {
-    std::deque<CmdBufferQueueEntry> commandBuffers;
+    std::unique_lock<std::mutex> lock(mLock);
+    for (;;)
     {
-        std::lock_guard<std::mutex> lg(mLock);
-        mMetalCmdBuffers.swap(commandBuffers);
-    }
-    for (CmdBufferQueueEntry &entry : commandBuffers)
-    {
-        [entry.buffer waitUntilCompleted];
+        auto entry = std::find_if(mMetalCmdBuffers.begin(), mMetalCmdBuffers.end(),
+                                 [](const auto &entry) { return entry.second.committed; });
+        if (entry == mMetalCmdBuffers.end())
+        {
+            return;
+        }
+        uint64_t serial = entry->first;
+        auto buffer     = entry->second.buffer;
+        lock.unlock();
+        [buffer waitUntilCompleted];
+        lock.lock();
+        mCompletedBufferSerialCv.wait(lock, [&] { return isSerialCompletedLocked(serial); });
     }
 }
 
@@ -535,25 +532,30 @@ void CommandQueue::ensureResourceReadyForCPU(const ResourceRef &resource)
 
 void CommandQueue::ensureResourceReadyForCPU(Resource *resource)
 {
-    mLock.lock();
-    while (isResourceBeingUsedByGPU(resource) && !mMetalCmdBuffers.empty())
+    if (!resource)
     {
-        CmdBufferQueueEntry metalBufferEntry = mMetalCmdBuffers.front();
-        mMetalCmdBuffers.pop_front();
-        mLock.unlock();
-
-        ANGLE_MTL_LOG("Waiting for MTLCommandBuffer %llu:%p", metalBufferEntry.serial,
-                      metalBufferEntry.buffer.get());
-        [metalBufferEntry.buffer waitUntilCompleted];
-
-        mLock.lock();
+        return;
     }
-    mLock.unlock();
 
-    // This can happen if the resource is read then write in the same command buffer.
-    // So it is the responsitibily of outer code to ensure the command buffer is commit before
-    // the resource can be read or written again
-    ASSERT(!isResourceBeingUsedByGPU(resource));
+    uint64_t serial = resource->getCommandBufferQueueSerial();
+    std::unique_lock<std::mutex> lock(mLock);
+    auto entry = mMetalCmdBuffers.find(serial);
+    if (entry == mMetalCmdBuffers.end())
+    {
+        ASSERT(isSerialCompletedLocked(serial));
+        return;
+    }
+
+    // The caller flushes this resource's work. An older buffer from another context
+    // may still be uncommitted, and waiting for it while holding the share-group lock
+    // would prevent that context from ever submitting it.
+    ASSERT(entry->second.committed);
+    auto buffer = entry->second.buffer;
+    lock.unlock();
+    ANGLE_MTL_LOG("Waiting for resource MTLCommandBuffer %llu:%p", serial, buffer.get());
+    [buffer waitUntilCompleted];
+    lock.lock();
+    mCompletedBufferSerialCv.wait(lock, [&] { return isSerialCompletedLocked(serial); });
 }
 
 bool CommandQueue::isResourceBeingUsedByGPU(const Resource *resource) const
@@ -573,7 +575,8 @@ bool CommandQueue::resourceHasPendingWorks(const Resource *resource) const
         return false;
     }
 
-    return mCommittedBufferSerial.load() < resource->getCommandBufferQueueSerial();
+    std::lock_guard<std::mutex> lock(mLock);
+    return !isSerialCommittedLocked(resource->getCommandBufferQueueSerial());
 }
 
 bool CommandQueue::resourceHasPendingRenderWorks(const Resource *resource) const
@@ -583,25 +586,40 @@ bool CommandQueue::resourceHasPendingRenderWorks(const Resource *resource) const
         return false;
     }
 
-    return mCommittedBufferSerial.load() < resource->getLastRenderEncoderSerial();
+    std::lock_guard<std::mutex> lock(mLock);
+    return !isSerialCommittedLocked(resource->getLastReadingRenderEncoderSerial()) ||
+           !isSerialCommittedLocked(resource->getLastWritingRenderEncoderSerial());
+}
+
+bool CommandQueue::isSerialCommittedLocked(uint64_t serial) const
+{
+    auto entry = mMetalCmdBuffers.find(serial);
+    return entry == mMetalCmdBuffers.end() ? serial < mQueueSerialCounter
+                                          : entry->second.committed;
+}
+
+bool CommandQueue::isSerialCompletedLocked(uint64_t serial) const
+{
+    return serial < mQueueSerialCounter && mMetalCmdBuffers.find(serial) == mMetalCmdBuffers.end();
 }
 
 bool CommandQueue::isSerialCompleted(uint64_t serial) const
 {
-    return mCompletedBufferSerial.load() >= serial;
+    std::lock_guard<std::mutex> lock(mLock);
+    return isSerialCompletedLocked(serial);
 }
 
 bool CommandQueue::waitUntilSerialCompleted(uint64_t serial, uint64_t timeoutNs) const
 {
     std::unique_lock<std::mutex> lk(mLock);
-    if (isSerialCompleted(serial))
+    if (isSerialCompletedLocked(serial))
     {
         return true;
     }
 
     if (timeoutNs == 0 ||
         !mCompletedBufferSerialCv.wait_for(lk, std::chrono::nanoseconds(timeoutNs),
-                                           [&]() { return isSerialCompleted(serial); }))
+                                           [&]() { return isSerialCompletedLocked(serial); }))
     {
         return false;
     }
@@ -611,16 +629,21 @@ bool CommandQueue::waitUntilSerialCompleted(uint64_t serial, uint64_t timeoutNs)
 
 bool CommandQueue::isSerialScheduled(uint64_t serial) const
 {
-    return mScheduledBufferSerial.load() >= serial;
+    std::lock_guard<std::mutex> lock(mLock);
+    auto entry = mMetalCmdBuffers.find(serial);
+    return entry == mMetalCmdBuffers.end() ? serial < mQueueSerialCounter
+                                          : entry->second.scheduled;
 }
 
 void CommandQueue::addCommandBufferScheduledCallback(uint64_t serial,
                                                      std::function<void()> callback)
 {
-    std::lock_guard<std::mutex> lg(mLock);
-    if (isSerialScheduled(serial))
+    std::unique_lock<std::mutex> lock(mLock);
+    auto entry = mMetalCmdBuffers.find(serial);
+    if (isSerialCompletedLocked(serial) ||
+        (entry != mMetalCmdBuffers.end() && entry->second.scheduled))
     {
-        // Run the callback immediately if the command buffer for `serial` was already scheduled.
+        lock.unlock();
         callback();
     }
     else
@@ -640,7 +663,7 @@ angle::ObjCPtr<id<MTLCommandBuffer>> CommandQueue::makeMetalCommandBuffer(uint64
         uint64_t serial           = mQueueSerialCounter++;
         uint64_t timeElapsedEntry = mActiveTimeElapsedId;
 
-        mMetalCmdBuffers.push_back({metalCmdBuffer, serial});
+        mMetalCmdBuffers.emplace(serial, CmdBufferQueueEntry{metalCmdBuffer});
 
         ANGLE_MTL_LOG("Created MTLCommandBuffer %llu:%p", serial, metalCmdBuffer.get());
 
@@ -669,7 +692,10 @@ void CommandQueue::onCommandBufferCommitted(id<MTLCommandBuffer> buf, uint64_t s
 {
     ANGLE_MTL_LOG("Committed MTLCommandBuffer %llu:%p", serial, buf);
 
-    mCommittedBufferSerial.storeMaxValue(serial);
+    std::lock_guard<std::mutex> lock(mLock);
+    auto entry = mMetalCmdBuffers.find(serial);
+    ASSERT(entry != mMetalCmdBuffers.end());
+    entry->second.committed = true;
 }
 
 void CommandQueue::onCommandBufferScheduled(uint64_t serial)
@@ -683,7 +709,11 @@ void CommandQueue::onCommandBufferScheduled(uint64_t serial)
             callbacks = std::move(it->second);
             mCommandBufferScheduledCallbacks.erase(it);
         }
-        mScheduledBufferSerial.storeMaxValue(serial);
+        auto entry = mMetalCmdBuffers.find(serial);
+        if (entry != mMetalCmdBuffers.end())
+        {
+            entry->second.scheduled = true;
+        }
     }
     for (const auto &callback : callbacks)
     {
@@ -698,6 +728,10 @@ void CommandQueue::onCommandBufferCompleted(id<MTLCommandBuffer> buf,
     std::lock_guard<std::mutex> lg(mLock);
 
     ANGLE_MTL_LOG("Completed MTLCommandBuffer %llu:%p", serial, buf);
+
+    // A later-created buffer can complete first; retire only the buffer that actually finished.
+    mMetalCmdBuffers.erase(serial);
+    mCompletedBufferSerialCv.notify_all();
 
     NSError *error = buf.error;
     if (error)
@@ -724,25 +758,6 @@ void CommandQueue::onCommandBufferCompleted(id<MTLCommandBuffer> buf,
         // Record this command buffer's elapsed time.
         recordCommandBufferTimeElapsed(lg, timeElapsedEntry, [buf GPUEndTime] - [buf GPUStartTime]);
     }
-
-    if (mCompletedBufferSerial.load() >= serial)
-    {
-        // Already handled.
-        return;
-    }
-
-    while (!mMetalCmdBuffers.empty() && mMetalCmdBuffers.front().serial <= serial)
-    {
-        CmdBufferQueueEntry metalBufferEntry = mMetalCmdBuffers.front();
-        ANGLE_UNUSED_VARIABLE(metalBufferEntry);
-        ANGLE_MTL_LOG("Popped MTLCommandBuffer %llu:%p", metalBufferEntry.serial,
-                      metalBufferEntry.buffer.get());
-
-        mMetalCmdBuffers.pop_front();
-    }
-
-    mCompletedBufferSerial.storeMaxValue(serial);
-    mCompletedBufferSerialCv.notify_all();
 }
 
 uint64_t CommandQueue::getNextRenderPassEncoderSerial()

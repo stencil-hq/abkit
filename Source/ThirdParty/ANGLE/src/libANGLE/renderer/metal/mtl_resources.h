@@ -110,12 +110,6 @@ class Resource : angle::NonCopyable
         return mUsageRef->lastWritingRenderEncoderSerial;
     }
 
-    uint64_t getLastRenderEncoderSerial() const
-    {
-        return std::max(mUsageRef->lastReadingRenderEncoderSerial,
-                        mUsageRef->lastWritingRenderEncoderSerial);
-    }
-
     virtual size_t estimatedByteSize() const = 0;
     virtual id getID() const                 = 0;
 
