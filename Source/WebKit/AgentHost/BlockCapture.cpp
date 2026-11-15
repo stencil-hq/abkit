@@ -123,6 +123,8 @@ void Block::capture(const Json& operation, const Reply& reply)
         reply->failed("capture: the scale must be positive, not " + Json::number(request->scale).serialize());
         return;
     }
+    if (!admitPageCall(operation, reply))
+        return;
     reply->setUnansweredMessage("capture: the page is gone");
     m_captures.push_back(std::move(request));
     if (!m_capture)
@@ -131,6 +133,9 @@ void Block::capture(const Json& operation, const Reply& reply)
 
 void Block::startNextCapture()
 {
+    // A request that failed while waiting (the page was unresponsive) is not taken.
+    while (!m_captures.empty() && m_captures.front()->reply->answered())
+        m_captures.pop_front();
     if (m_capture || m_captures.empty() || m_closed)
         return;
     m_capture = std::move(m_captures.front());
@@ -142,8 +147,12 @@ void Block::startNextCapture()
     request->timer = runAfter(2 * settlePatience + framePatience, [weakThis = weak_from_this(), request] {
         request->timer = 0;
         auto block = weakThis.lock();
-        if (block && !block->m_closed && block->m_capture == request)
-            block->finishCapture(request, std::nullopt, "capture: the page drew no frame");
+        if (!block || block->m_closed || block->m_capture != request)
+            return;
+        // A page whose web process answers nothing draws nothing: that is the reason given.
+        if (block->unresponsive())
+            request->reply->fail("unresponsive", block->unresponsiveMessage("capture"));
+        block->finishCapture(request, std::nullopt, "capture: the page drew no frame");
     });
 
     if (!request->full) {
@@ -224,6 +233,12 @@ void Block::grabStill(const std::shared_ptr<CaptureRequest>& request)
         if (auto still = std::exchange(request->latest, std::nullopt))
             block->finishCapture(request, std::move(still), nullptr);
     });
+}
+
+void Block::releaseFailedCapture()
+{
+    if (m_capture && m_capture->reply->answered())
+        finishCapture(m_capture, std::nullopt, nullptr);
 }
 
 void Block::cancelCaptureTimer(CaptureRequest& request)

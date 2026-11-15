@@ -13,6 +13,10 @@ What the `events` op ([protocol.md](protocol.md)) returns for a block. Every eve
 (`name`, a CSS cursor keyword such as `default`, `pointer`, `text`: the page's cursor changed, reported only while
 the block is presented, and once when a presentation starts).
 
+`unresponsive` and `responsive`, each with `ts`: the page's web process stopped answering (a script keeps it busy)
+or answers again ([protocol.md](protocol.md#responsiveness)). A page whose process was ended reports neither again
+for that process.
+
 ## Observed
 
 Reported without any script in the page, each with `ts` (epoch milliseconds). The welcome's `console` and
