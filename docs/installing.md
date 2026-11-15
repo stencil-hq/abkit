@@ -21,9 +21,12 @@ look for the host there:
 
 - **omp** runs `~/.o2/lib/abkit/ABHost` for its `webkit` browser backend. `PI_BROWSER_WEBKIT_PATH`, then the
   `browser.webkitPath` setting, name another host executable or engine directory; `PI_BROWSER_WEBKIT=0` turns the
-  backend off. Each omp release pins the ABKit release it installs; before an open that runs the engine, omp
-  replaces one in `~/.o2/lib/abkit` whose `VERSION` is missing or an older release with that one. A newer release,
-  `dev`, and an engine Tern manages ([below](#managed-by-tern)) stay.
+  backend off. omp installs the newest stable ABKit release as `~/.o2/lib/abkit-versions/<version>` and makes
+  `~/.o2/lib/abkit` a link to it (a junction on Windows), replaced by rename; before the first open in a process
+  that runs the engine, it asks for the newest release and links it in when the engine's `VERSION` is missing or
+  older, without waiting for running hosts, and deletes the versions nothing runs from. A current or newer release,
+  `dev`, and an engine Tern manages ([below](#managed-by-tern)) stay; an engine folder installed before omp kept
+  versions is replaced once nothing runs from it.
 - **Tern** loads the engine from `~/.o2/lib/abkit` (on macOS it runs `ABHost` there, on Linux and Windows it loads
   the library in process). `STENCIL_WEBKIT_DIR` names another engine directory; `STENCIL_WEBKIT` picks the engine.
 
