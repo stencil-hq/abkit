@@ -20,6 +20,36 @@ import time
 PAGE = "data:text/html,<title>smoke</title><body style='background:%23f00'><p id=x>hello</p>"
 TIMEOUT = 60
 
+# Keep an older context's commands unsubmitted while another context reads back its
+# pixels. A display-wide queue must not wait for the unrelated older command buffer.
+READBACK = """
+() => {
+    const canvases = [document.createElement('canvas'), document.createElement('canvas')];
+    for (const canvas of canvases) { canvas.width = 4; canvas.height = 4; }
+    document.body.replaceChildren(...canvases);
+    const contexts = canvases.map(canvas => canvas.getContext('webgl', { preserveDrawingBuffer: true }));
+    if (contexts.some(gl => !gl)) throw new Error('WebGL unavailable');
+    const pixel = new Uint8Array(4);
+    for (let iteration = 0; iteration < 64; ++iteration) {
+        for (let index = 0; index < contexts.length; ++index) {
+            const gl = contexts[index];
+            gl.clearColor(index, iteration % 2, 1 - index, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        for (const index of [1, 0]) {
+            const gl = contexts[index];
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+            if (gl.getError() !== gl.NO_ERROR ||
+                pixel[0] !== index * 255 || pixel[1] !== (iteration % 2) * 255 ||
+                pixel[2] !== (1 - index) * 255 || pixel[3] !== 255) {
+                throw new Error(`Incorrect readback in context ${index}, iteration ${iteration}: ${pixel}`);
+            }
+        }
+    }
+    return '128 cross-context pixel readbacks matched';
+}
+"""
+
 
 class Host:
     def __init__(self, executable):
@@ -93,6 +123,12 @@ def main():
         if value.get("value") != "smoke hello":
             raise RuntimeError(f"eval: {value}")
         print(f"eval: {value['value']}")
+
+        if sys.platform == "darwin":
+            readback = host.call("eval", block=block, function=READBACK)
+            if readback.get("value") != "128 cross-context pixel readbacks matched":
+                raise RuntimeError(f"readback: {readback}")
+            print(f"readback: {readback['value']}")
 
         shot = host.call("capture", block=block, format="png")
         if shot["mime"] != "image/png" or not shot["data"] or shot["width"] != 640:
