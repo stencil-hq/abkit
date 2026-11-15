@@ -12,6 +12,7 @@ An engine is one directory: everything in it finds the rest beside itself, where
 | `ABView` (macOS) | the viewer ([viewer.md](viewer.md)) |
 | `inspector.gresource` | the Web Inspector's frontend, for `--inspector` |
 | `lib/` and the remaining libraries | the engine's dependencies: TLS backend, GStreamer and its plugins, fontconfig's configuration, and what they link |
+| `VERSION` | the engine's version, written by its installer: the release version (omp), or `dev` for a local build (`install-engine.sh`); absent in a hand-unpacked release |
 
 ## Where
 
@@ -20,9 +21,30 @@ look for the host there:
 
 - **omp** runs `~/.o2/lib/abkit/ABHost` for its `webkit` browser backend. `PI_BROWSER_WEBKIT_PATH`, then the
   `browser.webkitPath` setting, name another host executable or engine directory; `PI_BROWSER_WEBKIT=0` turns the
-  backend off.
+  backend off. Each omp release pins the ABKit release it installs; before an open that runs the engine, omp
+  replaces one in `~/.o2/lib/abkit` whose `VERSION` is missing or an older release with that one. A newer release,
+  `dev`, and an engine Tern manages ([below](#managed-by-tern)) stay.
 - **Tern** loads the engine from `~/.o2/lib/abkit` (on macOS it runs `ABHost` there, on Linux and Windows it loads
   the library in process). `STENCIL_WEBKIT_DIR` names another engine directory; `STENCIL_WEBKIT` picks the engine.
+
+## Managed by Tern
+
+Tern can keep the engine itself, on the newest stable release, as it keeps omp and ovnfs. Its root is `abkit` in
+Tern's state folder:
+
+- `manager.json`, `{"manager":"tern","name":"Tern"}`.
+- `versions/<version>/`: each release's engine directory with its `VERSION`, never changed once in place; the newest
+  few and any a process still runs from stay.
+- `~/.o2/lib/abkit` is a link to the current `versions/<version>` (a junction on Windows), replaced when Tern
+  installs a newer one, so a running host keeps its own version's files.
+
+An engine is managed when `manager.json` is two folders above its real path. omp then leaves its updates to Tern.
+Tern takes over neither a local build (`VERSION` is `dev`) nor a directory a process runs from. When it stops
+managing the engine, it removes the link and the versions nothing runs.
+
+The engine finds its helper processes beside its library as loaded, not by its real path, so clients resolve
+`~/.o2/lib/abkit` to its real path once and load or start the engine from there: a running engine then keeps its
+own version's helpers when the link moves on.
 
 ## From a release
 
