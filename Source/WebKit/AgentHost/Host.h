@@ -65,6 +65,9 @@ public:
     // What is said when the request is dropped without an answer.
     void setUnansweredMessage(std::string&& message) { m_unanswered = std::move(message); }
 
+    // Whether the request has its answer.
+    bool answered() const { return m_answered; }
+
 private:
     void send(std::string_view body);
 

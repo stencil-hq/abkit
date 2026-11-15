@@ -502,6 +502,8 @@ void Block::evaluate(const Json& operation, const Reply& reply)
         path = *found->second;
     }
 
+    if (!admitPageCall(operation, reply))
+        return;
     reply->setUnansweredMessage("eval: the page went away");
     auto body = evaluationBody(*function);
     if (path.empty()) {

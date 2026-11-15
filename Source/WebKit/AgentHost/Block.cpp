@@ -34,6 +34,11 @@ namespace AgentHost {
 
 const char isolatedWorldName[] = "ABHost";
 
+// A page whose web process has not answered a round trip for this long is unresponsive (the engine's own
+// responsiveness timeout); while calls into the page are pending, round trips follow each other this far apart.
+static constexpr unsigned unresponsivePatience = 3000;
+static constexpr unsigned pingInterval = 1000;
+
 Block::Block(Host& host, uint64_t identifier, unsigned width, unsigned height, double scale, GRef<WebKitNetworkSession>&& session)
     : m_host(host)
     , m_identifier(identifier)
@@ -117,6 +122,11 @@ void Block::close()
     if (std::exchange(m_closed, true))
         return;
 
+    // A web process a script keeps busy would go on running it for a while after its page closed: it is ended.
+    bool hung = m_view && (unresponsive() || (m_pingSent && g_get_monotonic_time() - *m_pingSent >= pingInterval * G_TIME_SPAN_MILLISECOND));
+    stopWatchingResponsiveness();
+    m_pageCalls.clear();
+
     // Nothing held for the page outlives it.
     if (auto* dialog = std::exchange(m_heldDialog, nullptr)) {
         webkit_script_dialog_close(dialog);
@@ -156,6 +166,8 @@ void Block::close()
         setCursorHandler(m_wpeView, nullptr);
         g_signal_handlers_disconnect_by_data(m_wpeView, this);
         webkit_web_view_stop_loading(m_view.get());
+        if (hung)
+            webkit_web_view_terminate_web_process(m_view.get());
     }
     m_wpeView = nullptr;
     m_view.clear();
@@ -391,6 +403,8 @@ void Block::loadChanged(WebKitLoadEvent loadEvent)
     switch (loadEvent) {
     case WEBKIT_LOAD_STARTED:
         m_loadFailed = false;
+        // The page took the navigation up.
+        m_pendingNavigation = nullptr;
         // The engine loads its error page for the address that failed: that is no page of the site's.
         m_errorPageShown = std::exchange(m_errorPage, std::nullopt) == url;
         if (!m_errorPageShown)
@@ -445,6 +459,7 @@ void Block::webProcessTerminated(WebKitWebProcessTerminationReason reason)
     if (reason == WEBKIT_WEB_PROCESS_TERMINATED_BY_API)
         return;
     m_error = reason == WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT ? "The page's web process went over its memory limit" : "The page's web process crashed";
+    stopWatchingResponsiveness();
     m_frames.clear();
     m_frameCalls.clear();
     failEvaluations(std::exchange(m_evaluations, { }), "eval: the page's web process is gone");
@@ -471,6 +486,8 @@ void Block::state(const Json&, const Reply& reply)
     // On a screen only while presented; the focused page of an active window to its scripts unless `focus` said not.
     answer.setBoolean("shown", presented());
     answer.setBoolean("focused", m_focused);
+    // Whether the page's web process answers: a script that keeps it busy holds up every call into the page.
+    answer.setBoolean("responsive", !unresponsive());
     if (m_error)
         answer.setString("error", *m_error);
     else
@@ -487,10 +504,13 @@ void Block::navigate(const Json& operation, const Reply& reply)
     }
     // A page already showing the address is reloaded. (While a load is under way, the view's address is that load's.)
     const char* current = webkit_web_view_get_uri(m_view.get());
-    if (current && *address == current && !webkit_web_view_is_loading(m_view.get()))
-        webkit_web_view_reload(m_view.get());
-    else
-        webkit_web_view_load_uri(m_view.get(), address->c_str());
+    bool reload = current && *address == current && !webkit_web_view_is_loading(m_view.get());
+    startNavigation([this, reload, address = *address] {
+        if (reload)
+            webkit_web_view_reload(m_view.get());
+        else
+            webkit_web_view_load_uri(m_view.get(), address.c_str());
+    });
     reply->ok();
 }
 
@@ -498,11 +518,11 @@ void Block::moveInHistory(const Json& operation, const Reply& reply)
 {
     auto go = operation.stringMember("go").value_or("");
     if (go == "back")
-        webkit_web_view_go_back(m_view.get());
+        startNavigation([this] { webkit_web_view_go_back(m_view.get()); });
     else if (go == "forward")
-        webkit_web_view_go_forward(m_view.get());
+        startNavigation([this] { webkit_web_view_go_forward(m_view.get()); });
     else if (go == "reload")
-        webkit_web_view_reload(m_view.get());
+        startNavigation([this] { webkit_web_view_reload(m_view.get()); });
     else if (go == "stop")
         webkit_web_view_stop_loading(m_view.get());
     else {
@@ -573,6 +593,171 @@ bool Block::decidePolicy(WebKitPolicyDecision* decision, WebKitPolicyDecisionTyp
     default:
         return false;
     }
+}
+
+// Responsiveness.
+
+bool Block::admitPageCall(const Json& operation, const Reply& reply)
+{
+    auto name = operation.stringMember("op").value_or("call");
+    bool failWhenUnresponsive = operation.booleanMember("failUnresponsive").value_or(false);
+    if (failWhenUnresponsive && unresponsive()) {
+        reply->fail("unresponsive", unresponsiveMessage(name));
+        return false;
+    }
+    std::erase_if(m_pageCalls, [](const PageCall& call) {
+        auto reply = call.reply.lock();
+        return !reply || reply->answered();
+    });
+    m_pageCalls.push_back({ std::move(name), reply, failWhenUnresponsive });
+    ping();
+    return true;
+}
+
+void Block::ping()
+{
+    if (m_closed || !m_view || m_pingSent)
+        return;
+    if (auto timer = std::exchange(m_nextPing, 0))
+        g_source_remove(timer);
+    m_pingSent = g_get_monotonic_time();
+    uint64_t generation = ++m_pingGeneration;
+    m_pingTimer = runAfter(unresponsivePatience, [weakThis = weak_from_this()] {
+        if (auto block = weakThis.lock()) {
+            block->m_pingTimer = 0;
+            block->pingOverdue();
+        }
+    });
+    // Every message to the page waits for its main thread: an empty function answers as soon as that is free.
+    run("", "[]", World::Isolated, [weakThis = weak_from_this(), generation](std::optional<std::string>&&, GError*) {
+        if (auto block = weakThis.lock())
+            block->pingAnswered(generation);
+    });
+}
+
+void Block::pingOverdue()
+{
+    if (m_closed || !m_pingSent)
+        return;
+    // A held dialog stops the page until it is answered, which is no busy script: the round trip waits on.
+    if (m_heldDialog) {
+        m_pingTimer = runAfter(pingInterval, [weakThis = weak_from_this()] {
+            if (auto block = weakThis.lock()) {
+                block->m_pingTimer = 0;
+                block->pingOverdue();
+            }
+        });
+        return;
+    }
+    if (!std::exchange(m_unresponsive, true)) {
+        g_warning("block %" G_GUINT64_FORMAT ": the page is unresponsive", m_identifier);
+        record(timedEventOfType("unresponsive"));
+    }
+    failPageCalls(false);
+    // A navigation the page never took up starts again in a new web process.
+    if (auto navigate = std::exchange(m_pendingNavigation, nullptr)) {
+        endUnresponsiveProcess();
+        navigate();
+    }
+}
+
+void Block::pingAnswered(uint64_t generation)
+{
+    if (m_closed || generation != m_pingGeneration)
+        return;
+    m_pingSent = std::nullopt;
+    if (auto timer = std::exchange(m_pingTimer, 0))
+        g_source_remove(timer);
+    if (std::exchange(m_unresponsive, false))
+        record(timedEventOfType("responsive"));
+    // The page took up every message sent before the round trip: a navigation sent before it too.
+    if (generation > m_pendingNavigationAfter)
+        m_pendingNavigation = nullptr;
+    std::erase_if(m_pageCalls, [](const PageCall& call) {
+        auto reply = call.reply.lock();
+        return !reply || reply->answered();
+    });
+    if (m_pageCalls.empty() && !m_pendingNavigation)
+        return;
+    m_nextPing = runAfter(m_pendingNavigation ? 0 : pingInterval, [weakThis = weak_from_this()] {
+        if (auto block = weakThis.lock()) {
+            block->m_nextPing = 0;
+            block->ping();
+        }
+    });
+}
+
+bool Block::unresponsive() const
+{
+    return m_unresponsive || (m_view && !webkit_web_view_get_is_web_process_responsive(m_view.get()));
+}
+
+std::string Block::unresponsiveMessage(const std::string& operation, const char* ending) const
+{
+    std::string message = operation + ": the page is unresponsive: a script keeps its web process busy";
+    if (m_pingSent) {
+        GChars since(g_strdup_printf(" (no answer for %.1f s)", static_cast<double>(g_get_monotonic_time() - *m_pingSent) / G_TIME_SPAN_SECOND));
+        message += since.get();
+    }
+    if (ending)
+        message.append("; ").append(ending);
+    return message;
+}
+
+void Block::failPageCalls(bool all, const char* ending)
+{
+    for (auto& call : std::exchange(m_pageCalls, { })) {
+        auto reply = call.reply.lock();
+        if (!reply || reply->answered())
+            continue;
+        if (all || call.failWhenUnresponsive)
+            reply->fail("unresponsive", unresponsiveMessage(call.operation, ending));
+        else
+            m_pageCalls.push_back(std::move(call));
+    }
+    releaseFailedCapture();
+}
+
+void Block::startNavigation(std::function<void()>&& navigate)
+{
+    // A page that answers nothing would not take the navigation up either: it goes to a new web process.
+    if (unresponsive()) {
+        endUnresponsiveProcess();
+        navigate();
+        return;
+    }
+    navigate();
+    // Should the page turn out not to answer before it took the navigation up, the navigation starts again then.
+    m_pendingNavigation = std::move(navigate);
+    m_pendingNavigationAfter = m_pingGeneration;
+    ping();
+}
+
+void Block::endUnresponsiveProcess()
+{
+    g_warning("block %" G_GUINT64_FORMAT ": ending the unresponsive page's web process", m_identifier);
+    // Every evaluation, DOM read and capture is a page call: they fail here, and what the gone process would
+    // have answered is forgotten.
+    failPageCalls(true, "its web process was ended");
+    m_frames.clear();
+    m_frameCalls.clear();
+    m_evaluations.clear();
+    stopWatchingResponsiveness();
+    // The engine reports the termination it was asked for as no crash (webProcessTerminated()).
+    webkit_web_view_terminate_web_process(m_view.get());
+}
+
+void Block::stopWatchingResponsiveness()
+{
+    m_pingSent = std::nullopt;
+    // A round trip still in flight answers for a process that is gone.
+    ++m_pingGeneration;
+    if (auto timer = std::exchange(m_pingTimer, 0))
+        g_source_remove(timer);
+    if (auto timer = std::exchange(m_nextPing, 0))
+        g_source_remove(timer);
+    m_unresponsive = false;
+    m_pendingNavigation = nullptr;
 }
 
 Json Block::eventOfType(const char* type)

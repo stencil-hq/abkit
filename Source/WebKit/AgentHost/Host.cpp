@@ -191,10 +191,12 @@ void Host::handleFrame(std::string&& payload)
         return;
     }
     if (frame.get("hello")) {
+        // `responsive`: page calls may ask to fail (`unresponsive`) once the page's web process stops answering,
+        // `state` says whether it answers, and a navigation or close ends a process that does not.
 #if defined(__APPLE__)
-        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"present\"]}}");
+        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\",\"present\"]}}");
 #else
-        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\"]}}");
+        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\"]}}");
 #endif
         return;
     }

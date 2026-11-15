@@ -141,6 +141,25 @@ private:
     void webProcessTerminated(WebKitWebProcessTerminationReason);
     bool decidePolicy(WebKitPolicyDecision*, WebKitPolicyDecisionType);
 
+    // Block.cpp: responsiveness. A script that keeps the page's web process busy holds up every call into the page.
+    // While calls are pending the host makes round trips to the process; one unanswered for long makes the page
+    // unresponsive. Starts the call (returning true) or fails it at once (`unresponsive`): the call asked to
+    // fail (`failUnresponsive`) and the page is unresponsive now.
+    bool admitPageCall(const Json& operation, const Reply&);
+    void ping();
+    void pingOverdue();
+    void pingAnswered(uint64_t generation);
+    // Whether the page is unresponsive, as the host's round trips or the engine found.
+    bool unresponsive() const;
+    std::string unresponsiveMessage(const std::string& operation, const char* ending = nullptr) const;
+    // Fails the pending calls that asked to (all of them when `all`) with `unresponsive`.
+    void failPageCalls(bool all, const char* ending = nullptr);
+    // Starts a navigation in a page that takes it up: one that is unresponsive has its web process ended first.
+    void startNavigation(std::function<void()>&&);
+    // Ends the unresponsive page's web process; every call into the page fails.
+    void endUnresponsiveProcess();
+    void stopWatchingResponsiveness();
+
     // BlockSettings.cpp
     void setAgent(const Json&, const Reply&);
     void setAppearance(const Json&, const Reply&);
@@ -216,6 +235,8 @@ private:
     bool frameRendered(WPEBuffer*);
     void finishCapture(const std::shared_ptr<CaptureRequest>&, std::optional<Still>&&, const char* error);
     static void cancelCaptureTimer(CaptureRequest&);
+    // Ends the capture under way when its request failed meanwhile, so it holds up no other.
+    void releaseFailedCapture();
 
     // BlockPresent.cpp
     struct Presentation {
@@ -303,6 +324,24 @@ private:
     // Evaluations in the main frame that have not answered yet.
     std::map<uint64_t, Reply> m_evaluations;
     uint64_t m_lastEvaluation { 0 };
+
+    // Responsiveness: the calls into the page that have not answered (the operation, its answer and whether it
+    // fails once the page is unresponsive), the round trip in flight (when it was sent, monotonic µs), and the
+    // navigation the page has not taken up yet (it starts the navigation again).
+    struct PageCall {
+        std::string operation;
+        std::weak_ptr<Responder> reply;
+        bool failWhenUnresponsive { false };
+    };
+    std::vector<PageCall> m_pageCalls;
+    std::optional<gint64> m_pingSent;
+    uint64_t m_pingGeneration { 0 };
+    guint m_pingTimer { 0 };
+    guint m_nextPing { 0 };
+    bool m_unresponsive { false };
+    std::function<void()> m_pendingNavigation;
+    // The round trip a navigation came after: a later one's answer means the page took the navigation up.
+    uint64_t m_pendingNavigationAfter { 0 };
 
     // Input.
     unsigned m_pressedButtons { 0 };

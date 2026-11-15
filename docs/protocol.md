@@ -23,12 +23,14 @@ Tern's `agent` engine are two).
 
 ## Envelope
 
-- `{"hello":{}}` is answered `{"welcome":{"ops":["browser","dom","console","network","present"]}}`. `dom` says
-  the `dom` op exists; `console` and `network` say those event families are reported; `present` (macOS only)
-  says blocks can be presented to another process ([presentation.md](presentation.md)).
+- `{"hello":{}}` is answered `{"welcome":{"ops":["browser","dom","console","network","responsive","present"]}}`.
+  `dom` says the `dom` op exists; `console` and `network` say those event families are reported; `responsive`
+  says the host watches whether pages answer ([Responsiveness](#responsiveness)); `present` (macOS only) says
+  blocks can be presented to another process ([presentation.md](presentation.md)).
 - `{"id":N,"browser":{"op":NAME,…}}` is answered `{"id":N,"browser":{"ok":VALUE}}` or
   `{"id":N,"browser":{"error":{"kind":K,"message":M}}}`, in any order. Kinds: `invalid` (bad or missing field,
-  unknown op), `not_found` (no such block), `unsupported`, `js` (an `eval` threw), `failed` (anything else).
+  unknown op), `not_found` (no such block), `unsupported`, `js` (an `eval` threw), `unresponsive` (the page's web
+  process does not answer), `failed` (anything else).
 - `{"id":N,"fork":…}` is answered with an `unsupported` error: the host has no sessions.
 
 ## Blocks
@@ -39,11 +41,11 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | Op | Fields | Answer |
 |---|---|---|
 | `open` | `url` (default `about:blank`), `width`, `height` (CSS px, 1..16384, default 1280×800), `scale` (device px per CSS px, 0.25..8, default 1), `profile` (name, default `"agent"`; `null` for a store of its own); `owner` and `show` are accepted and ignored | `{"block","url"}` once the view exists |
-| `close`, `release` | | `{}`; the view is destroyed |
+| `close`, `release` | | `{}`; the view is destroyed, and the web process of an unresponsive page ended |
 | `blocks` | | `{"blocks":[{"block","url","title","owner":null,"shown","driven":true}]}`; `shown` is true while the block is presented |
-| `state` | | `{"url","title","loading","progress","back","forward","width","height","shown","focused","error"}`; `shown` is true while the block is presented, `focused` is what `focus` last said (default true) |
-| `goto` | `url` | `{}` at once; the load is reported by events |
-| `nav` | `go`: `back`, `forward`, `reload`, `stop` | `{}` at once |
+| `state` | | `{"url","title","loading","progress","back","forward","width","height","shown","focused","responsive","error"}`; `shown` is true while the block is presented, `focused` is what `focus` last said (default true), `responsive` is false while the page is unresponsive |
+| `goto` | `url` | `{}` at once; the load is reported by events. An unresponsive page's web process is ended first |
+| `nav` | `go`: `back`, `forward`, `reload`, `stop` | `{}` at once; as `goto` for an unresponsive page |
 | `viewport` | `width`, `height`, `scale` (as for `open`; unchanged when left out) | `{}` |
 | `events` | `after` (default 0), `wait` (default false) | `{"events":[…],"next","dropped"}`; each event has `seq`, counted from 1; the last 4096 are kept. With `wait`, answered only once there is an event after `after` (or with `not_found` when the block closes); one waiting call per block: a new `events` call answers the waiting one with what it has (possibly nothing). The events: [events.md](events.md) |
 | `focus` | `value` (boolean) | `{}`; whether the view holds the keyboard. True (the default) is what a driven page must see: focused in an active window whatever happens. A presenting client sets false while its block does not have the keyboard |
@@ -77,6 +79,22 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `downloads` | `dir` (or `null`: downloads are cancelled) | `{}` |
 | `identity` | `seed`, `screen`, `window` ([page.md](page.md)) | `{}` |
 | `clipboard` | `text` to write, nothing to read | `{}` or `{"text"}`; the host's own clipboard, not the system's |
+
+## Responsiveness
+
+A script that keeps a page's web process busy holds up every call into the page (`dom`, `eval`, `capture`): the
+process takes messages on the thread the script runs on. While such calls are pending the host makes round trips to
+the process; one unanswered for 3 s (the engine's own responsiveness timeout; a held dialog does not count) makes
+the page unresponsive until the process answers again, which the events `unresponsive` and `responsive` report.
+
+- A `dom`, `eval` or `capture` with `"failUnresponsive": true` fails with kind `unresponsive` once the page is
+  found unresponsive, and at once while it is. Without it the call waits for the page, except `capture`, which
+  fails after its own 4 s wait, with kind `unresponsive` when that is why it drew nothing.
+- `goto` and `nav` (`back`, `forward`, `reload`) on an unresponsive page end its web process, failing the calls
+  still pending in it with kind `unresponsive`, and navigate in a new one. A navigation the page has not taken up
+  when it is found unresponsive starts again the same way.
+- `close` of an unresponsive page (or of one whose round trip has gone unanswered for 1 s) ends its web process
+  rather than letting it run on.
 
 Input steps are trusted events sent through the view (`text` is an input-method commit, without key events).
 Key names are DOM `key` values; a key the host cannot map fails the call with `input: unknown key "…"`.

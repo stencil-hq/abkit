@@ -407,9 +407,12 @@ void Block::deleteCookie(const Json& operation, const Reply& reply)
 // and the engine's reply is the answer as it is (an error reply too: the client reads it).
 void Block::query(const Json& operation, const Reply& reply)
 {
+    if (!admitPageCall(operation, reply))
+        return;
     Json request = operation;
     request.remove("op");
     request.remove("block");
+    request.remove("failUnresponsive");
     reply->setUnansweredMessage("dom: the page went away");
     webkit_web_view_run_interaction_query(m_view.get(), request.serialize().c_str(), nullptr, asyncReady, asyncData([reply](GObject* view, GAsyncResult* result) {
         GError* error = nullptr;
