@@ -15,7 +15,6 @@
 #import <QuartzCore/CAMetalLayer.h>
 #include <cstdint>
 
-#include <deque>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -45,17 +44,6 @@ class CommandEncoder;
 class RenderCommandEncoder;
 class OcclusionQueryPool;
 
-class AtomicSerial : angle::NonCopyable
-{
-  public:
-    uint64_t load() const { return mValue.load(std::memory_order_consume); }
-    void increment(uint64_t value) { mValue.fetch_add(1, std::memory_order_release); }
-    void storeMaxValue(uint64_t value);
-
-  private:
-    std::atomic<uint64_t> mValue{0};
-};
-
 class AtomicCommandBufferError : angle::NonCopyable
 {
   public:
@@ -75,6 +63,7 @@ class CommandQueue final : public WrappedObject<id<MTLCommandQueue>>, angle::Non
     void reset();
     void set(id<MTLCommandQueue> metalQueue);
 
+    // Finish submitted work; other contexts may still hold uncommitted command buffers.
     void finishAllCommands();
 
     // This method will ensure that every GPU command buffer using this resource will finish before
@@ -139,17 +128,21 @@ class CommandQueue final : public WrappedObject<id<MTLCommandQueue>>, angle::Non
                                         uint64_t id,
                                         double seconds);
 
+    // These queries require mLock. Buffer creation order is not submission/completion order
+    // when several contexts share this queue.
+    bool isSerialCompletedLocked(uint64_t serial) const;
+    bool isSerialCommittedLocked(uint64_t serial) const;
+
     struct CmdBufferQueueEntry
     {
         angle::ObjCPtr<id<MTLCommandBuffer>> buffer;
-        uint64_t serial;
+        bool committed = false;
+        bool scheduled = false;
     };
-    std::deque<CmdBufferQueueEntry> mMetalCmdBuffers;
+    // Keep only unfinished buffers: an idle context must not retain every later completed buffer.
+    angle::HashMap<uint64_t, CmdBufferQueueEntry> mMetalCmdBuffers;
 
     uint64_t mQueueSerialCounter = 1;
-    AtomicSerial mCommittedBufferSerial;
-    AtomicSerial mScheduledBufferSerial;
-    AtomicSerial mCompletedBufferSerial;
     uint64_t mRenderEncoderCounter = 1;
 
     // The bookkeeping for TIME_ELAPSED queries must be managed under

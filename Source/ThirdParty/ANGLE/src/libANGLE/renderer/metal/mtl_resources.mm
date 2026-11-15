@@ -131,7 +131,9 @@ void Resource::setUsedByCommandBufferWithQueueSerial(uint64_t serial,
         mUsageRef->cpuReadMemDirty    = true;
     }
 
-    mUsageRef->cmdBufferQueueSerial = std::max(mUsageRef->cmdBufferQueueSerial, serial);
+    // A context can resume an older buffer after another context submitted a newer one.
+    // Track the last use, not the largest creation serial.
+    mUsageRef->cmdBufferQueueSerial = serial;
 
     if (isRenderCommand)
     {
