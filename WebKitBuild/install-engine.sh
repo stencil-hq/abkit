@@ -5,7 +5,8 @@
 #
 # The engine is more than one file, and its library finds the rest beside
 # itself, so the whole directory is installed. The new copy replaces the old
-# one by rename, so a host that is running keeps the files it has open.
+# one by rename, so a host that is running keeps the files it has open. Its
+# VERSION says `dev`: a local build, which omp never replaces with a release.
 # The engine's earlier install (~/.o2/bin/wpe linking into ~/.o2/lib/wpe) is
 # removed.
 set -e
@@ -16,6 +17,7 @@ lib=$HOME/.o2/lib
 mkdir -p "$lib"
 rm -rf "$lib/abkit.new" "$lib/abkit.old"
 cp -R "$engine" "$lib/abkit.new"
+echo dev >"$lib/abkit.new/VERSION"
 [ ! -d "$lib/abkit" ] || mv "$lib/abkit" "$lib/abkit.old"
 mv "$lib/abkit.new" "$lib/abkit"
 rm -rf "$lib/abkit.old"
