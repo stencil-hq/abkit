@@ -517,10 +517,13 @@ void pas_scavenger_notify_eligibility_if_needed(void)
 
     if (pas_scavenger_current_state == pas_scavenger_state_no_thread) {
         pthread_t thread;
-        int result;
         pas_scavenger_current_state = pas_scavenger_state_polling;
-        result = pthread_create(&thread, NULL, scavenger_thread_main, NULL);
-        PAS_ASSERT(!result);
+        if (pthread_create(&thread, NULL, scavenger_thread_main, NULL)) {
+            /* The scavenger only returns memory early, so failing to start it is not fatal: the
+               process runs on without it, and the next notification tries again. */
+            pas_scavenger_current_state = pas_scavenger_state_no_thread;
+            goto done;
+        }
         pthread_detach(thread);
     }
 
