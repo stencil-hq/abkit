@@ -42,6 +42,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -321,6 +322,8 @@ private:
 
     // Settings.
     bool m_insecure { false };
+    // The hosts whose certificate the current navigation accepted (loadFailedWithTLSErrors()).
+    std::set<std::string> m_tlsAccepted;
     std::optional<std::pair<std::string, std::string>> m_credentials;
     std::optional<std::string> m_downloadDirectory;
     std::optional<std::vector<std::string>> m_allowedHosts;

@@ -469,7 +469,8 @@ bool Block::loadFailedWithTLSErrors(const char* uri, GTlsCertificate* certificat
     if (!m_insecure || !uri || !certificate)
         return false;
     auto host = hostOf(uri);
-    if (!host)
+    // A host whose certificate fails again after it was accepted (one that changes every connection) fails the load.
+    if (!host || !m_tlsAccepted.insert(*host).second)
         return false;
     // The certificate is accepted for its host, and the address loaded again.
     webkit_network_session_allow_tls_certificate_for_host(m_session.get(), certificate, host->c_str());

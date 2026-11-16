@@ -86,8 +86,16 @@ bool Block::decideResponse(WebKitResponsePolicyDecision* decision)
         webkit_policy_decision_download(policyDecision);
     else if (shows)
         webkit_policy_decision_use(policyDecision);
-    else
+    else {
         webkit_policy_decision_ignore(policyDecision);
+        // Nothing shows it and nothing saves it: the page stays, and the client hears why its navigation went nowhere.
+        if (main) {
+            auto event = eventOfType("failed");
+            event.setString("message", "This address leads to a file the page cannot show");
+            event.setString("url", address);
+            record(std::move(event));
+        }
+    }
     return true;
 }
 

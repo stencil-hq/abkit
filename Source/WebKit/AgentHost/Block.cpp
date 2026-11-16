@@ -611,6 +611,10 @@ void Block::loadChanged(WebKitLoadEvent loadEvent)
         break;
     case WEBKIT_LOAD_COMMITTED: {
         documentReplaced();
+        // A document committed, so the page's process answers: a round trip still out may have gone to a process
+        // the navigation swapped out, which never answers it.
+        if (m_pingSent)
+            pingAnswered(m_pingGeneration);
         if (m_errorPageShown)
             break;
         auto event = eventOfType("committed");
@@ -621,6 +625,8 @@ void Block::loadChanged(WebKitLoadEvent loadEvent)
     case WEBKIT_LOAD_FINISHED: {
         bool errorPage = std::exchange(m_errorPageShown, false);
         bool failed = std::exchange(m_loadFailed, false);
+        if (!failed)
+            m_tlsAccepted.clear();
         if (!errorPage && !failed) {
             auto event = eventOfType("loaded");
             event.setString("url", url);
@@ -667,6 +673,8 @@ void Block::webProcessTerminated(WebKitWebProcessTerminationReason reason)
     failEvaluations(std::exchange(m_evaluations, { }), "eval: the page's web process is gone");
     auto event = eventOfType("failed");
     event.setString("message", *m_error);
+    // The page that was showing went with its process, unlike a load that failed.
+    event.setBoolean("gone", true);
     record(std::move(event));
 }
 
@@ -922,6 +930,7 @@ void Block::failPageCalls(bool all, const char* ending)
 
 void Block::startNavigation(std::function<void()>&& navigate)
 {
+    m_tlsAccepted.clear();
     // The client's navigation is no error page the engine loads for the last failure, even to the same address.
     m_errorPage = std::nullopt;
     // A page that answers nothing would not take the navigation up either: it goes to a new web process.
