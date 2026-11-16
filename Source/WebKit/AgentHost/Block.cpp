@@ -644,9 +644,10 @@ bool Block::loadFailed(const char* uri, GError* error)
     bool cancelled = error && g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED);
     bool interrupted = error && g_error_matches(error, WEBKIT_POLICY_ERROR, WEBKIT_POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE);
     m_loadFailed = true;
-    // A load that was cancelled, became a download or was dropped by a policy shows no error page.
+    // A load that was cancelled, became a download or was dropped by a policy shows no error page,
+    // and is no failure: the page it would have replaced stays (a download reports itself).
     m_errorPage = cancelled || interrupted || !uri ? std::nullopt : std::optional<std::string>(uri);
-    if (error && !cancelled) {
+    if (error && !cancelled && !interrupted) {
         m_error = stringOrEmpty(error->message);
         auto event = eventOfType("failed");
         event.setString("message", *m_error);
@@ -921,6 +922,8 @@ void Block::failPageCalls(bool all, const char* ending)
 
 void Block::startNavigation(std::function<void()>&& navigate)
 {
+    // The client's navigation is no error page the engine loads for the last failure, even to the same address.
+    m_errorPage = std::nullopt;
     // A page that answers nothing would not take the navigation up either: it goes to a new web process.
     if (unresponsive()) {
         endUnresponsiveProcess();
