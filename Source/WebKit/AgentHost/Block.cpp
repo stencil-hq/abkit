@@ -536,8 +536,11 @@ void Block::connectSignals()
     }), this);
     // The page left a context click (or the Menu key) to the engine, which has no menu to show: what is under the
     // pointer is reported for the client to show one.
-    g_signal_connect(view, "context-menu", G_CALLBACK(+[](WebKitWebView*, WebKitContextMenu*, WebKitHitTestResult* hit, gpointer block) -> gboolean {
-        static_cast<Block*>(block)->contextMenu(hit);
+    g_signal_connect(view, "context-menu", G_CALLBACK(+[](WebKitWebView*, WebKitContextMenu* menu, WebKitHitTestResult* hit, gpointer block) -> gboolean {
+        // A page whose contextmenu listener called preventDefault() still gets this signal once an
+        // earlier click made a menu: an empty one, about what that earlier click hit.
+        if (webkit_context_menu_get_n_items(menu))
+            static_cast<Block*>(block)->contextMenu(hit);
         return TRUE;
     }), this);
     g_signal_connect(view, "script-dialog", G_CALLBACK(+[](WebKitWebView*, WebKitScriptDialog* dialog, gpointer block) -> gboolean {
