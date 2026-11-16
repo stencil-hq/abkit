@@ -16,7 +16,12 @@
 # go in lib/gstreamer-1.0, and the fontconfig configuration the fonts code reads
 # goes in lib/fonts. Runtime lookups of the last two go through
 # useBundledRuntimePathsIfPresent().
-# Usage: package-engine.sh BUILD_DIR OUT_DIR
+# Every Mach-O is signed last: with the Developer ID that MACOS_SIGN_IDENTITY
+# names (a codesign identity in a keychain codesign searches), with the
+# hardened runtime and a secure timestamp as notarization requires
+# (darwin/notarize-engine.sh), the executables with darwin/entitlements.plist;
+# without it, ad hoc.
+# Usage: [MACOS_SIGN_IDENTITY=IDENTITY] package-engine.sh BUILD_DIR OUT_DIR
 set -e
 build=$1
 out=$2
@@ -24,6 +29,7 @@ out=$2
 rm -rf "$out"
 mkdir -p "$out/extensions"
 out=$(cd "$out" && pwd -P)
+here=$(cd "$(dirname "$0")" && pwd)
 library=libWPEWebKit-2.0.1.dylib
 cp "$build/lib/$library" "$out/$library"
 cp "$build/bin/ABWebProcess" "$build/bin/ABNetworkProcess" "$build/bin/ABHost" "$build/lib/libWPEInjectedBundle.so" "$out/"
@@ -40,7 +46,7 @@ remove_signature() {
 chmod u+w "$out/$library"
 remove_signature "$out/$library"
 strip -x "$out/$library"
-deps=$(cd "$(dirname "$0")" && pwd)/darwin/prefix
+deps=$here/darwin/prefix
 soup=libsoup-3.0.0.dylib
 cp "$deps/lib/$soup" "$deps/lib/gio/modules/libgioboringssl.so" "$out/"
 # WebRTC is a library of its own, which the engine loads from beside itself.
@@ -270,8 +276,14 @@ done
 
 # Sign every Mach-O after its last modification, including copied dependencies.
 find "$out" -type f | while IFS= read -r file; do
-	if is_macho "$file"; then
+	is_macho "$file" || continue
+	if [ -z "${MACOS_SIGN_IDENTITY:-}" ]; then
 		codesign --force --sign - "$file"
+	elif file -b "$file" | grep -q executable; then
+		codesign --force --sign "$MACOS_SIGN_IDENTITY" --options runtime --timestamp \
+			--entitlements "$here/darwin/entitlements.plist" "$file"
+	else
+		codesign --force --sign "$MACOS_SIGN_IDENTITY" --options runtime --timestamp "$file"
 	fi
 done
 du -sh "$out"

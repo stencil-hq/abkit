@@ -51,6 +51,13 @@ runs the steps below under Rosetta, with Apple silicon's clang compiling for x86
    engine finds through `useBundledRuntimePathsIfPresent()` (`Source/WebCore/platform/graphics/BundledRuntime.cpp`).
    Plugins for desktop toolkits, X11, GL and Python are left out.
 
+`package-engine.sh` signs every executable and library ad hoc, or with the Developer ID Application identity
+`MACOS_SIGN_IDENTITY` names (anything `codesign --sign` takes): then with the hardened runtime and a secure
+timestamp, the executables with `WebKitBuild/darwin/entitlements.plist` (JIT, microphone, camera). `APPLE_API_KEY_ID=…
+APPLE_API_ISSUER_ID=… WebKitBuild/darwin/notarize-engine.sh OUT_DIR KEY_P8` notarizes such a package with an App
+Store Connect API key. Releases do both, with the Developer ID and key Tern's releases use (the workflow's
+`MACOS_CERTIFICATE_P12` and `APPLE_API_KEY_*` secrets).
+
 The engine has what Safari has: media through GStreamer (played silently), Web Audio, MediaStream, WebRTC (the
 bundled libwebrtc), MSE, WebCodecs, Encrypted Media (ClearKey), WebGL and WebGPU, WebAuthn, gamepads, pointer
 lock, PDF.js, speech, device orientation and gesture events, `<model>`, an HTTP cache partitioned by top-level site,
