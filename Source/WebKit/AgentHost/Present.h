@@ -29,9 +29,11 @@
 // client checks in a Mach service, and the host sends it the buffers
 // (IOSurfaces) and frames of the blocks presented to it over plain Mach
 // messages, taking back its releases and its display's ticks
-// (docs/presentation.md, "The Mach channel"). Other systems have no
-// presentation yet.
+// (docs/presentation.md, "The Mach channel"). On Windows a block is
+// presented into a window of the client's instead (PresentWindow). Other
+// systems have no presentation yet.
 
+#include "Utilities.h"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -69,5 +71,40 @@ public:
     // The block is no longer presented.
     virtual bool sendBye(uint32_t block) = 0;
 };
+
+#if defined(_WIN32)
+// A window of the client's a block is presented into (Windows, `{"hwnd":N}`). The block's web process presents
+// its frames straight into it, with a swap chain of its own (wpe_view_set_native_window()); frames that still
+// come as buffers (it cannot present into the window, e.g. without hardware acceleration) are shown here, in a
+// window of the host's inside the client's: the size of the frame, at its top left, below the window the web
+// process presents into, and like that one leaving all input to the client's window. The client may destroy its
+// window at any time: then nothing is shown.
+class PresentWindow {
+public:
+    // Whether `window` (an HWND) is a window.
+    static bool isWindow(void* window);
+
+    explicit PresentWindow(void* window);
+    ~PresentWindow();
+    PresentWindow(const PresentWindow&) = delete;
+    PresentWindow& operator=(const PresentWindow&) = delete;
+
+    // The client's window.
+    void* window() const { return m_window; }
+    // Shows a frame: the buffer's pixels, 32-bit BGRA. False when it cannot (the client's window is gone).
+    bool show(WPEBuffer*);
+    // The buffer shown is gone: nothing is painted from it again.
+    void forget(WPEBuffer*);
+
+    // For the host's window's procedure: paints the frame shown, and hears that the window is gone.
+    void paint(void* dc);
+    void childDestroyed() { m_child = nullptr; }
+
+private:
+    void* m_window;
+    void* m_child { nullptr };
+    GRef<WPEBuffer> m_shown;
+};
+#endif
 
 } // namespace AgentHost

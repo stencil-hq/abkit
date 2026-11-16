@@ -27,8 +27,9 @@ look for the host there:
   older, without waiting for running hosts, and deletes the versions nothing runs from. A current or newer release,
   `dev`, and an engine Tern manages ([below](#managed-by-tern)) stay; an engine folder installed before omp kept
   versions is replaced once nothing runs from it.
-- **Tern** loads the engine from `~/.o2/lib/abkit` (on macOS it runs `ABHost` there, on Linux and Windows it loads
-  the library in process). `STENCIL_WEBKIT_DIR` names another engine directory; `STENCIL_WEBKIT` picks the engine.
+- **Tern** loads the engine from `~/.o2/lib/abkit` (on macOS and Windows it runs `ABHost` there, presenting into its
+  own views; on Linux, and on Windows with an `ABHost` too old to present into windows, it loads the library in
+  process). `STENCIL_WEBKIT_DIR` names another engine directory; `STENCIL_WEBKIT` picks the engine.
 
 ## Managed by Tern
 

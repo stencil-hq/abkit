@@ -27,6 +27,7 @@
 
 #include "Display.h"
 
+#include <cmath>
 #include <set>
 
 namespace AgentHost {
@@ -37,6 +38,10 @@ namespace AgentHost {
 // into it, and hands each back when it no longer shows it; only then is the
 // buffer drawn into again. The engine says which buffers exist (it makes
 // new ones at a new size), and the client is told of each it no longer has.
+//
+// On Windows a block is presented into a window of the client's instead: its
+// web process presents into that window itself, and nothing goes to the
+// client. Frames that still come as buffers are shown in it by the host.
 
 void Block::present(const Json& operation, const Reply& reply)
 {
@@ -50,6 +55,14 @@ void Block::present(const Json& operation, const Reply& reply)
         reply->ok();
         return;
     }
+#if defined(_WIN32)
+    if (to.isObject()) {
+        if (auto window = to.get("hwnd")) {
+            presentIntoWindow(window, reply);
+            return;
+        }
+    }
+#endif
     if (m_identifier > UINT32_MAX) {
         reply->failed("present: the block's id does not fit the channel's 32 bits");
         return;
@@ -61,9 +74,42 @@ void Block::present(const Json& operation, const Reply& reply)
         reply->ok();
         return;
     }
+    auto presentation = std::make_unique<Presentation>();
+    presentation->client = std::move(client);
+    startPresenting(std::move(presentation));
+    reply->ok();
+}
+
+#if defined(_WIN32)
+void Block::presentIntoWindow(const Json& target, const Reply& reply)
+{
+    // An HWND, as a number (sign-extended or not: only its low 32 bits mean something).
+    double number = target.isNumber() ? target.toNumber() : 0;
+    if (!number || number != std::floor(number) || std::abs(number) > 9007199254740992.0) {
+        reply->invalid("present: `hwnd` is a window's handle, a number");
+        return;
+    }
+    auto* window = reinterpret_cast<void*>(static_cast<intptr_t>(static_cast<int64_t>(number)));
+    if (!PresentWindow::isWindow(window)) {
+        reply->invalid("present: `hwnd` is no window");
+        return;
+    }
+    if (m_presentation && m_presentation->window && m_presentation->window->window() == window) {
+        reply->ok();
+        return;
+    }
+    auto presentation = std::make_unique<Presentation>();
+    presentation->window = std::make_unique<PresentWindow>(window);
+    // updateCompositionSuppressed() gives the view the window.
+    startPresenting(std::move(presentation));
+    reply->ok();
+}
+#endif
+
+void Block::startPresenting(std::unique_ptr<Presentation>&& presentation)
+{
     stopPresenting(true);
-    m_presentation = std::make_unique<Presentation>();
-    m_presentation->client = std::move(client);
+    m_presentation = std::move(presentation);
     // Rendering again, the view gives its next frame at once.
     updateCompositionSuppressed();
     if (!m_cursor.empty()) {
@@ -71,7 +117,6 @@ void Block::present(const Json& operation, const Reply& reply)
         event.setString("name", m_cursor);
         record(std::move(event));
     }
-    reply->ok();
 }
 
 void Block::stopPresenting(bool tellClient)
@@ -84,7 +129,16 @@ void Block::stopPresenting(bool tellClient)
         if (m_wpeView)
             wpe_view_buffer_released(m_wpeView, buffer.get());
     }
-    if (tellClient && presentation->client->alive())
+#if defined(_WIN32)
+    // The window keeps the last frame the web process presented into it; the host's own window in it goes (with
+    // `presentation`), and the buffer it showed is the view's again.
+    if (presentation->window && m_wpeView) {
+        wpe_view_set_native_window(m_wpeView, nullptr);
+        if (presentation->latest)
+            wpe_view_buffer_released(m_wpeView, presentation->latest.get());
+    }
+#endif
+    if (tellClient && presentation->client && presentation->client->alive())
         presentation->client->sendBye(static_cast<uint32_t>(m_identifier));
     if (!m_closed)
         updateCompositionSuppressed();
@@ -93,6 +147,29 @@ void Block::stopPresenting(bool tellClient)
 bool Block::presentFrame(WPEBuffer* buffer)
 {
     auto& presentation = *m_presentation;
+#if defined(_WIN32)
+    if (presentation.window) {
+        // The web process does not present into the window: it cannot, and the host shows the frame there, holding
+        // its buffer until the next one. Or a capture took the window from it meanwhile: the frame is not shown.
+        if (wpe_view_get_native_window(m_wpeView) != presentation.window->window())
+            return false;
+        if (!presentation.window->show(buffer)) {
+            // The client destroyed its window: nothing shows the frame held either.
+            if (auto held = std::exchange(presentation.latest, { })) {
+                presentation.window->forget(held.get());
+                wpe_view_buffer_released(m_wpeView, held.get());
+            }
+            return false;
+        }
+        if (presentation.latest && presentation.latest.get() != buffer)
+            wpe_view_buffer_released(m_wpeView, presentation.latest.get());
+        presentation.latest = GRef<WPEBuffer>::retain(buffer);
+        afterNextRefresh([view = GRef<WPEView>::retain(m_wpeView), buffer = GRef<WPEBuffer>::retain(buffer)] {
+            wpe_view_buffer_rendered(view.get(), buffer.get());
+        });
+        return true;
+    }
+#endif
     auto& client = *presentation.client;
 #if defined(__APPLE__)
     if (!WPE_IS_BUFFER_IOSURFACE(buffer)) {
@@ -143,6 +220,15 @@ void Block::presentedBuffersChanged(WPEBuffer** buffers, unsigned count)
         return;
     std::set<WPEBuffer*> current(buffers, buffers + count);
     auto& presentation = *m_presentation;
+#if defined(_WIN32)
+    if (presentation.window) {
+        if (presentation.latest && !current.count(presentation.latest.get())) {
+            presentation.window->forget(presentation.latest.get());
+            presentation.latest.clear();
+        }
+        return;
+    }
+#endif
     for (auto it = presentation.buffers.begin(); it != presentation.buffers.end();) {
         auto* buffer = it->second.get();
         if (current.count(buffer)) {
@@ -182,6 +268,12 @@ void Block::cursorChanged(const char* name)
 void Block::updateCompositionSuppressed()
 {
     setFeature("CompositionSuppressed", !m_presentation && !m_capture);
+#if defined(_WIN32)
+    // A capture takes its frames as buffers: meanwhile the web process presents nothing into the window, which
+    // keeps the last frame.
+    if (m_wpeView)
+        wpe_view_set_native_window(m_wpeView, m_presentation && m_presentation->window && !m_capture ? m_presentation->window->window() : nullptr);
+#endif
 }
 
 } // namespace AgentHost

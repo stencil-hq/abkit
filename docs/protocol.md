@@ -25,7 +25,7 @@ Tern's `agent` engine are two).
 
 - `{"hello":{}}` is answered `{"welcome":{"ops":["browser","dom","console","network","responsive","present"]}}`.
   `dom` says the `dom` op exists; `console` and `network` say those event families are reported; `responsive`
-  says the host watches whether pages answer ([Responsiveness](#responsiveness)); `present` (macOS only) says
+  says the host watches whether pages answer ([Responsiveness](#responsiveness)); `present` (macOS, Windows) says
   blocks can be presented to another process ([presentation.md](presentation.md)).
 - `{"id":N,"browser":{"op":NAME,…}}` is answered `{"id":N,"browser":{"ok":VALUE}}` or
   `{"id":N,"browser":{"error":{"kind":K,"message":M}}}`, in any order. Kinds: `invalid` (bad or missing field,
@@ -49,7 +49,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `viewport` | `width`, `height`, `scale` (as for `open`; unchanged when left out) | `{}` |
 | `events` | `after` (default 0), `wait` (default false) | `{"events":[…],"next","dropped"}`; each event has `seq`, counted from 1; the last 4096 are kept. With `wait`, answered only once there is an event after `after` (or with `not_found` when the block closes); one waiting call per block: a new `events` call answers the waiting one with what it has (possibly nothing). The events: [events.md](events.md) |
 | `focus` | `value` (boolean) | `{}`; whether the view holds the keyboard. True (the default) is what a driven page must see: focused in an active window whatever happens. A presenting client sets false while its block does not have the keyboard |
-| `present` | `to`: a target, or `null` to stop | `{}` once the target is reached; `failed` when it cannot be ([presentation.md](presentation.md)) |
+| `present` | `to`: a target (macOS `{"mach":NAME}`, Windows `{"hwnd":N}`), or `null` to stop | `{}` once the target is reached; `failed` when it cannot be, `invalid` for a window that is none ([presentation.md](presentation.md)) |
 | `clear` | `profile` (a name) | `{}` once that profile's website data (cookies, storage, caches) is erased; a profile never opened, or without data, is no error; `null` is `invalid` (a store of a block's own goes with its block). Blocks open on the profile stay open and find the data gone |
 
 `open` with `about:blank` loads nothing, so the first `goto` is the view's first history entry; `committed` and
