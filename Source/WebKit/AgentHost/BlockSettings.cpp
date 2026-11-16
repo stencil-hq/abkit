@@ -117,6 +117,9 @@ static std::optional<double> integerMember(const Json& object, const char* name,
 // screen it fits, with the desktop's bar taken off the available area.
 void Block::applyIdentity()
 {
+    // A Web Inspector's page has the engine's settings.
+    if (!m_settings)
+        return;
     // The window's place on the screen, and the height of the chrome above the page.
     constexpr int windowX = 80;
     constexpr int windowY = 60;

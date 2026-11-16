@@ -114,6 +114,11 @@ public:
     // Applies the system's appearance: the Mac's (dark or light) on macOS, light elsewhere.
     void followSystemAppearance();
 
+    // A new block for a page's Web Inspector, whose page the engine made in `view` (Block::openInspector()).
+    std::shared_ptr<Block> adoptInspector(WPEView*);
+    // Closes block `identifier`, if it is one.
+    void endBlock(uint64_t identifier);
+
     // The client a `present` target names (`{"mach":NAME}` on macOS), reached once and shared by every block
     // presented to it. Null, after failing `reply`, when it cannot be reached.
     std::shared_ptr<PresentClient> presentClient(const Json& target, const Reply&);

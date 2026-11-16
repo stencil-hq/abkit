@@ -25,6 +25,7 @@
 
 #include "Block.h"
 
+#include "Display.h"
 #include <cstring>
 #include <libsoup/soup.h>
 
@@ -229,6 +230,7 @@ void Block::edit(const Json& operation, const Reply& reply)
     for (auto& command : commands) {
         if (name != command.action)
             continue;
+        syncClipboard(m_host.display());
         webkit_web_view_execute_editing_command(m_view.get(), command.command);
         // Answered once the page took the command.
         runPatiently("", 500, [reply] {

@@ -39,6 +39,10 @@ set(ABHost_PRIVATE_LIBRARIES
 )
 
 if (APPLE)
+    # The display's clipboard may be the Mac's general pasteboard.
+    list(APPEND ABHost_SOURCES Pasteboard.mm)
+    set_source_files_properties(Pasteboard.mm PROPERTIES COMPILE_OPTIONS -fobjc-arc)
+    list(APPEND ABHost_PRIVATE_LIBRARIES "-framework AppKit")
     # Frames go to the client as IOSurfaces, over Mach messages.
     list(APPEND ABHost_PRIVATE_LIBRARIES "-framework IOSurface")
     # The Mac's appearance is read from the global preferences.

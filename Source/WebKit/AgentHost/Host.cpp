@@ -29,6 +29,7 @@
 #include "Display.h"
 #include "ExtensionMessages.h"
 #include "Platform.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <glib/gstdio.h>
@@ -190,14 +191,20 @@ void Host::handleFrame(std::string&& payload)
         handleClosed("a frame is not a JSON object");
         return;
     }
-    if (frame.get("hello")) {
+    if (auto hello = frame.get("hello")) {
         // `responsive`: page calls may ask to fail (`unresponsive`) once the page's web process stops answering,
         // `state` says whether it answers, and a navigation or close ends a process that does not.
+        // `contextMenu`: blocks report the context menus their pages leave to the engine. `live`: `input` takes
+        // a user's steps as they come. `inspect`: a block's Web Inspector opens in a block of its own.
+        // `systemClipboard`: the hello may make the clipboard the system's.
+        std::string ops = "\"browser\",\"dom\",\"console\",\"network\",\"responsive\",\"contextMenu\",\"live\",\"inspect\"";
 #if defined(__APPLE__) || defined(_WIN32)
-        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\",\"present\"]}}");
-#else
-        m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\"]}}");
+        ops += ",\"present\"";
 #endif
+        auto clipboard = hello.isObject() ? hello.get("clipboard") : Json();
+        if (clipboard.isString() && clipboard.toString() == "system" && useSystemClipboard(m_display.get()))
+            ops += ",\"systemClipboard\"";
+        m_transport->send("{\"welcome\":{\"ops\":[" + ops + "]}}");
         return;
     }
     for (const char* channel : { "browser", "fork" }) {
@@ -428,13 +435,29 @@ GRef<WebKitNetworkSession> Host::sessionForProfile(const std::optional<std::stri
 
 void Host::closeBlock(uint64_t identifier, const Reply& reply)
 {
-    auto found = m_blocks.find(identifier);
-    if (found != m_blocks.end()) {
-        auto block = std::move(found->second);
-        m_blocks.erase(found);
-        block->close();
-    }
+    endBlock(identifier);
     reply->ok();
+}
+
+void Host::endBlock(uint64_t identifier)
+{
+    auto found = m_blocks.find(identifier);
+    if (found == m_blocks.end())
+        return;
+    auto block = std::move(found->second);
+    m_blocks.erase(found);
+    block->close();
+}
+
+std::shared_ptr<Block> Host::adoptInspector(WPEView* view)
+{
+    uint64_t identifier = ++m_lastBlock;
+    auto width = static_cast<unsigned>(std::max(wpe_view_get_width(view), 1));
+    auto height = static_cast<unsigned>(std::max(wpe_view_get_height(view), 1));
+    auto block = std::make_shared<Block>(*this, identifier, width, height, wpe_view_get_scale(view), GRef<WebKitNetworkSession>());
+    m_blocks.emplace(identifier, block);
+    block->openInspector(view);
+    return block;
 }
 
 void Host::listBlocks(const Reply& reply)
@@ -552,9 +575,11 @@ void Host::presentClientGone(const std::string& service)
         block->presentClientGone(*client);
 }
 
-// The clipboard is the display's: what pages of this host copy and paste, not the desktop's.
+// The clipboard is the display's: what pages of this host copy and paste, the desktop's only when the hello
+// asked for the system's.
 void Host::clipboard(const Json& operation, const Reply& reply)
 {
+    syncClipboard(m_display.get());
     auto* clipboard = wpe_display_get_clipboard(m_display.get());
     auto text = operation.get("text");
     if (text.isString()) {

@@ -25,6 +25,7 @@
 
 #include "Display.h"
 
+#include "Pasteboard.h"
 #include "Utilities.h"
 
 #include <atomic>
@@ -318,6 +319,13 @@ struct _AgentHostDisplay {
     int newViewWidth;
     int newViewHeight;
     WPEScreen* screen;
+    // The clipboard is the system's (useSystemClipboard()), once made.
+    bool systemClipboard;
+    // The engine asked for the clipboard: what it is is settled.
+    bool clipboardAsked;
+    WPEClipboard* clipboard;
+    // What hears of the next view made (setViewCreatedHandler()).
+    ViewCreatedHandler* viewCreated;
 };
 
 G_DEFINE_FINAL_TYPE(AgentHostDisplay, agent_host_display, WPE_TYPE_DISPLAY)
@@ -340,7 +348,23 @@ static WPEView* agentHostDisplayCreateView(WPEDisplay* display)
     wpe_view_set_visible(view, TRUE);
     wpe_view_map(view);
     wpe_view_focus_in(view);
+    if (auto* handler = std::exchange(self->viewCreated, nullptr)) {
+        (*handler)(view);
+        delete handler;
+    }
     return view;
+}
+
+// The system's clipboard when the client asked for it; else none, and the display's is a local one.
+static WPEClipboard* agentHostDisplayGetClipboard(WPEDisplay* display)
+{
+    auto* self = AGENT_HOST_DISPLAY(display);
+    self->clipboardAsked = true;
+#if defined(__APPLE__)
+    if (self->systemClipboard && !self->clipboard)
+        self->clipboard = createSystemClipboard(display);
+#endif
+    return self->clipboard;
 }
 
 static guint agentHostDisplayGetNScreens(WPEDisplay*)
@@ -356,6 +380,8 @@ static WPEScreen* agentHostDisplayGetScreen(WPEDisplay* display, guint index)
 static void agentHostDisplayFinalize(GObject* object)
 {
     g_clear_object(&AGENT_HOST_DISPLAY(object)->screen);
+    g_clear_object(&AGENT_HOST_DISPLAY(object)->clipboard);
+    delete std::exchange(AGENT_HOST_DISPLAY(object)->viewCreated, nullptr);
     G_OBJECT_CLASS(agent_host_display_parent_class)->finalize(object);
 }
 
@@ -366,6 +392,7 @@ static void agent_host_display_class_init(AgentHostDisplayClass* displayClass)
     WPE_DISPLAY_CLASS(displayClass)->create_view = agentHostDisplayCreateView;
     WPE_DISPLAY_CLASS(displayClass)->get_n_screens = agentHostDisplayGetNScreens;
     WPE_DISPLAY_CLASS(displayClass)->get_screen = agentHostDisplayGetScreen;
+    WPE_DISPLAY_CLASS(displayClass)->get_clipboard = agentHostDisplayGetClipboard;
 }
 
 static void agent_host_display_init(AgentHostDisplay* display)
@@ -402,11 +429,42 @@ WPEDisplay* createDisplay()
     return display;
 }
 
+bool useSystemClipboard(WPEDisplay* display)
+{
+#if defined(__APPLE__)
+    auto* self = AGENT_HOST_DISPLAY(display);
+    if (self->clipboardAsked && !self->systemClipboard)
+        return false;
+    self->systemClipboard = true;
+    return true;
+#else
+    (void)display;
+    return false;
+#endif
+}
+
+void syncClipboard(WPEDisplay* display)
+{
+#if defined(__APPLE__)
+    if (AGENT_HOST_DISPLAY(display)->systemClipboard)
+        syncSystemClipboard(wpe_display_get_clipboard(display));
+#else
+    (void)display;
+#endif
+}
+
 void setNewViewSize(WPEDisplay* display, int width, int height)
 {
     auto* self = AGENT_HOST_DISPLAY(display);
     self->newViewWidth = width;
     self->newViewHeight = height;
+}
+
+void setViewCreatedHandler(WPEDisplay* display, ViewCreatedHandler&& handler)
+{
+    auto* self = AGENT_HOST_DISPLAY(display);
+    delete self->viewCreated;
+    self->viewCreated = handler ? new ViewCreatedHandler(std::move(handler)) : nullptr;
 }
 
 void setFrameHandler(WPEView* view, FrameHandler&& handler)

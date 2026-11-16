@@ -25,6 +25,7 @@
 
 #include "Block.h"
 
+#include "Display.h"
 #include "Keys.h"
 #include <algorithm>
 #include <cmath>
@@ -37,6 +38,12 @@ namespace AgentHost {
 // step is followed by a script round trip, which comes back only after the
 // page handled the step, and the answer waits for two animation frames after
 // the last one, when what the input changed has been laid out and drawn.
+//
+// Live input (`"live": true`) is a user's, forwarded by the client that shows
+// the page: its steps go to the view as they arrive, in order, and the answer
+// comes once they went. The engine's queues keep their order for the page; no
+// script runs in it, so a stream of moves and wheel steps costs the page
+// nothing but the events themselves.
 
 // How long a step waits for the page (a page held by a dialog answers nothing).
 static constexpr unsigned patience = 500;
@@ -220,6 +227,12 @@ void Block::input(const Json& operation, const Reply& reply)
         }
         player->steps.push_back(std::move(step));
     }
+    if (operation.get("live").isBoolean() && operation.get("live").toBoolean()) {
+        for (auto& step : player->steps)
+            sendInput(step);
+        reply->ok();
+        return;
+    }
     player->reply = reply;
     reply->setUnansweredMessage("input: the page is gone");
 
@@ -250,6 +263,9 @@ void Block::sendInput(const InputStep& step)
 {
     auto* view = m_wpeView;
     auto time = static_cast<guint32>(g_get_monotonic_time() / 1000);
+    // A press may paste: the page reads what another app copied meanwhile.
+    if (step.pressed || step.kind == InputStep::Kind::Text)
+        syncClipboard(m_host.display());
     WPEEvent* event = nullptr;
     switch (step.kind) {
     case InputStep::Kind::Move: {
@@ -279,8 +295,10 @@ void Block::sendInput(const InputStep& step)
             static_cast<WPEModifiers>(step.modifiers), step.stroke.keycode, step.stroke.keysym);
         break;
     case InputStep::Kind::Text:
-        // Typed as an input method commits it: inserted where the caret is, with no key events.
-        webkit_web_view_execute_editing_command_with_argument(m_view.get(), "InsertText", step.text.c_str());
+        // Typed as an input method commits it: inserted where the caret is, with no key events. A Web
+        // Inspector's page has no web view to run the command in.
+        if (m_view)
+            webkit_web_view_execute_editing_command_with_argument(m_view.get(), "InsertText", step.text.c_str());
         return;
     }
     if (!event)

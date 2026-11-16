@@ -122,6 +122,9 @@ RefPtr<WebPageProxy> WebInspectorUIProxy::platformCreateFrontendPage()
 #endif
     // The Find banner and Search sidebar use the legacy results=N attribute for recent searches.
     preferences->setSearchInputResultsAttributeEnabled(true);
+    // The inspector's scripts use `using` declarations, which the pages of a port that matches Safari's features
+    // do not get (UnifiedWebPreferences.yaml); the inspector's web processes are its own.
+    preferences->setExplicitResourceManagementEnabled(true);
     preferences->setAllowTopNavigationToDataURLs(true);
     preferences->setJavaScriptRuntimeFlags({ });
     preferences->setAcceleratedCompositingEnabled(true);

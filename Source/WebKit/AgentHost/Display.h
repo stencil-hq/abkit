@@ -41,8 +41,21 @@ namespace AgentHost {
 // A new display, connected and made the primary one (the engine reads its settings there).
 WPEDisplay* createDisplay();
 
+// Makes the display's clipboard the system's (macOS: the general pasteboard) instead of a clipboard of the
+// host's own; whether it did: never on other systems, nor once the engine has used the host's own.
+bool useSystemClipboard(WPEDisplay*);
+
+// Has the display's clipboard take in what other apps put on the system's since it last looked
+// (useSystemClipboard()), before something may read it. Nothing with a clipboard of the host's own.
+void syncClipboard(WPEDisplay*);
+
 // The size, in CSS pixels, of the views the display creates from now on.
 void setNewViewSize(WPEDisplay*, int width, int height);
+
+// What is called with the next view the display creates, once: the engine makes views of its own (a page's Web
+// Inspector), which the host learns of this way. Null forgets it.
+using ViewCreatedHandler = std::function<void(WPEView*)>;
+void setViewCreatedHandler(WPEDisplay*, ViewCreatedHandler&&);
 
 // What is called with each frame a view of the display renders, while the buffer is still the view's. It
 // returns whether it keeps the buffer: then it calls wpe_view_buffer_rendered() and

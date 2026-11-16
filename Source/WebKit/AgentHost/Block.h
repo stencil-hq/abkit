@@ -58,6 +58,10 @@ public:
 
     // Makes the web view and starts loading `url` in it.
     void open(const std::string& url);
+    // Makes the block a page's Web Inspector, whose page is in `view`, a view the engine made. It is shown, sized,
+    // focused and fed input as any block is; closing it closes the inspector, and it closes with the inspector
+    // (when the inspected block does).
+    void openInspector(WPEView*);
     // Lets go of the web view and of everything held for the page.
     void close();
 
@@ -131,6 +135,15 @@ private:
     // An event of the console or of a resource load: with the time it was observed (milliseconds since the epoch).
     static Json timedEventOfType(const char* type);
     void reportHistory();
+    void contextMenu(WebKitHitTestResult*);
+    // Has the view's frames, cursor and buffers come to the block.
+    void attachView();
+    void inspect(const Json&, const Reply&);
+    // The inspector's view changed size: when the engine sized it, the block's size applies again.
+    void inspectorResized();
+    // The engine let go of the inspector's view: the inspector closed.
+    void inspectorViewGone();
+    static void inspectorViewFinalized(gpointer block, GObject*);
     void setFeature(const char* identifier, bool enabled);
     void connectSignals();
     void uriChanged();
@@ -285,6 +298,10 @@ private:
     GRef<WebKitUserContentManager> m_contentManager;
     GRef<WebKitWebView> m_view;
     WPEView* m_wpeView { nullptr };
+    // The block of this page's Web Inspector, while it is open.
+    std::weak_ptr<Block> m_inspector;
+    // A Web Inspector's block (openInspector()): a view and no web view of its own.
+    bool m_isInspector { false };
 
     // Events: the last `ringSize` of them, numbered from 1.
     static constexpr size_t ringSize = 4096;

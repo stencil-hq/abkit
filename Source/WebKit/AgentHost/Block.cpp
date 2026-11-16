@@ -26,9 +26,11 @@
 #include "Block.h"
 
 #include "Display.h"
+#include "Utilities.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 
 namespace AgentHost {
 
@@ -56,6 +58,9 @@ Block::~Block()
 
 void Block::setFeature(const char* identifier, bool enabled)
 {
+    // A Web Inspector's page has the engine's settings.
+    if (!m_settings)
+        return;
     static WebKitFeatureList* features = webkit_settings_get_all_features();
     GChars longIdentifier(g_strconcat(identifier, "Enabled", nullptr));
     for (gsize i = 0; i < webkit_feature_list_get_length(features); i++) {
@@ -94,15 +99,7 @@ void Block::open(const std::string& url)
     m_wpeView = webkit_web_view_get_wpe_view(m_view.get());
     if (m_scale != 1)
         setViewScale(m_wpeView, m_scale);
-    setFrameHandler(m_wpeView, [this](WPEBuffer* buffer) {
-        return frameRendered(buffer);
-    });
-    setCursorHandler(m_wpeView, [this](const char* name) {
-        cursorChanged(name);
-    });
-    g_signal_connect(m_wpeView, "buffers-changed", G_CALLBACK(+[](WPEView*, WPEBuffer** buffers, guint count, gpointer block) {
-        static_cast<Block*>(block)->presentedBuffersChanged(buffers, count);
-    }), this);
+    attachView();
     connectSignals();
     if (url != "about:blank") {
         webkit_web_view_load_uri(m_view.get(), url.c_str());
@@ -115,6 +112,95 @@ void Block::open(const std::string& url)
         event.setString("url", url);
         record(std::move(event));
     }
+}
+
+void Block::attachView()
+{
+    setFrameHandler(m_wpeView, [this](WPEBuffer* buffer) {
+        return frameRendered(buffer);
+    });
+    setCursorHandler(m_wpeView, [this](const char* name) {
+        cursorChanged(name);
+    });
+    g_signal_connect(m_wpeView, "buffers-changed", G_CALLBACK(+[](WPEView*, WPEBuffer** buffers, guint count, gpointer block) {
+        static_cast<Block*>(block)->presentedBuffersChanged(buffers, count);
+    }), this);
+}
+
+void Block::inspectorViewFinalized(gpointer block, GObject*)
+{
+    static_cast<Block*>(block)->inspectorViewGone();
+}
+
+void Block::openInspector(WPEView* view)
+{
+    m_isInspector = true;
+    m_wpeView = view;
+    attachView();
+    // The view is the engine's: the block hears when the engine lets go of it.
+    g_object_weak_ref(G_OBJECT(view), inspectorViewFinalized, this);
+    g_signal_connect(view, "resized", G_CALLBACK(+[](WPEView*, gpointer block) {
+        static_cast<Block*>(block)->inspectorResized();
+    }), this);
+}
+
+void Block::inspectorResized()
+{
+    if (!m_wpeView || (wpe_view_get_width(m_wpeView) == static_cast<int>(m_width) && wpe_view_get_height(m_wpeView) == static_cast<int>(m_height)))
+        return;
+    // The engine sizes the inspector's window as it opens it: the client's size applies again, once the engine
+    // is done.
+    runOnMainLoop([weakThis = weak_from_this()] {
+        if (auto block = weakThis.lock(); block && block->m_wpeView)
+            resizeView(block->m_wpeView, static_cast<int>(block->m_width), static_cast<int>(block->m_height));
+    });
+}
+
+void Block::inspectorViewGone()
+{
+    // Finalized: nothing is asked of the view again.
+    m_wpeView = nullptr;
+    runOnMainLoop([weakThis = weak_from_this(), &host = m_host, identifier = m_identifier] {
+        if (weakThis.lock())
+            host.endBlock(identifier);
+    });
+}
+
+// Opens the page's Web Inspector, whose page is a block of its own (openInspector()) that the client shows as it
+// shows any block, and closes to close the inspector. Answered with that block, also when it is open already.
+void Block::inspect(const Json&, const Reply& reply)
+{
+    auto answer = [&reply](const Block& inspector) {
+        auto value = Json::object();
+        value.setNumber("block", static_cast<double>(inspector.identifier()));
+        reply->ok(value);
+    };
+    if (auto inspector = m_inspector.lock()) {
+        answer(*inspector);
+        return;
+    }
+    // The inspector reaches the page through the instrumentation developer extras turn on.
+    webkit_settings_set_enable_developer_extras(m_settings.get(), TRUE);
+    // The engine makes the inspector's view as it opens it, in a window of the display's.
+    WPEView* made = nullptr;
+    GRef<WPEToplevel> window;
+    setViewCreatedHandler(m_host.display(), [&made, &window](WPEView* view) {
+        made = view;
+        window = GRef<WPEToplevel>::retain(wpe_view_get_toplevel(view));
+    });
+    webkit_web_view_toggle_inspector(m_view.get());
+    setViewCreatedHandler(m_host.display(), nullptr);
+    if (!made) {
+        reply->failed("inspect: the Web Inspector did not open");
+        return;
+    }
+    // The engine keeps the view out of its window until the inspector's page has loaded, and a view out of a
+    // window renders nothing, which that page waits for: it goes back in at once.
+    if (window && !wpe_view_get_toplevel(made))
+        wpe_view_set_toplevel(made, window.get());
+    auto inspector = m_host.adoptInspector(made);
+    m_inspector = inspector;
+    answer(*inspector);
 }
 
 void Block::close()
@@ -158,6 +244,14 @@ void Block::close()
             webkit_user_script_unref(script);
         if (auto* filter = std::exchange(m_allowFilter, nullptr))
             webkit_user_content_filter_unref(filter);
+    }
+    if (m_isInspector && m_wpeView) {
+        g_object_weak_unref(G_OBJECT(m_wpeView), inspectorViewFinalized, this);
+        setFrameHandler(m_wpeView, nullptr);
+        setCursorHandler(m_wpeView, nullptr);
+        g_signal_handlers_disconnect_by_data(m_wpeView, this);
+        // Closed by the client: the engine closes the inspector, as its window's close button would.
+        wpe_view_closed(m_wpeView);
     }
     if (m_view) {
         g_signal_handlers_disconnect_by_data(m_view.get(), this);
@@ -218,14 +312,21 @@ bool Block::handle(const std::string& name, const Json& operation, const Reply& 
         { "identity", &Block::setIdentity },
         { "present", &Block::present },
         { "focus", &Block::setFocus },
+        { "inspect", &Block::inspect },
         { "pdf", &Block::unsupported },
         { "media", &Block::unsupported },
     };
+    // A Web Inspector's page is the engine's: it is shown and used, not driven.
+    static const char* const inspectorOperations[] = { "viewport", "events", "input", "present", "focus" };
     auto found = handlers.find(name);
     if (found == handlers.end())
         return false;
     if (m_closed) {
         reply->notFound("no browser block " + std::to_string(m_identifier));
+        return true;
+    }
+    if (m_isInspector && std::ranges::find(inspectorOperations, name) == std::end(inspectorOperations)) {
+        reply->unsupported(name + ": a Web Inspector's block is shown, sized, focused and given input only");
         return true;
     }
     (this->*found->second)(operation, reply);
@@ -311,6 +412,27 @@ void Block::reportHistory()
     record(std::move(event));
 }
 
+void Block::contextMenu(WebKitHitTestResult* hit)
+{
+    auto event = eventOfType("contextMenu");
+    if (m_pointer) {
+        event.setNumber("x", m_pointer->first);
+        event.setNumber("y", m_pointer->second);
+    }
+    auto uri = [&](const char* name, bool is, const char* value) {
+        if (is && value && *value)
+            event.setString(name, value);
+    };
+    uri("link", webkit_hit_test_result_context_is_link(hit), webkit_hit_test_result_get_link_uri(hit));
+    uri("image", webkit_hit_test_result_context_is_image(hit), webkit_hit_test_result_get_image_uri(hit));
+    uri("media", webkit_hit_test_result_context_is_media(hit), webkit_hit_test_result_get_media_uri(hit));
+    event.setBoolean("editable", webkit_hit_test_result_context_is_editable(hit));
+    event.setBoolean("selection", webkit_hit_test_result_context_is_selection(hit));
+    event.setBoolean("back", webkit_web_view_can_go_back(m_view.get()));
+    event.setBoolean("forward", webkit_web_view_can_go_forward(m_view.get()));
+    record(std::move(event));
+}
+
 void Block::connectSignals()
 {
     auto* view = m_view.get();
@@ -345,6 +467,12 @@ void Block::connectSignals()
         event.setString("url", stringOrEmpty(request ? webkit_uri_request_get_uri(request) : nullptr));
         static_cast<Block*>(block)->record(std::move(event));
         return nullptr;
+    }), this);
+    // The page left a context click (or the Menu key) to the engine, which has no menu to show: what is under the
+    // pointer is reported for the client to show one.
+    g_signal_connect(view, "context-menu", G_CALLBACK(+[](WebKitWebView*, WebKitContextMenu*, WebKitHitTestResult* hit, gpointer block) -> gboolean {
+        static_cast<Block*>(block)->contextMenu(hit);
+        return TRUE;
     }), this);
     g_signal_connect(view, "script-dialog", G_CALLBACK(+[](WebKitWebView*, WebKitScriptDialog* dialog, gpointer block) -> gboolean {
         return static_cast<Block*>(block)->scriptDialog(dialog);

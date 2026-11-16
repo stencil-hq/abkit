@@ -23,10 +23,18 @@ Tern's `agent` engine are two).
 
 ## Envelope
 
-- `{"hello":{}}` is answered `{"welcome":{"ops":["browser","dom","console","network","responsive","present"]}}`.
+- `{"hello":{}}` is answered
+  `{"welcome":{"ops":["browser","dom","console","network","responsive","contextMenu","live","inspect","present"]}}`.
   `dom` says the `dom` op exists; `console` and `network` say those event families are reported; `responsive`
-  says the host watches whether pages answer ([Responsiveness](#responsiveness)); `present` (macOS, Windows) says
-  blocks can be presented to another process ([presentation.md](presentation.md)).
+  says the host watches whether pages answer ([Responsiveness](#responsiveness)); `contextMenu` says blocks report
+  the context menus their pages leave to the engine ([events.md](events.md)); `live` says `input` takes a user's
+  steps as they come; `inspect` says the `inspect` op exists; `present` (macOS, Windows) says blocks can be
+  presented to another process
+  ([presentation.md](presentation.md)).
+- `{"hello":{"clipboard":"system"}}`, from a client that shows the host's pages to its user, makes the clipboard
+  of the host's pages the system's (macOS: the general pasteboard): what they copy goes there, what other apps
+  put there they paste, and the `clipboard` op reads and writes it. The welcome then lists `systemClipboard`;
+  without it (other systems) the clipboard stays the host's own. The hello is the first frame, and only it can ask.
 - `{"id":N,"browser":{"op":NAME,…}}` is answered `{"id":N,"browser":{"ok":VALUE}}` or
   `{"id":N,"browser":{"error":{"kind":K,"message":M}}}`, in any order. Kinds: `invalid` (bad or missing field,
   unknown op), `not_found` (no such block), `unsupported`, `js` (an `eval` threw), `unresponsive` (the page's web
@@ -50,6 +58,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `events` | `after` (default 0), `wait` (default false) | `{"events":[…],"next","dropped"}`; each event has `seq`, counted from 1; the last 4096 are kept. With `wait`, answered only once there is an event after `after` (or with `not_found` when the block closes); one waiting call per block: a new `events` call answers the waiting one with what it has (possibly nothing). The events: [events.md](events.md) |
 | `focus` | `value` (boolean) | `{}`; whether the view holds the keyboard. True (the default) is what a driven page must see: focused in an active window whatever happens. A presenting client sets false while its block does not have the keyboard |
 | `present` | `to`: a target (macOS `{"mach":NAME}`, Windows `{"hwnd":N}`), or `null` to stop | `{}` once the target is reached; `failed` when it cannot be, `invalid` for a window that is none ([presentation.md](presentation.md)) |
+| `inspect` | | `{"block"}`: the page's Web Inspector, opened in a block of its own (the one open already, when it is). That block takes `present`, `viewport`, `focus`, `input` and `events` (others answer `unsupported`); `close` closes the inspector, and the block closes with the inspected one |
 | `clear` | `profile` (a name) | `{}` once that profile's website data (cookies, storage, caches) is erased; a profile never opened, or without data, is no error; `null` is `invalid` (a store of a block's own goes with its block). Blocks open on the profile stay open and find the data gone |
 
 `open` with `about:blank` loads nothing, so the first `goto` is the view's first history entry; `committed` and
@@ -62,7 +71,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `dom` | a request of `webkit_web_view_run_interaction_query()` (`read`: `snapshot`, `resolve`, `query`, `wait`) | the engine's reply, verbatim, also when it is an `{"error":…}` reply |
 | `eval` | `function` (source), `args` (array), `world` (`page` or `isolated`), `frame` (a frame's name) | `{}` for `undefined`, else `{"value"}`; a throw, or a result that is not JSON, is kind `js` |
 | `scripts` | `scripts`: `[{"source","world","frames":"main"\|"all","at":"start"\|"end"}]`, replacing the list | `{}` |
-| `input` | `events`: steps `mouse` (`action` `move`\|`down`\|`up`, `x`, `y`, `button`, `clicks`, `mods`), `wheel` (`x`, `y`, `dx`, `dy`, `mods`), `key` (`action`, `key`, `code`, `mods`), `text` (`text`) | `{}` two frames after the last step |
+| `input` | `events`: steps `mouse` (`action` `move`\|`down`\|`up`, `x`, `y`, `button`, `clicks`, `mods`), `wheel` (`x`, `y`, `dx`, `dy`, `mods`), `key` (`action`, `key`, `code`, `mods`), `text` (`text`); `live` (boolean) | `{}` two frames after the last step. With `"live": true` (a user's input, forwarded by the client that shows the page) the steps go to the view at once, in order, with no round trips through the page between them, and `{}` comes once they went |
 | `edit` | `action`: `copy`, `cut`, `paste`, `selectAll`, `undo`, `redo` | `{}` |
 | `capture` | `format` (`png`, `jpeg`), `quality`, `scale`, `rect` (`{x,y,width,height}`), `full` | `{"data","mime","width","height"}` |
 | `dialogs` | `policy`: `default` (alerts and beforeunload accepted, confirm and prompt held), `accept`, `dismiss` | `{}` |
@@ -78,7 +87,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `credentials` | `username`, `password`, or neither | `{}` |
 | `downloads` | `dir` (or `null`: downloads are cancelled) | `{}` |
 | `identity` | `seed`, `screen`, `window` ([page.md](page.md)) | `{}` |
-| `clipboard` | `text` to write, nothing to read | `{}` or `{"text"}`; the host's own clipboard, not the system's |
+| `clipboard` | `text` to write, nothing to read | `{}` or `{"text"}`; the host's own clipboard, not the system's, unless the hello asked for the system's |
 
 ## Responsiveness
 
