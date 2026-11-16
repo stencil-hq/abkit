@@ -62,7 +62,10 @@ body {
     display: contents;
 }
 
-#toolbarViewer {
+/* As specific as PDF.js's own `#toolbarContainer #toolbarViewer`, which
+   sizes the toolbar to fill its container (the viewport, once the
+   container is `display: contents`). */
+#toolbarContainer #toolbarViewer {
     position: fixed;
     display: inline-flex;
     left: 0;
@@ -70,6 +73,7 @@ body {
     width: fit-content;
     height: auto;
     margin: auto;
+    align-items: stretch;
 
     bottom: var(--layerVerticalOffset);
     padding: var(--layerImageVerticalMargin) var(--layerControllerHorizontalMargin);
@@ -85,20 +89,26 @@ body {
     animation-fill-mode: backwards;
 }
 
-#toolbarViewer:hover {
+#toolbarContainer #toolbarViewer:hover {
     transition: var(--layerFadeOutTimeInterval) opacity;
     opacity: 1;
 }
 
 #toolbarViewerMiddle,
 #toolbarViewerRight,
-#toolbarViewerMiddle > .splitToolbarButton {
+#toolbarViewerMiddle > .toolbarHorizontalGroup {
     display: contents;
 }
 
+/* The download button's group, which PDF.js hides in narrow viewers. */
+#outerContainer #toolbarViewerRight > :has(> #downloadButton) {
+    display: contents !important;
+}
+
 #toolbarViewerLeft,
-#toolbarViewerMiddle > *:not(.splitToolbarButton),
-#toolbarViewerRight > *:not(#download) {
+#toolbarViewerMiddle > :not(.toolbarHorizontalGroup),
+#toolbarViewerRight > :not(:has(> #downloadButton)),
+#printButton {
     display: none !important;
 }
 
@@ -121,19 +131,20 @@ body {
     display: none !important;
 }
 
-#zoomOut {
+#zoomOutButton {
     order: 1;
     background-image: url("./minus.magnifyingglass.svg");
 }
 
-#zoomIn {
+#zoomInButton {
     order: 2;
     background-image: url("./plus.magnifyingglass.svg");
 }
 
-#zoomOut + .splitToolbarButtonSeparator {
+#zoomOutButton + .splitToolbarButtonSeparator {
     order: 3;
     background-color: white;
+    border: none;
     opacity: 0.45;
     width: var(--layerSeperatorControllerSize);
     margin-top: -1px;
@@ -141,7 +152,7 @@ body {
     height: auto;
 }
 
-#download {
+#downloadButton {
     order: 4;
     background-image: url("./arrow.down.circle.svg");
     display: block !important;
