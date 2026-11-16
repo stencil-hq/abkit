@@ -9,7 +9,8 @@ WebKitBuild/<darwin|linux|win>/build-engine.sh TARGET OUT_DIR
 
 `TARGET` is one of `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`,
 `windows-x64`, `windows-arm64`. With `CCACHE_DIR` set, compiles go through ccache. `WebKitBuild/smoke-engine.py
-OUT_DIR` then checks the package: the host starts, loads a page, runs script, captures a frame and exits cleanly.
+OUT_DIR` then checks the package: the host starts, loads a page, runs script, paints the page's images, captures a
+frame and exits cleanly.
 On macOS it also verifies pixel readback across two WebGL contexts with interleaved command-buffer
 submission, including reading the older context after the newer context completes.
 

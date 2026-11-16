@@ -77,13 +77,6 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif
 #endif
 
-#if OS(DARWIN)
-#define GL_UNSIGNED_INT_8_8_8_8_REV 0x8367
-static const GLenum s_pixelDataType = GL_UNSIGNED_INT_8_8_8_8_REV;
-#else
-static const GLenum s_pixelDataType = GL_UNSIGNED_BYTE;
-#endif
-
 // On GLES3, the format we want for packed depth stencil is GL_DEPTH24_STENCIL8, but when added through
 // the extension this format is called GL_DEPTH24_STENCIL8_OES. In any case they hold the same value 0x88F0
 // so we can just use the first one.
@@ -177,7 +170,7 @@ void BitmapTexture::allocateTexture()
     createTexture();
     // EXT_texture_format_BGRA8888 mandates internalFormat == format.
     // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_texture_format_BGRA8888.txt
-    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
+    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), GL_UNSIGNED_BYTE, nullptr);
 }
 
 size_t BitmapTexture::sizeInBytes() const
@@ -301,7 +294,7 @@ void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
 #endif
 
     glBindTexture(m_renderTarget, m_id);
-    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), s_pixelDataType, nullptr);
+    glTexImage2D(m_renderTarget, 0, textureFormat(), m_size.width(), m_size.height(), 0, textureFormat(), GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(m_renderTarget, boundTexture);
 }
 
@@ -367,7 +360,7 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, adjustedSourceOffset.x());
     }
 
-    glTexSubImage2D(m_renderTarget, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), textureFormat(), s_pixelDataType, data);
+    glTexSubImage2D(m_renderTarget, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), textureFormat(), GL_UNSIGNED_BYTE, data);
 
     if (supportsUnpackSubimage) {
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);

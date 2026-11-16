@@ -3,12 +3,13 @@
 
 Starts the engine's ABHost (ABHost.exe on Windows), speaks its protocol
 (docs/protocol.md) over its standard streams, and checks what every client
-relies on: the welcome, a page that loads, script that runs in it, a capture
-with pixels, and a clean exit once the host's input ends. Prints one line per
+relies on: the welcome, a page that loads, script that runs in it, its images
+painted, a capture with pixels, and a clean exit once the host's input ends. Prints one line per
 step; exits non-zero on the first failure.
 
 Usage: smoke-engine.py ENGINE_DIR
 """
+import base64
 import json
 import os
 import struct
@@ -16,9 +17,72 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 
-PAGE = "data:text/html,<title>smoke</title><body style='background:%23f00'><p id=x>hello</p>"
 TIMEOUT = 60
+
+# Four small raster images, so the GPU painter packs them into one atlas texture (it does for four or
+# more of 8 to 512 px). On macOS that texture once had no storage and every such image painted black.
+IMAGE_COLORS = [(0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255)]
+IMAGE_SIZE = 16
+
+
+def png_chunk(kind, body):
+    return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+
+def solid_png(color):
+    """An opaque IMAGE_SIZE square PNG of one colour."""
+    header = struct.pack(">IIBBBBB", IMAGE_SIZE, IMAGE_SIZE, 8, 2, 0, 0, 0)
+    rows = (b"\0" + bytes(color) * IMAGE_SIZE) * IMAGE_SIZE
+    return b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", header) + png_chunk(b"IDAT", zlib.compress(rows)) + png_chunk(b"IEND", b"")
+
+
+def png_rows(data):
+    """Decodes an 8-bit, non-interlaced RGB or RGBA PNG (a capture) into rows of (r, g, b) tuples."""
+    position, compressed = 8, b""
+    while position < len(data):
+        length, kind = struct.unpack(">I4s", data[position:position + 8])
+        body = data[position + 8:position + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, color_type, _, _, interlace = struct.unpack(">IIBBBBB", body)
+            if depth != 8 or color_type not in (2, 6) or interlace:
+                raise RuntimeError(f"capture: PNG of depth {depth}, colour type {color_type}, interlace {interlace}")
+            channels = 3 if color_type == 2 else 4
+        elif kind == b"IDAT":
+            compressed += body
+        position += 12 + length
+    raw = zlib.decompress(compressed)
+    stride = width * channels
+    rows, previous = [], bytes(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        method, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
+        for i in range(stride):
+            left = line[i - channels] if i >= channels else 0
+            up = previous[i]
+            corner = previous[i - channels] if i >= channels else 0
+            if method == 1:
+                line[i] = (line[i] + left) & 255
+            elif method == 2:
+                line[i] = (line[i] + up) & 255
+            elif method == 3:
+                line[i] = (line[i] + (left + up) // 2) & 255
+            elif method == 4:
+                guess = left + up - corner
+                distances = (abs(guess - left), abs(guess - up), abs(guess - corner))
+                predictor = left if distances[0] <= min(distances[1:]) else up if distances[1] <= distances[2] else corner
+                line[i] = (line[i] + predictor) & 255
+        rows.append([tuple(line[x * channels:x * channels + 3]) for x in range(width)])
+        previous = line
+    return rows
+
+
+PAGE = (
+    "data:text/html,<title>smoke</title><body style='background:%23f00;margin:0'><div style='display:flex'>"
+    + "".join(f"<img src='data:image/png;base64,{base64.b64encode(solid_png(color)).decode()}'>" for color in IMAGE_COLORS)
+    + "</div><p id=x>hello</p>"
+)
 
 # Keep an older context's commands unsubmitted while another context reads back its
 # pixels. A display-wide queue must not wait for the unrelated older command buffer.
@@ -123,6 +187,15 @@ def main():
         if value.get("value") != "smoke hello":
             raise RuntimeError(f"eval: {value}")
         print(f"eval: {value['value']}")
+
+        # Before the readback, which replaces the page's content.
+        width = IMAGE_SIZE * len(IMAGE_COLORS)
+        shot = host.call("capture", block=block, format="png", rect={"x": 0, "y": 0, "width": width, "height": IMAGE_SIZE})
+        row = png_rows(base64.b64decode(shot["data"]))[IMAGE_SIZE // 2]
+        painted = [row[IMAGE_SIZE * index + IMAGE_SIZE // 2] for index in range(len(IMAGE_COLORS))]
+        if any(max(abs(a - b) for a, b in zip(seen, color)) > 16 for seen, color in zip(painted, IMAGE_COLORS)):
+            raise RuntimeError(f"images: painted {painted}, expected {IMAGE_COLORS}")
+        print(f"images: {len(painted)} painted")
 
         if sys.platform == "darwin":
             readback = host.call("eval", block=block, function=READBACK)
