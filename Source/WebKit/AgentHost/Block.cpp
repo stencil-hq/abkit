@@ -637,6 +637,10 @@ void Block::loadChanged(WebKitLoadEvent loadEvent)
 
 bool Block::loadFailed(const char* uri, GError* error)
 {
+    // A video or audio file opened as the page fails its document load this way, then
+    // loads again into the media document that plays it: nothing failed.
+    if (error && g_error_matches(error, WEBKIT_MEDIA_ERROR, WEBKIT_MEDIA_ERROR_WILL_HANDLE_LOAD))
+        return false;
     bool cancelled = error && g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED);
     bool interrupted = error && g_error_matches(error, WEBKIT_POLICY_ERROR, WEBKIT_POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE);
     m_loadFailed = true;
