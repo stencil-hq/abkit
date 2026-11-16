@@ -139,6 +139,7 @@ private:
     // Has the view's frames, cursor and buffers come to the block.
     void attachView();
     void inspect(const Json&, const Reply&);
+    void chooseMenuItem(const Json&, const Reply&);
     // The inspector's view changed size: when the engine sized it, the block's size applies again.
     void inspectorResized();
     // The engine let go of the inspector's view: the inspector closed.

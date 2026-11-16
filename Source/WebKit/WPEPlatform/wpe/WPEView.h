@@ -110,6 +110,8 @@ WPE_API void                  wpe_view_set_toplevel                 (WPEView    
 WPE_API int                   wpe_view_get_width                    (WPEView            *view);
 WPE_API int                   wpe_view_get_height                   (WPEView            *view);
 WPE_API void                  wpe_view_closed                       (WPEView            *view);
+WPE_API void                  wpe_view_context_menu_item_activated  (WPEView            *view,
+                                                                     guint               id);
 WPE_API void                  wpe_view_resized                      (WPEView            *view,
                                                                      int                 width,
                                                                      int                 height);

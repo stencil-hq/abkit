@@ -131,6 +131,8 @@ enum {
     EVENT,
     TOPLEVEL_STATE_CHANGED,
     PREFERRED_BUFFER_FORMATS_CHANGED,
+    CONTEXT_MENU,
+    CONTEXT_MENU_ITEM_ACTIVATED,
 
     LAST_SIGNAL
 };
@@ -495,6 +497,47 @@ static void wpe_view_class_init(WPEViewClass* viewClass)
         g_cclosure_marshal_generic,
         G_TYPE_BOOLEAN, 1,
         WPE_TYPE_EVENT);
+
+    /**
+     * WPEView::context-menu:
+     * @view: a #WPEView
+     * @menu: a #GVariant of type `a{sv}`: `x` and `y` (`d`, logical coordinates in @view) and `items`
+     *    (`aa{sv}`: each with `id` (`u`), `label` (`s`), `enabled`, `checked` and `checkable` (`b`), and
+     *    `submenu` (`aa{sv}`) when it opens one; or only `separator` (`b`, true))
+     *
+     * Emitted when the page in @view asks for a context menu with items of its own (as a Web Inspector's
+     * page does). The platform shows it, and calls wpe_view_context_menu_item_activated() with the `id`
+     * of the item chosen.
+     *
+     * Returns: %TRUE when the platform shows the menu
+     */
+    signals[CONTEXT_MENU] = g_signal_new(
+        "context-menu",
+        G_TYPE_FROM_CLASS(viewClass),
+        G_SIGNAL_RUN_LAST,
+        0,
+        g_signal_accumulator_true_handled,
+        nullptr,
+        g_cclosure_marshal_generic,
+        G_TYPE_BOOLEAN, 1,
+        G_TYPE_VARIANT);
+
+    /**
+     * WPEView::context-menu-item-activated:
+     * @view: a #WPEView
+     * @id: the `id` of the item chosen
+     *
+     * Emitted by wpe_view_context_menu_item_activated(): an item of the menu #WPEView::context-menu
+     * asked for was chosen.
+     */
+    signals[CONTEXT_MENU_ITEM_ACTIVATED] = g_signal_new(
+        "context-menu-item-activated",
+        G_TYPE_FROM_CLASS(viewClass),
+        G_SIGNAL_RUN_LAST,
+        0, nullptr, nullptr,
+        g_cclosure_marshal_generic,
+        G_TYPE_NONE, 1,
+        G_TYPE_UINT);
 
     /**
      * WPEView::toplevel-state-changed:
@@ -1036,6 +1079,21 @@ void wpe_view_buffer_rendered(WPEView* view, WPEBuffer* buffer)
     g_return_if_fail(WPE_IS_BUFFER(buffer));
 
     g_signal_emit(view, signals[BUFFER_RENDERED], 0, buffer);
+}
+
+/**
+ * wpe_view_context_menu_item_activated:
+ * @view: a #WPEView
+ * @id: the `id` of an item
+ *
+ * Emit #WPEView::context-menu-item-activated to say that the item @id of the menu #WPEView::context-menu
+ * asked for was chosen.
+ */
+void wpe_view_context_menu_item_activated(WPEView* view, guint id)
+{
+    g_return_if_fail(WPE_IS_VIEW(view));
+
+    g_signal_emit(view, signals[CONTEXT_MENU_ITEM_ACTIVATED], 0, id);
 }
 
 /**

@@ -16,7 +16,10 @@ the block is presented, and once when a presentation starts).
 `contextMenu`: a right-click (or the Menu key) the page left to the engine, which shows no menu of its own: the
 client may show one. `x`, `y` (CSS px, where the pointer last was), `link`, `image`, `media` (the addresses under
 it, each only when there is one), `editable`, `selection` (a field, selected content), `back`, `forward` (history).
-A page that handles `contextmenu` itself reports none.
+A page that handles `contextmenu` itself reports none. A page that brings items of its own (a Web Inspector's,
+[protocol.md](protocol.md) `inspect`) reports them as `items`: each with `id`, `label`, `enabled`, `checked` and
+`checkable`, and `submenu` (more items) when it opens one, or `{"separator":true}`; the client shows them and says
+the item chosen with `menu`.
 
 `unresponsive` and `responsive`, each with `ts`: the page's web process stopped answering (a script keeps it busy)
 or answers again ([protocol.md](protocol.md#responsiveness)). A page whose process was ended reports neither again

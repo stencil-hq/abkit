@@ -27,6 +27,12 @@
 
 #include "WebContextMenuProxy.h"
 
+#if ENABLE(WPE_PLATFORM)
+#include "WebContextMenuItemData.h"
+#include <wpe/wpe-platform.h>
+#include <wtf/glib/GRefPtr.h>
+#endif
+
 #if ENABLE(CONTEXT_MENUS)
 
 namespace WebKit {
@@ -38,9 +44,22 @@ public:
         return adoptRef(*new WebContextMenuProxyWPE(page, WTF::move(frameInfo), WTF::move(context), userData));
     }
 
+    ~WebContextMenuProxyWPE();
+
 private:
     WebContextMenuProxyWPE(WebPageProxy&, FrameInfoData&&, ContextMenuContextData&&, const UserData&);
     void showContextMenuWithItems(Vector<Ref<WebContextMenuItem>>&&) override;
+
+#if ENABLE(WPE_PLATFORM)
+    // The platform chose the item whose action is `id`.
+    void itemActivated(unsigned id);
+
+    // The items asked for, which the platform shows (WPEView::context-menu).
+    Vector<WebContextMenuItemData> m_items;
+    // The view the platform says the chosen item to, and its signal handler.
+    GRefPtr<WPEView> m_view;
+    unsigned long m_activatedHandler { 0 };
+#endif
 };
 
 } // namespace WebKit

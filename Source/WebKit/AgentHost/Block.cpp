@@ -114,8 +114,60 @@ void Block::open(const std::string& url)
     }
 }
 
+// The items of a menu WPEView::context-menu describes, as an event carries them.
+static Json menuItems(GVariant* items)
+{
+    auto list = Json::array();
+    GVariantIter iter;
+    g_variant_iter_init(&iter, items);
+    while (GVariant* entry = g_variant_iter_next_value(&iter)) {
+        auto item = Json::object();
+        gboolean flag;
+        guint32 id;
+        const char* label;
+        GVariant* submenu;
+        if (g_variant_lookup(entry, "separator", "b", &flag) && flag)
+            item.setBoolean("separator", true);
+        else {
+            if (g_variant_lookup(entry, "id", "u", &id))
+                item.setNumber("id", id);
+            if (g_variant_lookup(entry, "label", "&s", &label))
+                item.setString("label", label);
+            for (const char* name : { "enabled", "checked", "checkable" }) {
+                if (g_variant_lookup(entry, name, "b", &flag))
+                    item.setBoolean(name, flag);
+            }
+            if (g_variant_lookup(entry, "submenu", "@aa{sv}", &submenu)) {
+                item.set("submenu", menuItems(submenu));
+                g_variant_unref(submenu);
+            }
+        }
+        list.append(item);
+        g_variant_unref(entry);
+    }
+    return list;
+}
+
 void Block::attachView()
 {
+    // A page that brings items of its own (a Web Inspector's) asks the platform for its menu: the client shows
+    // it, and says the item chosen (`menu`).
+    auto contextMenu = +[](WPEView*, GVariant* menu, gpointer block) -> gboolean {
+        auto event = eventOfType("contextMenu");
+        double x = 0;
+        double y = 0;
+        if (g_variant_lookup(menu, "x", "d", &x) && g_variant_lookup(menu, "y", "d", &y)) {
+            event.setNumber("x", x);
+            event.setNumber("y", y);
+        }
+        if (GVariant* items = g_variant_lookup_value(menu, "items", G_VARIANT_TYPE("aa{sv}"))) {
+            event.set("items", menuItems(items));
+            g_variant_unref(items);
+        }
+        static_cast<Block*>(block)->record(std::move(event));
+        return TRUE;
+    };
+    g_signal_connect(m_wpeView, "context-menu", G_CALLBACK(contextMenu), this);
     setFrameHandler(m_wpeView, [this](WPEBuffer* buffer) {
         return frameRendered(buffer);
     });
@@ -164,6 +216,19 @@ void Block::inspectorViewGone()
         if (weakThis.lock())
             host.endBlock(identifier);
     });
+}
+
+// The item the user chose of the menu a `contextMenu` event with `items` asked for.
+void Block::chooseMenuItem(const Json& operation, const Reply& reply)
+{
+    auto item = operation.numberMember("item");
+    if (!item || *item < 0 || *item > UINT32_MAX || *item != std::floor(*item)) {
+        reply->invalid("menu: `item` is the `id` of an item of the menu asked for");
+        return;
+    }
+    if (m_wpeView)
+        wpe_view_context_menu_item_activated(m_wpeView, static_cast<guint>(*item));
+    reply->ok();
 }
 
 // Opens the page's Web Inspector, whose page is a block of its own (openInspector()) that the client shows as it
@@ -313,11 +378,12 @@ bool Block::handle(const std::string& name, const Json& operation, const Reply& 
         { "present", &Block::present },
         { "focus", &Block::setFocus },
         { "inspect", &Block::inspect },
+        { "menu", &Block::chooseMenuItem },
         { "pdf", &Block::unsupported },
         { "media", &Block::unsupported },
     };
     // A Web Inspector's page is the engine's: it is shown and used, not driven.
-    static const char* const inspectorOperations[] = { "viewport", "events", "input", "present", "focus" };
+    static const char* const inspectorOperations[] = { "viewport", "events", "input", "present", "focus", "menu" };
     auto found = handlers.find(name);
     if (found == handlers.end())
         return false;
