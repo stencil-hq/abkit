@@ -28,6 +28,8 @@
 
 #include "Node.h"
 #include "ReferrerPolicy.h"
+#include "URLPattern.h"
+#include "URLPatternOptions.h"
 #include <algorithm>
 #include <wtf/HashSet.h>
 #include <wtf/JSONValues.h>
@@ -43,6 +45,22 @@ namespace WebCore {
 Ref<SpeculationRules> SpeculationRules::create()
 {
     return adoptRef(*new SpeculationRules);
+}
+
+SpeculationRules::~SpeculationRules() = default;
+
+const URLPattern* SpeculationRules::urlPattern(const String& pattern, const URL& baseURL)
+{
+    if (baseURL != m_urlPatternsBaseURL) {
+        m_urlPatternsBaseURL = baseURL;
+        m_urlPatterns.clear();
+    }
+    return m_urlPatterns.ensure(pattern, [&] -> RefPtr<URLPattern> {
+        auto compiled = URLPattern::create(String { pattern }, String { baseURL.string() }, URLPatternOptions { });
+        if (compiled.hasException())
+            return nullptr;
+        return compiled.releaseReturnValue();
+    }).iterator->value.get();
 }
 
 SpeculationRules::DocumentPredicate::DocumentPredicate(PredicateVariant&& value)
@@ -407,6 +425,7 @@ Vector<URL> SpeculationRules::unregisterSpeculationRules(Node& sourceNode)
                 removedURLs.append(url);
         }
         m_prefetchRulesByNode.remove(it);
+        m_urlPatterns.clear();
     }
     return removedURLs;
 }

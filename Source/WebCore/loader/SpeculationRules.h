@@ -27,6 +27,7 @@
 
 #include <WebCore/EventTarget.h>
 #include <wtf/Box.h>
+#include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/URL.h>
@@ -38,6 +39,7 @@
 namespace WebCore {
 
 class Node;
+class URLPattern;
 enum class ReferrerPolicy : uint8_t;
 
 // https://wicg.github.io/nav-speculation/speculation-rules.html
@@ -101,6 +103,7 @@ public:
     };
 
     NODELETE static Ref<SpeculationRules> create();
+    ~SpeculationRules();
 
     // https://wicg.github.io/nav-speculation/speculation-rules.html#parse-speculation-rules
     WEBCORE_EXPORT bool parseSpeculationRules(Node& sourceNode, const StringView&, const URL& rulesetBaseURL, const URL& documentBaseURL);
@@ -112,10 +115,16 @@ public:
 
     NODELETE bool hasNonConservativePrefetchRules() const;
 
+    // A URLPatternPredicate pattern compiled against baseURL, or null when it does not parse. Patterns are
+    // compiled once per base URL rather than for every anchor each time the links are matched.
+    const URLPattern* urlPattern(const String& pattern, const URL& baseURL);
+
 private:
     SpeculationRules() = default;
 
     WeakHashMap<Node, Vector<Rule>, WeakPtrImplWithEventTargetData> m_prefetchRulesByNode;
+    URL m_urlPatternsBaseURL;
+    HashMap<String, RefPtr<URLPattern>> m_urlPatterns;
 };
 
 } // namespace WebCore

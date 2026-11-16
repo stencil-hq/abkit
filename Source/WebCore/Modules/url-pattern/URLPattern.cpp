@@ -328,6 +328,20 @@ ExceptionOr<bool> URLPattern::test(URLPatternInput&& input, String&& baseURL) co
     return !!maybeResult.returnValue();
 }
 
+bool URLPattern::test(const URL& url) const
+{
+    ASSERT(url.isValid());
+    // Every component has to match, so the order is free: the pathname rules out the most URLs.
+    return m_pathnameComponent.componentExec(url.path())
+        && m_protocolComponent.componentExec(url.protocol())
+        && m_hostnameComponent.componentExec(url.host())
+        && m_usernameComponent.componentExec(url.user())
+        && m_passwordComponent.componentExec(url.password())
+        && m_portComponent.componentExec(url.port() ? String::number(*url.port()) : emptyString())
+        && m_searchComponent.componentExec(url.query())
+        && m_hashComponent.componentExec(url.fragmentIdentifier());
+}
+
 // https://urlpattern.spec.whatwg.org/#dom-urlpattern-exec
 ExceptionOr<std::optional<URLPatternResult>> URLPattern::exec(URLPatternInput&& input, String&& baseURL) const
 {

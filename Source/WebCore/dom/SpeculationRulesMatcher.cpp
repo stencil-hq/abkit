@@ -63,21 +63,18 @@ static bool hasRenderedDescendants(Element& element)
     return false;
 }
 
-static bool matches(const SpeculationRules::DocumentPredicate&, Document&, HTMLAnchorElement&);
+static bool matches(const SpeculationRules::DocumentPredicate&, SpeculationRules&, HTMLAnchorElement&, const URL&);
 
-static bool matches(const SpeculationRules::URLPatternPredicate& predicate, HTMLAnchorElement& anchor)
+static bool matches(const SpeculationRules::URLPatternPredicate& predicate, SpeculationRules& rules, HTMLAnchorElement& anchor, const URL& url)
 {
-    for (const auto& patternString : predicate.patterns) {
-        ExceptionOr<Ref<URLPattern>> exceptionOrPattern = URLPattern::create(patternString, String(anchor.document().baseURL().string()), URLPatternOptions());
-        if (exceptionOrPattern.hasException())
-            continue;
+    if (!url.isValid())
+        return false;
 
-        Ref<URLPattern> pattern = exceptionOrPattern.returnValue();
-        auto result = pattern->test(anchor.href().string(), String(anchor.document().baseURL().string()));
-        if (!result.hasException() && result.returnValue())
-            return true;
-    }
-    return false;
+    const auto& baseURL = anchor.document().baseURL();
+    return std::ranges::any_of(predicate.patterns, [&](const auto& pattern) {
+        auto* compiled = rules.urlPattern(pattern, baseURL);
+        return compiled && compiled->test(url);
+    });
 }
 
 static bool matches(const SpeculationRules::CSSSelectorPredicate& predicate, Element& element)
@@ -92,41 +89,41 @@ static bool matches(const SpeculationRules::CSSSelectorPredicate& predicate, Ele
     return false;
 }
 
-static bool matches(const Box<SpeculationRules::Conjunction>& predicate, Document& document, HTMLAnchorElement& anchor)
+static bool matches(const Box<SpeculationRules::Conjunction>& predicate, SpeculationRules& rules, HTMLAnchorElement& anchor, const URL& url)
 {
     for (const auto& clause : predicate->clauses) {
-        if (!matches(clause, document, anchor))
+        if (!matches(clause, rules, anchor, url))
             return false;
     }
     return true;
 }
 
-static bool matches(const Box<SpeculationRules::Disjunction>& predicate, Document& document, HTMLAnchorElement& anchor)
+static bool matches(const Box<SpeculationRules::Disjunction>& predicate, SpeculationRules& rules, HTMLAnchorElement& anchor, const URL& url)
 {
     if (predicate->clauses.isEmpty())
         return false;
 
     for (const auto& clause : predicate->clauses) {
-        if (matches(clause, document, anchor))
+        if (matches(clause, rules, anchor, url))
             return true;
     }
     return false;
 }
 
-static bool matches(const Box<SpeculationRules::Negation>& predicate, Document& document, HTMLAnchorElement& anchor)
+static bool matches(const Box<SpeculationRules::Negation>& predicate, SpeculationRules& rules, HTMLAnchorElement& anchor, const URL& url)
 {
-    return !matches(*predicate->clause, document, anchor);
+    return !matches(*predicate->clause, rules, anchor, url);
 }
 
 // https://html.spec.whatwg.org/C#dr-predicate-matches
-static bool matches(const SpeculationRules::DocumentPredicate& predicate, Document& document, HTMLAnchorElement& anchor)
+static bool matches(const SpeculationRules::DocumentPredicate& predicate, SpeculationRules& rules, HTMLAnchorElement& anchor, const URL& url)
 {
     return WTF::switchOn(predicate.value(),
-        [&] (const SpeculationRules::URLPatternPredicate& p) { return matches(p, anchor); },
+        [&] (const SpeculationRules::URLPatternPredicate& p) { return matches(p, rules, anchor, url); },
         [&] (const SpeculationRules::CSSSelectorPredicate& p) { return matches(p, anchor); },
-        [&] (const Box<SpeculationRules::Conjunction>& p) { return matches(p, document, anchor); },
-        [&] (const Box<SpeculationRules::Disjunction>& p) { return matches(p, document, anchor); },
-        [&] (const Box<SpeculationRules::Negation>& p) { return matches(p, document, anchor); }
+        [&] (const Box<SpeculationRules::Conjunction>& p) { return matches(p, rules, anchor, url); },
+        [&] (const Box<SpeculationRules::Disjunction>& p) { return matches(p, rules, anchor, url); },
+        [&] (const Box<SpeculationRules::Negation>& p) { return matches(p, rules, anchor, url); }
     );
 }
 
@@ -166,7 +163,7 @@ std::optional<PrefetchRule> SpeculationRulesMatcher::hasMatchingRule(Document& d
                     return PrefetchRule { rule.tags, rule.referrerPolicy, rule.eagerness };
             }
 
-            if (rule.predicate && matches(rule.predicate.value(), document, anchor)) {
+            if (rule.predicate && matches(rule.predicate.value(), speculationRules, anchor, url)) {
                 // For document rules, if the rule doesn't specify a referrer policy,
                 // use the link element's referrerPolicy attribute if present.
                 auto referrerPolicy = rule.referrerPolicy;

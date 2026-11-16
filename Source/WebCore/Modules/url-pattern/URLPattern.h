@@ -62,6 +62,8 @@ public:
     WEBCORE_EXPORT ~URLPattern();
 
     WEBCORE_EXPORT ExceptionOr<bool> test(URLPatternInput&&, String&& baseURL) const;
+    // Whether a valid URL matches, as test() with it would answer, without building a match result.
+    bool test(const URL&) const;
 
     WEBCORE_EXPORT ExceptionOr<std::optional<URLPatternResult>> exec(URLPatternInput&&, String&& baseURL) const;
 
