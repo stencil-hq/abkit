@@ -26,7 +26,7 @@
 #include "config.h"
 #include <wtf/text/StringView.h>
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
 
 #include <wtf/RetainPtr.h>
 
@@ -54,4 +54,4 @@ RetainPtr<CFStringRef> StringView::createCFStringWithoutCopying() const
 
 }
 
-#endif // USE(CF)
+#endif // USE(DARWIN_SYSTEM_TYPES)

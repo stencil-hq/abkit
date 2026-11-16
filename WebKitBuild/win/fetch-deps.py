@@ -30,6 +30,7 @@ ROOTS = [
     "glib2", "glib-networking", "libsoup3", "harfbuzz", "harfbuzz-icu", "freetype", "fontconfig",
     "icu", "libxml2", "libxslt", "sqlite3", "zlib", "libjpeg-turbo", "libpng", "libwebp",
     "openssl", "libgcrypt", "libtasn1", "woff2", "libc++", "libunwind",
+    "lcms2", "libavif", "libjxl",
 ]
 # Build-time and optional dependencies no library needs at run time.
 SKIP = re.compile(

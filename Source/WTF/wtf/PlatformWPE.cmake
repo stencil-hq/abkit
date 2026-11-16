@@ -128,6 +128,7 @@ elseif (APPLE)
 
         text/cf/StringCF.cpp
         text/cf/StringImplCF.cpp
+        text/cf/StringViewCF.cpp
 
         text/cocoa/StringCocoa.mm
         text/cocoa/StringImplCocoa.mm

@@ -26,7 +26,8 @@
 #include "config.h"
 #include "Hyphenation.h"
 
-#if !USE(LIBHYPHEN)
+// Where Darwin's system types are, CoreFoundation hyphenates (cf/HyphenationCF.cpp).
+#if !USE(LIBHYPHEN) && !USE(DARWIN_SYSTEM_TYPES)
 
 #include "NotImplemented.h"
 #include <wtf/text/StringView.h>
@@ -46,4 +47,4 @@ size_t lastHyphenLocation(StringView, size_t /* beforeIndex */, const AtomString
 
 } // namespace WebCore
 
-#endif // !USE(LIBHYPHEN)
+#endif // !USE(LIBHYPHEN) && !USE(DARWIN_SYSTEM_TYPES)

@@ -4,6 +4,10 @@
 # - GLib 2.84, Brotli 1.1 and fontconfig 2.15 (glibc only: Ubuntu 22.04 has GLib 2.72, and
 #   glib-networking needs 2.73.3; it has Brotli 1.0.9, and the patched libsoup needs 1.1; its
 #   fontconfig 2.13 ignores the relative font directory the package names its fonts by);
+# - libjxl 0.11 on Highway 1.2 (glibc only: Ubuntu 22.04 has no libjxl, and its Highway 0.16 is
+#   older than libjxl needs), so JPEG XL images decode as in Safari: only the shared decoder and
+#   threads libraries (and libjxl_cms, which libjxl links), on the prefix's Brotli and the
+#   system's lcms2;
 # - libsoup and the BoringSSL TLS module that send what Safari sends (../safari-deps.sh), the
 #   module with patches/glib-networking-boringssl-linux.patch on top of the Darwin patch: Safari's
 #   ClientHello and session reuse on Linux too (the engine's user agent names Safari on every
@@ -40,6 +44,14 @@ brotli_sha256=e720a6ca29428b803f4ad165371771f5398faba397edf6778837a18599ea13ff
 fontconfig_version=2.15.0
 fontconfig_url=https://www.freedesktop.org/software/fontconfig/release/fontconfig-$fontconfig_version.tar.xz
 fontconfig_sha256=63a0658d0e06e0fa886106452b58ef04f21f58202ea02a94c39de0d3335d7c0e
+
+highway_version=1.2.0
+highway_url=https://github.com/google/highway/archive/refs/tags/$highway_version.tar.gz
+highway_sha256=7e0be78b8318e8bdbf6fa545d2ecb4c90f947df03f7aadc42c1967f019e63343
+
+libjxl_version=0.11.1
+libjxl_url=https://github.com/libjxl/libjxl/archive/refs/tags/v$libjxl_version.tar.gz
+libjxl_sha256=1492dfef8dd6c3036446ac3b340005d92ab92f7d48ee3271b5dac1d36945d3d9
 
 mesa_version=25.1.9
 mesa_url=https://archive.mesa3d.org/mesa-$mesa_version.tar.xz
@@ -92,6 +104,31 @@ if [ "$(ldd --version 2>&1 | head -n 1 | grep -ci 'glibc\|gnu libc')" != 0 ]; th
 	meson_build fontconfig -Ddoc=disabled -Dnls=disabled -Dtests=disabled -Dtools=disabled \
 		-Dcache-build=disabled -Ddefault-fonts-dirs=/usr/share/fonts \
 		-Dadditional-fonts-dirs=/usr/local/share/fonts -Dcache-dir=/var/cache/fontconfig
+
+	# Highway is linked into libjxl statically, so the package carries libjxl alone.
+	fetch "$highway_url" "highway-$highway_version.tar.gz" "$highway_sha256"
+	unpack highway "highway-$highway_version.tar.gz"
+	cmake -S "$sources/highway" -B "$build/highway" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+		-DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF -DHWY_ENABLE_CONTRIB=OFF -DHWY_ENABLE_EXAMPLES=OFF \
+		-DHWY_ENABLE_TESTS=OFF $SAFARI_DEPS_CMAKE_ARGS >/dev/null
+	ninja -C "$build/highway" install >/dev/null
+
+	# The release archive has no third_party sources, so every dependency is the system's or the
+	# prefix's; skcms is libjxl's own color management, which lcms2 replaces.
+	fetch "$libjxl_url" "libjxl-$libjxl_version.tar.gz" "$libjxl_sha256"
+	unpack libjxl "libjxl-$libjxl_version.tar.gz"
+	cmake -S "$sources/libjxl" -B "$build/libjxl" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_PREFIX_PATH="$prefix" \
+		-DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DJPEGXL_ENABLE_TOOLS=OFF \
+		-DJPEGXL_ENABLE_JPEGLI=OFF -DJPEGXL_ENABLE_DOXYGEN=OFF -DJPEGXL_ENABLE_MANPAGES=OFF \
+		-DJPEGXL_ENABLE_BENCHMARK=OFF -DJPEGXL_ENABLE_EXAMPLES=OFF -DJPEGXL_ENABLE_PLUGINS=OFF \
+		-DJPEGXL_ENABLE_FUZZERS=OFF -DJPEGXL_ENABLE_VIEWERS=OFF -DJPEGXL_ENABLE_SJPEG=OFF \
+		-DJPEGXL_ENABLE_OPENEXR=OFF -DJPEGXL_ENABLE_SKCMS=OFF -DJPEGXL_ENABLE_TRANSCODE_JPEG=OFF \
+		-DJPEGXL_ENABLE_BOXES=ON -DJPEGXL_BUNDLE_LIBPNG=OFF -DJPEGXL_ENABLE_JNI=OFF \
+		-DJPEGXL_FORCE_SYSTEM_BROTLI=ON -DJPEGXL_FORCE_SYSTEM_HWY=ON -DJPEGXL_FORCE_SYSTEM_LCMS2=ON \
+		-DJPEGXL_FORCE_SYSTEM_GTEST=ON $SAFARI_DEPS_CMAKE_ARGS >/dev/null
+	ninja -C "$build/libjxl" install >/dev/null
 fi
 
 safari_deps_fetch "$here/patches/glib-networking-boringssl-linux.patch"

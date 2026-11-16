@@ -106,6 +106,8 @@ if (ENABLE_WPE_LEGACY_API)
 endif ()
 
 if (APPLE)
+    # hyphens: auto hyphenates through CoreFoundation, as in Safari.
+    list(APPEND WebCore_SOURCES platform/text/cf/HyphenationCF.cpp)
     # The software filters use vImage wherever the OS is Darwin (USE(ACCELERATE)).
     list(APPEND WebCore_LIBRARIES "-framework Accelerate")
     # Canvases are encoded by ImageIO, as Safari's are (ImageUtilitiesSkiaDarwin.cpp).
