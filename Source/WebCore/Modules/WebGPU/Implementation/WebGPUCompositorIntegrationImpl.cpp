@@ -40,6 +40,9 @@
 #if HAVE(IOSURFACE)
 #include <WebCore/IOSurface.h>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
+#else
+// The render buffers are the surfaces themselves (WebGPUCompositorIntegrationImplSkia.cpp).
+#include <IOSurface/IOSurfaceRef.h>
 #endif
 #include <wtf/spi/cocoa/IOSurfaceSPI.h>
 
@@ -210,7 +213,6 @@ void WebGPUCompositorIntegrationImpl::updateSpareRenderBuffers()
         spare.isVolatile = true;
     }
 }
-#endif
 
 void WebGPUCompositorIntegrationImpl::withDisplayBufferAsNativeImage(uint32_t bufferIndex, Function<void(WebCore::NativeImage*)> completion)
 {
