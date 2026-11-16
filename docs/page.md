@@ -14,6 +14,10 @@ page-world script; everything below holds without one.
   viewport.
 - The machine is a desktop: there is a mouse and a keyboard and no touchscreen, so `(hover: hover)` and
   `(pointer: fine)` match and there are no touch events or `ontouch*` attributes.
+- On macOS keys a page leaves unhandled do what they do in Safari: the Mac's key bindings (⌥← moves by word, ⌘←
+  to the line's start, ⌥⌫ deletes a word, ⌃A and ⌃E as in every Mac text field) and the Edit menu's (⌘C, ⌘V, ⌘X,
+  ⌘A, ⌘Z, ⇧⌘Z); Option types the characters it types on the Mac (⌥2 is ™), ⌘ and ⌃ type none. Elsewhere they are
+  the PC's (Ctrl+C copies).
 - On macOS the user agent is Safari's and `window.safari` exists. The generic font families are the ones Safari
   uses (Times, Helvetica, Courier, Apple Chancery, Papyrus; Times for a family that is not installed), and
   `system-ui` and `-apple-system` are the system font. Form controls use the system font at 11 px.
