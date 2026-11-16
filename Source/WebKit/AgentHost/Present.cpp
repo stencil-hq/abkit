@@ -36,6 +36,10 @@
 #include <unistd.h>
 #endif
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace AgentHost {
 
 #if defined(__APPLE__)
@@ -285,6 +289,190 @@ std::shared_ptr<PresentClient> PresentClient::connect(const std::string&, Handle
 {
     error = "present: this system has no presentation yet";
     return nullptr;
+}
+
+#endif
+
+#if defined(_WIN32)
+
+// The host's windows are its main thread's, and a window of the client's is their parent: the client's thread
+// sends them messages (and waits for the answers), which only a thread taking its messages answers. The main
+// loop takes them from the first presentation into a window on. They also hold WebKit's window that the web
+// process presents into (made by the view, on this thread).
+
+struct WindowMessageSource {
+    GSource source;
+    GPollFD poll;
+};
+
+static gboolean prepareWindowMessages(GSource*, gint* timeout)
+{
+    *timeout = -1;
+    return GetQueueStatus(QS_ALLINPUT) != 0;
+}
+
+static gboolean checkWindowMessages(GSource* source)
+{
+    return (reinterpret_cast<WindowMessageSource*>(source)->poll.revents & G_IO_IN) && GetQueueStatus(QS_ALLINPUT) != 0;
+}
+
+static gboolean dispatchWindowMessages(GSource*, GSourceFunc, gpointer)
+{
+    MSG message;
+    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+    return G_SOURCE_CONTINUE;
+}
+
+static void takeWindowMessages()
+{
+    static bool taking = false;
+    if (std::exchange(taking, true))
+        return;
+    static GSourceFuncs functions = { prepareWindowMessages, checkWindowMessages, dispatchWindowMessages, nullptr, nullptr, nullptr };
+    auto* source = reinterpret_cast<WindowMessageSource*>(g_source_new(&functions, sizeof(WindowMessageSource)));
+    // GLib's poll waits for this thread's messages too (MsgWaitForMultipleObjectsEx()).
+    source->poll.fd = G_WIN32_MSG_HANDLE;
+    source->poll.events = G_IO_IN;
+    g_source_add_poll(&source->source, &source->poll);
+    g_source_set_name(&source->source, "[ABHost] window messages");
+    g_source_attach(&source->source, nullptr);
+    g_source_unref(&source->source);
+}
+
+// The host's window in the client's is like WebKit's window that the web process presents into
+// (UIProcess/wpe/AcceleratedBackingStore.cpp): a disabled child that leaves every hit to the window beneath, so
+// input goes to the client's window. It paints the frame it shows, and nothing else. It lies below WebKit's
+// window and does not clip it: that one paints nothing, so this one's frames show through it, and the frames the
+// web process presents into it, which the compositor puts above what windows paint, cover this one's. A buffer
+// that comes late, after the web process went on to present into the window, is then shown nowhere.
+static const wchar_t presentWindowClass[] = L"ABHostPresentWindow";
+
+static LRESULT CALLBACK presentWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    auto* presentWindow = reinterpret_cast<PresentWindow*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    switch (message) {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_NCHITTEST:
+        return HTTRANSPARENT;
+    case WM_PAINT: {
+        PAINTSTRUCT paint;
+        if (auto* dc = BeginPaint(window, &paint)) {
+            if (presentWindow)
+                presentWindow->paint(dc);
+            EndPaint(window, &paint);
+        }
+        return 0;
+    }
+    case WM_NCDESTROY:
+        // The client destroyed its window, and with it this one.
+        if (presentWindow)
+            presentWindow->childDestroyed();
+        break;
+    default:
+        break;
+    }
+    return DefWindowProcW(window, message, wParam, lParam);
+}
+
+bool PresentWindow::isWindow(void* window)
+{
+    return window && IsWindow(static_cast<HWND>(window));
+}
+
+PresentWindow::PresentWindow(void* window)
+    : m_window(window)
+{
+    takeWindowMessages();
+}
+
+PresentWindow::~PresentWindow()
+{
+    auto* child = static_cast<HWND>(m_child);
+    if (!child || !IsWindow(child))
+        return;
+    SetWindowLongPtrW(child, GWLP_USERDATA, 0);
+    DestroyWindow(child);
+}
+
+bool PresentWindow::show(WPEBuffer* buffer)
+{
+    auto* parent = static_cast<HWND>(m_window);
+    if (!IsWindow(parent))
+        return false;
+    int width = wpe_buffer_get_width(buffer);
+    int height = wpe_buffer_get_height(buffer);
+    auto* child = static_cast<HWND>(m_child);
+    if (!child || !IsWindow(child)) {
+        static bool registered = false;
+        if (!std::exchange(registered, true)) {
+            WNDCLASSW windowClass { };
+            windowClass.lpfnWndProc = presentWindowProcedure;
+            windowClass.hInstance = GetModuleHandleW(nullptr);
+            windowClass.lpszClassName = presentWindowClass;
+            RegisterClassW(&windowClass);
+        }
+        child = CreateWindowExW(WS_EX_NOPARENTNOTIFY, presentWindowClass, nullptr, WS_CHILD | WS_VISIBLE | WS_DISABLED,
+            0, 0, width, height, parent, nullptr, GetModuleHandleW(nullptr), nullptr);
+        if (!child) {
+            g_warning("a frame cannot be shown in window %p: no window of the host's can be made in it (error %lu)", m_window, GetLastError());
+            return false;
+        }
+        SetWindowLongPtrW(child, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        SetWindowPos(child, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        m_child = child;
+    }
+    // The frame's size, at the top left, as WebKit's window.
+    RECT rect { };
+    GetClientRect(child, &rect);
+    if (rect.right != width || rect.bottom != height)
+        SetWindowPos(child, nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    m_shown = GRef<WPEBuffer>::retain(buffer);
+    if (auto* dc = GetDC(child)) {
+        paint(dc);
+        ReleaseDC(child, dc);
+    }
+    ValidateRect(child, nullptr);
+    return true;
+}
+
+void PresentWindow::forget(WPEBuffer* buffer)
+{
+    if (m_shown.get() == buffer)
+        m_shown.clear();
+}
+
+void PresentWindow::paint(void* dc)
+{
+    if (!m_shown)
+        return;
+    auto* buffer = m_shown.get();
+    GError* error = nullptr;
+    // The bytes stay the buffer's.
+    auto* bytes = wpe_buffer_import_to_pixels(buffer, &error);
+    if (!bytes) {
+        g_warning("a frame cannot be shown: %s", takeError(error, "it has no pixels").c_str());
+        return;
+    }
+    gsize size = 0;
+    auto* data = g_bytes_get_data(bytes, &size);
+    int width = wpe_buffer_get_width(buffer);
+    int height = wpe_buffer_get_height(buffer);
+    size_t stride = height > 0 ? size / static_cast<size_t>(height) : 0;
+    if (width <= 0 || stride < static_cast<size_t>(width) * 4 || stride % 4)
+        return;
+    // Top row first (a negative height); a row of the bitmap is the buffer's row, padding included.
+    BITMAPINFO info { };
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = static_cast<LONG>(stride / 4);
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    SetDIBitsToDevice(static_cast<HDC>(dc), 0, 0, width, height, 0, 0, 0, height, data, &info, DIB_RGB_COLORS);
 }
 
 #endif

@@ -240,7 +240,13 @@ private:
 
     // BlockPresent.cpp
     struct Presentation {
+        // The client the frames go to; none for a presentation into a window.
         std::shared_ptr<PresentClient> client;
+#if defined(_WIN32)
+        // The client's window the block is presented into (`{"hwnd":N}`). Its web process presents there itself; a
+        // frame that comes as a buffer is shown there by the host, which holds that buffer (`latest`) until the next.
+        std::unique_ptr<PresentWindow> window;
+#endif
         // The view's buffers the client was given, by their ids (per block, counted from 1).
         std::map<uint32_t, GRef<WPEBuffer>> buffers;
         std::map<WPEBuffer*, uint32_t> identifiers;
@@ -251,12 +257,18 @@ private:
         uint32_t lastBuffer { 0 };
     };
     void present(const Json&, const Reply&);
+#if defined(_WIN32)
+    void presentIntoWindow(const Json& window, const Reply&);
+#endif
+    // Ends any presentation and starts this one.
+    void startPresenting(std::unique_ptr<Presentation>&&);
     // Ends the presentation, saying so to the client when `tellClient`.
     void stopPresenting(bool tellClient);
     bool presentFrame(WPEBuffer*);
     void presentedBuffersChanged(WPEBuffer** buffers, unsigned count);
     void cursorChanged(const char* name);
-    // Whether frames are to be rendered: while presented or capturing.
+    // Whether frames are to be rendered: while presented or capturing. On Windows also whether the view presents
+    // into the client's window: while presented into one and not capturing.
     void updateCompositionSuppressed();
 
     Host& m_host;

@@ -1,18 +1,22 @@
 # Presentation
 
 `{"op":"present","block":N,"to":TARGET}` shows a block's frames in another process without copying them:
-while presented, the block renders like a page on screen and every frame it renders goes to the target as the
-buffer the web process drew it into. `{"op":"present","block":N,"to":null}` stops. Stopping, `close`, the
-host's exit and the target's death end a presentation; then the buffers go back to the view and nothing is
-rendered again until the next `capture` or `present`. `capture` works while presenting. Presenting a block to
-the target it is presented to already does nothing; to another one, ends the first presentation.
+while presented, the block renders like a page on screen and every frame it renders goes to the target (on
+macOS as the buffer the web process drew it into; on Windows into the target's window). Its `cursor` events are
+reported only while it is presented. `{"op":"present","block":N,"to":null}` stops. Stopping, `close`, the
+host's exit and (on macOS) the target's death end a presentation; then the buffers go back to the view and
+nothing is rendered again until the next `capture` or `present`. `capture` works while presenting. Presenting a
+block to the target it is presented to already does nothing; to another one, ends the first presentation.
 
 `TARGET`:
 
 - macOS: `{"mach":NAME}`, a Mach bootstrap service the client checked in (`bootstrap_check_in()`), which must
   outlive the presentations to it. One service serves every block, and every host, of a client. The answer
   `{}` comes once the service was reached and sent `hello`; `failed` when it cannot be reached.
-- `{"hwnd":N}` (Windows) and `{"socket":PATH}` (Linux) are reserved: answered `unsupported`.
+- Windows: `{"hwnd":N}`, a window of the client's ([below](#windows)). The answer `{}` comes once the block's
+  view was given the window; `invalid` when `N` is not a number or no window.
+- `{"socket":PATH}` (Linux) is reserved: answered `unsupported`. Each system answers the other's targets
+  `unsupported`.
 
 A client that wants windows without speaking the Mach channel itself starts the engine's viewer
 ([viewer.md](viewer.md)) and presents blocks to it.
@@ -24,6 +28,30 @@ display refreshed) within the last second, a refresh is a `tick`; otherwise a 60
 `tick`s from its display link while it shows a presented block, and stops when it shows none. A presented frame
 counts as shown at the refresh after it was sent (its page's next frame waits for that), so a presented page
 renders at most one frame per refresh: with 120 ticks a second, 120 frames and animation frames a second.
+
+## Windows
+
+`N` is an `HWND` of the client's, as a JSON number: the window that shows the page, of the page's size in device
+pixels (the block's CSS size times its `scale`). The block's web process presents its frames straight into it,
+with a swap chain of its own, in a child window the host makes inside it (sized to the page, at its top left;
+disabled and transparent to hits, so all input goes to window `N`). Nothing is sent to the client: no channel,
+no buffers, no `tick`s; the swap chain paces the page (one frame per refresh of the display). The client keeps
+the page's size and window `N`'s in step (`viewport`); a client giving `N` the `WS_CLIPCHILDREN` style keeps
+its own painting off the page's frames.
+
+When the web process cannot present into a window (no hardware acceleration, no desktop composition, or the
+swap chain could not be made), its frames come to the host as buffers, and the host shows them in window `N`
+itself: in a child window of its own there, of the frame's size at the top left, below the web process's (whose
+frames cover it), disabled and transparent to hits as well. Either way the client sees the page's frames in `N`.
+
+While a `capture` is under way the web process presents nothing into the window, which keeps the frame it last
+showed. `"to":null`, `close`, or presenting into another window ends the presentation: window `N` keeps the
+last frame the web process presented into it (the host's child window for it stays until the block closes), and
+the host's own window for frames as buffers goes. The host takes its windows' messages on its main loop from the
+first presentation into a window on (a client's thread sends its child windows messages, and waits for them).
+
+The client may destroy window `N` (with it the host's child windows go) before its `close` or `"to":null` comes:
+the host and the web process carry on, nothing is shown, and the presentation ends when the client says so.
 
 ## The Mach channel (macOS)
 

@@ -193,7 +193,7 @@ void Host::handleFrame(std::string&& payload)
     if (frame.get("hello")) {
         // `responsive`: page calls may ask to fail (`unresponsive`) once the page's web process stops answering,
         // `state` says whether it answers, and a navigation or close ends a process that does not.
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(_WIN32)
         m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\",\"present\"]}}");
 #else
         m_transport->send("{\"welcome\":{\"ops\":[\"browser\",\"dom\",\"console\",\"network\",\"responsive\"]}}");
@@ -457,6 +457,19 @@ void Host::listBlocks(const Reply& reply)
 
 std::shared_ptr<PresentClient> Host::presentClient(const Json& target, const Reply& reply)
 {
+    // Windows presents into windows (Block::presentIntoWindow()), never to a client of its own.
+#if defined(_WIN32)
+    if (!target.isObject()) {
+        reply->invalid("present: `to` is a target (`{\"hwnd\":N}`) or null");
+        return nullptr;
+    }
+    if (target.get("mach") || target.get("socket")) {
+        reply->unsupported("present: this host presents into windows only (Windows)");
+        return nullptr;
+    }
+    reply->invalid("present: `to` names a window (`{\"hwnd\":N}`)");
+    return nullptr;
+#else
     if (!target.isObject()) {
         reply->invalid("present: `to` is a target (`{\"mach\":NAME}`) or null");
         return nullptr;
@@ -496,6 +509,7 @@ std::shared_ptr<PresentClient> Host::presentClient(const Json& target, const Rep
     }
     m_presentClients[*service] = client;
     return client;
+#endif
 #endif
 }
 
