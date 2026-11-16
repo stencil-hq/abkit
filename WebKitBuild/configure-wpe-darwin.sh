@@ -38,9 +38,16 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 # /opt/homebrew on arm64 Macs, /usr/local on Intel ones and for darwin/x86-homebrew.py's
 # bottles (HOMEBREW_PREFIX, without a brew); keg-only formulas sit under opt/.
 brew=${HOMEBREW_PREFIX:-$(brew --prefix)}
+# x86_64 targets Nehalem (SSE4.2, POPCNT, no AVX), Bun's baseline; code for later extensions is
+# picked at run time. Under Rosetta (darwin/build-engine.sh) uname says x86_64 too.
+cflags=
+case $(uname -m) in
+x86_64) cflags=-march=nehalem ;;
+esac
 exec cmake -S "$root" -B "$root/WebKitBuild/wpe-darwin" -G Ninja \
 	-U 'Soup3_*' -U 'PC_Soup3*' -U 'pkgcfg_lib_PC_Soup3*' \
 	-DPORT=WPE -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_C_FLAGS="$cflags" -DCMAKE_CXX_FLAGS="$cflags" -DCMAKE_OBJC_FLAGS="$cflags" -DCMAKE_OBJCXX_FLAGS="$cflags" \
 	-DCMAKE_PREFIX_PATH="$root/WebKitBuild/darwin/prefix;$brew;$brew/opt/icu4c;$brew/opt/sqlite;$brew/opt/curl;$brew/opt/openssl@3" \
 	-DENABLE_TOOLS=OFF -DENABLE_API_TESTS=OFF -DENABLE_LAYOUT_TESTS=OFF -DENABLE_MINIBROWSER=OFF \
 	-DENABLE_DOCUMENTATION=OFF -DENABLE_INTROSPECTION=OFF -DENABLE_JOURNALD_LOG=OFF \

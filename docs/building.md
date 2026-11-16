@@ -13,6 +13,11 @@ OUT_DIR` then checks the package: the host starts, loads a page, runs script, ca
 On macOS it also verifies pixel readback across two WebGL contexts with interleaved command-buffer
 submission, including reading the older context after the newer context completes.
 
+The x64 targets compile for Nehalem (SSE4.2 and POPCNT, no AVX), the baseline Bun builds for; code using later
+extensions (AVX2, AVX-512) is chosen at run time from what the CPU reports. Each configure script passes
+`-march=nehalem` (Windows: `win/toolchain.cmake`), so a Windows build directory configured before that keeps its
+old flags until it is configured afresh.
+
 CI (`.github/workflows/release.yml`) runs the eight builds on GitHub's hosted runners, smoke-tests each on its own
 system, and on a `v<version>` tag publishes the archives to build.stencil.so.
 

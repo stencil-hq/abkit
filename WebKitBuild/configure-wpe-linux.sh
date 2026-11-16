@@ -50,6 +50,11 @@ case $(ldd --version 2>&1) in
 	relr=ON
 	;;
 esac
+# x86_64 targets Nehalem (SSE4.2, POPCNT, no AVX), Bun's baseline; code for later extensions is
+# picked at run time.
+case $(uname -m) in
+x86_64) cflags="$cflags -march=nehalem" ;;
+esac
 # Under ccache the precompiled headers are off, as for the Windows build and WebKit's own
 # developer builds: a cached header outlives a change of cmakeconfig.h, which clang then refuses,
 # and objects hit the cache without them anyway.

@@ -22,6 +22,9 @@ if (WEBKIT_WIN_ARCH STREQUAL "x64")
     set(CMAKE_SYSTEM_PROCESSOR AMD64)
     set(WEBKIT_WIN_TRIPLE x86_64-pc-windows-msvc)
     set(WEBKIT_WIN_DEPS_ENVIRONMENT clang64)
+    # Nehalem (SSE4.2, POPCNT, no AVX), Bun's baseline; code for later
+    # extensions is picked at run time.
+    set(WEBKIT_WIN_CPU_FLAGS -march=nehalem)
 elseif (WEBKIT_WIN_ARCH STREQUAL "arm64")
     set(CMAKE_SYSTEM_PROCESSOR ARM64)
     set(WEBKIT_WIN_TRIPLE aarch64-pc-windows-msvc)
@@ -69,8 +72,8 @@ set(WEBKIT_WIN_LIBPATHS "-libpath:${WEBKIT_WIN_SDK}/crt/lib/${WEBKIT_WIN_ARCH} -
 # Precompiled headers without their inputs' timestamps: the same headers make
 # the same PCH in every build directory, so that ccache finds what was compiled
 # against it in another one (ninja rebuilds a PCH whose headers change).
-set(CMAKE_C_FLAGS_INIT "${WEBKIT_WIN_INCLUDES} -Xclang -fno-pch-timestamp")
-set(CMAKE_CXX_FLAGS_INIT "${WEBKIT_WIN_INCLUDES} -Xclang -fno-pch-timestamp")
+set(CMAKE_C_FLAGS_INIT "${WEBKIT_WIN_INCLUDES} ${WEBKIT_WIN_CPU_FLAGS} -Xclang -fno-pch-timestamp")
+set(CMAKE_CXX_FLAGS_INIT "${WEBKIT_WIN_INCLUDES} ${WEBKIT_WIN_CPU_FLAGS} -Xclang -fno-pch-timestamp")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "${WEBKIT_WIN_LIBPATHS} ${WEBKIT_WIN_HYBRID_CRT}")
