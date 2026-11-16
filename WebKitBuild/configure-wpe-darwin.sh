@@ -12,6 +12,11 @@
 # On as well: the <model> element's interface. No model player is linked into
 # this port, so a <model> with a source ends the way it does with no player at
 # all: its ready promise rejects and its fallback content renders.
+# The HTTP cache is partitioned by top-level site wherever third-party storage
+# is blocked, as Safari's is. PaymentRequest is there with no payment method
+# behind it: canMakePayment() resolves false and show() rejects, as in Safari
+# on a Mac without Apple Pay. Images are color managed (lcms2), and
+# hyphens: auto hyphenates through CoreFoundation, as in Safari.
 # Speech is on as well: synthesis speaks through the system's synthesizer and
 # the recognition interface is present, ending in the permission error Safari
 # ends in where the microphone has not been granted.
@@ -54,7 +59,7 @@ exec cmake -S "$root" -B "$root/WebKitBuild/wpe-darwin" -G Ninja \
 	-DENABLE_WPE_PLATFORM_DRM=OFF -DENABLE_WPE_PLATFORM_WAYLAND=OFF -DENABLE_WPE_PLATFORM_HEADLESS=ON \
 	-DENABLE_WPE_LEGACY_API=OFF -DENABLE_WPE_QT_API=OFF \
 	-DUSE_ATK=OFF -DUSE_FLITE=OFF -DUSE_GBM=OFF -DUSE_LIBBACKTRACE=OFF -DUSE_LIBDRM=OFF \
-	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=OFF \
+	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=ON \
 	-DENABLE_BUBBLEWRAP_SANDBOX=OFF -DENABLE_VIDEO=ON -DENABLE_WEB_AUDIO=ON -DUSE_GSTREAMER=ON -DUSE_GSTREAMER_GL=OFF \
 	-DENABLE_MEDIA_STREAM=ON -DENABLE_MEDIA_RECORDER=ON -DENABLE_WEB_CODECS=ON -DENABLE_MEDIA_SOURCE=ON -DENABLE_MEDIA_SOURCE_IN_WORKERS=ON \
 	-DENABLE_WEB_RTC=ON -DENABLE_AV1=ON -DENABLE_WEBGPU=ON \
@@ -67,4 +72,5 @@ exec cmake -S "$root" -B "$root/WebKitBuild/wpe-darwin" -G Ninja \
 	-DENABLE_AUTOCAPITALIZE=OFF \
 	-DENABLE_MODEL_ELEMENT=ON \
 	-DENABLE_NAVIGATOR_STANDALONE=ON \
+	-DENABLE_CACHE_PARTITIONING=ON -DENABLE_PAYMENT_REQUEST=ON \
 	"$@"

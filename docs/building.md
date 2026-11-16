@@ -43,11 +43,13 @@ runs the steps below under Rosetta, with Apple silicon's clang compiling for x86
 
 The engine has what Safari has: media through GStreamer (played silently), Web Audio, MediaStream, WebRTC (the
 bundled libwebrtc), MSE, WebCodecs, Encrypted Media (ClearKey), WebGL and WebGPU, WebAuthn, gamepads, pointer
-lock, PDF.js, speech, device orientation and gesture events, `<model>`; `configure-wpe-darwin.sh` says why each is
-on or off. It bundles Homebrew's libraries, so it runs on the macOS version it was built on and later. It draws
-with Metal (through ANGLE), so it needs a Metal device: every Mac that runs a current macOS has one, but a virtual
-machine without a GPU (GitHub's Intel macOS runners) does not, and there pages fail to load. CI builds and tests
-both targets on Apple-silicon Macs.
+lock, PDF.js, speech, device orientation and gesture events, `<model>`, an HTTP cache partitioned by top-level site,
+color-managed images (lcms2), `hyphens: auto` (through CoreFoundation), and `PaymentRequest` with no payment method
+behind it, as in Safari without Apple Pay; `configure-wpe-darwin.sh` says why each is on or off. It bundles
+Homebrew's libraries, so it runs on the macOS version it was built on and later. It draws with Metal (through
+ANGLE), so it needs a Metal device: every Mac that runs a current macOS has one, but a virtual machine without a GPU
+(GitHub's Intel macOS runners) does not, and there pages fail to load. CI builds and tests both targets on
+Apple-silicon Macs.
 
 ## Linux
 
@@ -59,7 +61,8 @@ allocator clang builds the engine about 1.8 times slower), and in it:
 
 1. `WebKitBuild/linux/build-deps.sh` builds pinned sources: the same Safari-shaped libsoup and BoringSSL TLS
    module as macOS (shared steps in `WebKitBuild/safari-deps.sh`, plus `linux/patches/`), Mesa for EGL/GLES on
-   llvmpipe, and on glibc a newer GLib, Brotli and fontconfig.
+   llvmpipe, and on glibc a newer GLib, Brotli and fontconfig, and libjxl (on a static Highway), which Ubuntu
+   22.04 lacks: JPEG XL decodes on every Linux engine.
 2. `WebKitBuild/configure-wpe-linux.sh BUILD_DIR DEPS_PREFIX`, then `ninja`.
 3. `WebKitBuild/package-engine-linux.sh BUILD_DIR OUT_DIR DEPS_PREFIX`: every library but the C library (and on
    glibc libstdc++ and libgcc_s) goes into `lib/` behind `$ORIGIN` run paths, with GStreamer's plugins and
@@ -72,7 +75,8 @@ libstdc++; a musl engine on musl 1.2.5 and later with nothing else from the syst
 (media through GStreamer, Web Audio, MediaStream, WebRTC, MSE, WebCodecs, ClearKey Encrypted Media through
 OpenSSL, WebGL, PDF.js, speech through Flite, and Safari's TLS handshake), drawn in software. Off on Linux:
 WebGPU (the tree's only implementation is Metal's), WebAuthn (its UI-process code is Cocoa's), the bubblewrap
-sandbox and libhyphen (neither relocates). The Safari-matching runtime defaults of macOS apply on Linux too.
+sandbox and libhyphen, so `hyphens: auto` does not hyphenate (neither relocates). The Safari-matching runtime
+defaults of macOS apply on Linux too.
 
 ## Windows
 
@@ -98,6 +102,9 @@ Windows), so the engine needs no Visual C++ redistributable and every module sha
 set, compiles go through ccache, provided the source path does not begin like a clang-cl option (`/Users`,
 `/work`).
 
+Images are color managed (lcms2) and AVIF and JPEG XL decode (libavif, libjxl); `fetch-deps.py` takes them from
+MSYS2 with their codec libraries (dav1d, aom, rav1e, SVT-AV1, highway, Brotli), and the package ships those DLLs.
+The site-partitioned HTTP cache and `PaymentRequest` (no payment method) are on, as on macOS and Linux.
 Off on Windows, each needing port work: media (GStreamer, and with it Web Audio, MediaStream, WebRTC, MSE,
 WebCodecs, Encrypted Media), WebGL and WebGPU, the GPU process, gamepads, WebAuthn and speech. TLS is MSYS2's
 stock libsoup and OpenSSL, not Safari's handshake. The web process draws with Direct3D 11, falling back to the WARP

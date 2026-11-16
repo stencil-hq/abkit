@@ -10,8 +10,11 @@
 # On, as on macOS (configure-wpe-darwin.sh): the PDF.js viewer, pointer lock,
 # the DeviceMotion, DeviceOrientation and GestureEvent interfaces (no events
 # fire: the headless host has no sensors and sends no gestures), the <model>
-# element's interface (no player: its ready promise rejects), and
-# navigator.standalone; autocapitalize is off as it is there.
+# element's interface (no player: its ready promise rejects), navigator.standalone,
+# the partitioned HTTP cache, and PaymentRequest with no payment method behind
+# it; autocapitalize is off as it is there. Images are color managed (lcms2)
+# and AVIF and JPEG XL decode (libavif, libjxl), all from MSYS2 as the other
+# libraries are.
 # Off, each needing port work of its own on Windows: media (GStreamer, and with
 # it Web Audio, MediaStream, WebRTC, MSE, WebCodecs, Encrypted Media), WebGL and
 # WebGPU (ANGLE's D3D backend is not wired to the WPE platform), the GPU
@@ -43,7 +46,7 @@ exec cmake -S "$root" -B "$root/WebKitBuild/wpe-win-$arch" -G Ninja \
 	-DENABLE_WPE_PLATFORM_DRM=OFF -DENABLE_WPE_PLATFORM_WAYLAND=OFF -DENABLE_WPE_PLATFORM_HEADLESS=ON \
 	-DENABLE_WPE_LEGACY_API=OFF -DENABLE_WPE_QT_API=OFF \
 	-DUSE_ATK=OFF -DUSE_FLITE=OFF -DUSE_GBM=OFF -DUSE_LIBBACKTRACE=OFF -DUSE_LIBDRM=OFF \
-	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=OFF -DUSE_AVIF=OFF -DUSE_JPEGXL=OFF \
+	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=ON -DUSE_AVIF=ON -DUSE_JPEGXL=ON \
 	-DENABLE_BUBBLEWRAP_SANDBOX=OFF -DENABLE_VIDEO=OFF -DENABLE_WEB_AUDIO=OFF -DUSE_GSTREAMER=OFF \
 	-DENABLE_MEDIA_STREAM=OFF -DENABLE_MEDIA_RECORDER=OFF -DENABLE_WEB_CODECS=OFF \
 	-DENABLE_SPEECH_SYNTHESIS=OFF -DENABLE_SPELLCHECK=OFF -DENABLE_GAMEPAD=OFF -DENABLE_WEB_AUTHN=OFF \
@@ -51,4 +54,5 @@ exec cmake -S "$root" -B "$root/WebKitBuild/wpe-win-$arch" -G Ninja \
 	-DENABLE_WEBXR=OFF -DENABLE_ENCRYPTED_MEDIA=OFF -DENABLE_MEDIA_SOURCE=OFF -DENABLE_WEBGL=OFF \
 	-DENABLE_POINTER_LOCK=ON -DENABLE_DEVICE_ORIENTATION=ON -DENABLE_MAC_GESTURE_EVENTS=ON \
 	-DENABLE_AUTOCAPITALIZE=OFF -DENABLE_MODEL_ELEMENT=ON -DENABLE_NAVIGATOR_STANDALONE=ON \
+	-DENABLE_CACHE_PARTITIONING=ON -DENABLE_PAYMENT_REQUEST=ON \
 	"$@"

@@ -36,8 +36,8 @@
 #   xkeyboard-config gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev gst-plugins-base
 #   gst-plugins-good gst-plugins-bad gst-libav libevent-dev alsa-lib-dev opus-dev libvpx-dev
 #   libmanette-dev flite-dev font-dejavu.
-# In the container linux/build-deps.sh builds GLib (glibc), libsoup, the BoringSSL TLS module and
-# Mesa (pinned sources, fetched from download.gnome.org, github.com and archive.mesa3d.org),
+# In the container linux/build-deps.sh builds GLib and libjxl (glibc), libsoup, the BoringSSL TLS
+# module and Mesa (pinned sources, fetched from download.gnome.org, github.com and archive.mesa3d.org),
 # configure-wpe-linux.sh configures, ninja builds and package-engine-linux.sh packages.
 #
 # Environment:

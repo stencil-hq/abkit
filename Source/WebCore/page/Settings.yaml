@@ -253,9 +253,14 @@ NeedsDeferKeyDownAndKeyPressTimersUntilNextEditingCommandQuirk:
   defaultValue: false
 
 PaymentRequestEnabled:
+  comment: >-
+    With Apple Pay, the ApplePayEnabled preference decides (WebPage::updatePreferences). Without it,
+    PaymentRequest is there with no payment method: canMakePayment() resolves false and show() rejects.
   type: bool
   condition: ENABLE(PAYMENT_REQUEST)
-  defaultValue: false
+  defaultValue:
+    ENABLE(APPLE_PAY): false
+    default: true
 
 PreferMIMETypeForImages:
   type: bool

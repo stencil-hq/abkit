@@ -9,9 +9,9 @@
 # WebGL (ANGLE over EGL; the package brings Mesa's llvmpipe as that EGL); gamepads
 # (libmanette), pointer lock, the PDF.js viewer, the Web Inspector server, DeviceMotion,
 # DeviceOrientation and GestureEvent, Picture in Picture and the video presentation and wireless
-# playback interfaces, <model>'s interface and navigator.standalone; speech synthesis, which speaks
-# through Flite here, linked in with its voices (macOS has the system's synthesizer).
-# On where macOS has it off for want of the library: color management (lcms2).
+# playback interfaces, <model>'s interface and navigator.standalone, the partitioned HTTP cache,
+# PaymentRequest without a payment method, color management (lcms2); speech synthesis, which
+# speaks through Flite here, linked in with its voices (macOS has the system's synthesizer).
 #
 # Off, as on macOS: the GPU process and DMA-BUF frames (GBM; frames cross as shared memory; libdrm
 # is on only for the DRM formats the Linux code names), the bubblewrap sandbox (bwrap and xdg-dbus-proxy are not relocatable), spell checking,
@@ -20,10 +20,10 @@
 # Off on Linux only: WebGPU, whose one implementation in the tree is Metal, and WebAuthn (with the
 # Digital Credentials API it carries), whose UI process side is written against the Security
 # framework.
-# JPEG XL is on where the distribution has libjxl (Alpine) and off where it does not
-# (Ubuntu 22.04), see USE_JPEGXL below.
+# JPEG XL is on everywhere: Alpine has libjxl, and on glibc linux/build-deps.sh builds it
+# into DEPS_PREFIX (Ubuntu 22.04 has none).
 #
-# libsoup, GLib (glibc) and Mesa come from DEPS_PREFIX, ahead of the distribution's.
+# libsoup, GLib (glibc), libjxl (glibc) and Mesa come from DEPS_PREFIX, ahead of the distribution's.
 set -e
 root=$(cd "$(dirname "$0")/.." && pwd)
 build=$1
@@ -32,7 +32,6 @@ deps=$2
 shift 2
 PKG_CONFIG_PATH=$deps/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}
 export PKG_CONFIG_PATH
-if pkg-config --exists libjxl; then jpegxl=ON; else jpegxl=OFF; fi
 # musl has gettext in its C library, but with GNU gettext's <libintl.h> installed (GLib's headers
 # bring it) the calls name libintl's functions, which nothing else links.
 # Alpine's clang also turns on _FORTIFY_SOURCE, whose fortify-headers trap on a memcpy() Skia's
@@ -74,7 +73,7 @@ exec cmake -S "$root" -B "$build" -G Ninja $launcher \
 	-DENABLE_WPE_PLATFORM_DRM=OFF -DENABLE_WPE_PLATFORM_WAYLAND=OFF -DENABLE_WPE_PLATFORM_HEADLESS=ON \
 	-DENABLE_WPE_LEGACY_API=OFF -DENABLE_WPE_QT_API=OFF \
 	-DUSE_ATK=OFF -DUSE_FLITE=ON -DUSE_GBM=OFF -DUSE_LIBBACKTRACE=OFF -DUSE_LIBDRM=ON \
-	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=ON -DUSE_JPEGXL=$jpegxl \
+	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=ON -DUSE_JPEGXL=ON \
 	-DENABLE_BUBBLEWRAP_SANDBOX=OFF -DENABLE_VIDEO=ON -DENABLE_WEB_AUDIO=ON -DUSE_GSTREAMER=ON -DUSE_GSTREAMER_GL=OFF \
 	-DENABLE_MEDIA_STREAM=ON -DENABLE_MEDIA_RECORDER=ON -DENABLE_WEB_CODECS=ON -DENABLE_MEDIA_SOURCE=ON -DENABLE_MEDIA_SOURCE_IN_WORKERS=ON \
 	-DENABLE_WEB_RTC=ON -DENABLE_WEBGPU=OFF \
@@ -87,4 +86,5 @@ exec cmake -S "$root" -B "$build" -G Ninja $launcher \
 	-DENABLE_AUTOCAPITALIZE=OFF \
 	-DENABLE_MODEL_ELEMENT=ON \
 	-DENABLE_NAVIGATOR_STANDALONE=ON \
+	-DENABLE_CACHE_PARTITIONING=ON -DENABLE_PAYMENT_REQUEST=ON \
 	"$@"

@@ -116,7 +116,7 @@ public:
     AtomString toAtomString() const;
     AtomString toExistingAtomString() const;
 
-#if USE(CF)
+#if USE(DARWIN_SYSTEM_TYPES)
     // These functions convert null strings to empty strings.
     WTF_EXPORT_PRIVATE RetainPtr<CFStringRef> createCFString() const;
     WTF_EXPORT_PRIVATE RetainPtr<CFStringRef> createCFStringWithoutCopying() const;
