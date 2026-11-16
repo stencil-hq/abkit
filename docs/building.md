@@ -13,6 +13,15 @@ OUT_DIR` then checks the package: the host starts, loads a page, runs script, ca
 On macOS it also verifies pixel readback across two WebGL contexts with interleaved command-buffer
 submission, including reading the older context after the newer context completes.
 
+`python3 WebKitBuild/e2e-engine.py OUT_DIR [TEST...]` runs the macOS headless end-to-end tests for capability
+negotiation, Mac key bindings, clipboard isolation, page context menus, live input, and the Web Inspector's
+lifecycle, Mach presentation and menu selection. It compiles a small IOSurface receiver with the system clang
+into a temporary directory; it opens no GUI windows, sends no desktop input and uses no network. Each test
+has its own host, waits have timeouts, and the suite has a 110-second deadline. Other platforms print a skip.
+Run without `TEST` names for the full suite; the script's usage lists the individual names. The
+`clipboard-system` test is skipped unless `ABKIT_E2E_CLIPBOARD=1`: opting in overwrites the system pasteboard
+and restores its previous **plain text only** (not images or other formats). All other tests leave it untouched.
+
 The x64 targets compile for Nehalem (SSE4.2 and POPCNT, no AVX), the baseline Bun builds for; code using later
 extensions (AVX2, AVX-512) is chosen at run time from what the CPU reports. Each configure script passes
 `-march=nehalem` (Windows: `win/toolchain.cmake`), so a Windows build directory configured before that keeps its
