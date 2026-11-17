@@ -1,6 +1,9 @@
 include(platform/Adwaita.cmake)
 include(platform/CoordinatedGraphics.cmake)
-include(platform/GStreamer.cmake)
+if (NOT WIN32)
+    # Windows plays media through Media Foundation instead (below).
+    include(platform/GStreamer.cmake)
+endif ()
 include(platform/ImageDecoders.cmake)
 include(platform/Skia.cmake)
 include(platform/Soup.cmake)
@@ -128,6 +131,40 @@ elseif (WIN32)
     )
     # TLS servers are verified again as Windows verifies them (CryptoAPI).
     list(APPEND WebCore_LIBRARIES crypt32)
+    if (USE_MEDIA_FOUNDATION)
+        # <video> and <audio> play through Media Foundation, as in the Win port
+        # (PlatformWin.cmake): its player reads each frame back from Direct3D 9 and
+        # paints it in software through Skia. Its DLLs load on first use, so that
+        # the engine starts where they are missing (the N editions of Windows
+        # without the Media Feature Pack), with no media engine then.
+        list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
+            "${WEBCORE_DIR}/platform/graphics/win"
+            "${WEBCORE_DIR}/platform/win"
+        )
+        list(APPEND WebCore_SOURCES
+            platform/graphics/win/MediaPlayerPrivateMediaFoundation.cpp
+        )
+        add_library(MediaFoundation INTERFACE)
+        target_link_libraries(MediaFoundation INTERFACE
+            d3d9
+            delayimp
+            dxva2
+            evr
+            mf
+            mfplat
+            mfuuid
+            ole32
+            strmiids
+        )
+        target_link_options(MediaFoundation INTERFACE
+            /DELAYLOAD:d3d9.dll
+            /DELAYLOAD:dxva2.dll
+            /DELAYLOAD:evr.dll
+            /DELAYLOAD:mf.dll
+            /DELAYLOAD:mfplat.dll
+        )
+        list(APPEND WebCore_PRIVATE_LIBRARIES MediaFoundation)
+    endif ()
 endif ()
 
 list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES

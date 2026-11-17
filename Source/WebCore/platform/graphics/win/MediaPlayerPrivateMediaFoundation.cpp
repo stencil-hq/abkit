@@ -44,10 +44,8 @@
 #include <wtf/TZoneMallocInlines.h>
 
 #if USE(SKIA)
+#include <skia/core/SkData.h>
 #include <skia/core/SkImage.h>
-IGNORE_CLANG_WARNINGS_BEGIN("cast-align")
-#include <skia/core/SkPixmap.h>
-IGNORE_CLANG_WARNINGS_END
 #endif
 
 // MFSamplePresenterSampleCounter
@@ -675,12 +673,16 @@ bool MediaPlayerPrivateMediaFoundation::addBranchToPartialTopology(int stream)
 
 HWND MediaPlayerPrivateMediaFoundation::hostWindow()
 {
+#if PLATFORM(WIN)
     auto player = m_player.get();
     if (player && player->cachedResourceLoader() && !player->cachedResourceLoader()->document()) {
         auto* view = player->cachedResourceLoader()->document()->view();
         if (view && view->hostWindow() && view->hostWindow()->platformPageClient())
             return view->hostWindow()->platformPageClient();
     }
+#endif
+    // A WPE page has no window in its web process: frames are read back and painted
+    // (Direct3DPresenter::paintCurrentFrame), so the window only picks the adapter.
     return GetDesktopWindow();
 }
 
@@ -2811,20 +2813,21 @@ HRESULT MediaPlayerPrivateMediaFoundation::Direct3DPresenter::presentSample(IMFS
 }
 
 #if USE(SKIA)
+// The frame reaches the page as an image copied from system memory, painted into the
+// layer like any other. Composited (WPE's layers, the Win port's GraphicsLayerWC), it
+// would instead be a platform layer of its own (supportsAcceleratedRendering() and
+// platformLayer(), as MediaPlayerPrivateGStreamer gives a CoordinatedPlatformLayerBufferProxy):
+// the mixer's surfaces made by a D3D11 device shared with ANGLE's, or the D3D9Ex surfaces'
+// share handles opened by it, each frame handed over as an EGL image of that texture
+// (EGL_ANGLE_d3d_texture_client_buffer) with no read back to system memory.
 void MediaPlayerPrivateMediaFoundation::Direct3DPresenter::paintCurrentFrame(GraphicsContext& context, const FloatRect& destRect)
 {
-    int width = m_destRect.right - m_destRect.left;
-    int height = m_destRect.bottom - m_destRect.top;
-
-    if (!width || !height)
-        return;
-
     Locker<Lock> locker { m_lock };
 
     if (!m_memSurface)
         return;
     D3DSURFACE_DESC desc;
-    if (FAILED(m_memSurface->GetDesc(&desc)))
+    if (FAILED(m_memSurface->GetDesc(&desc)) || !desc.Width || !desc.Height)
         return;
 
     SkColorType colorType = kUnknown_SkColorType;
@@ -2844,14 +2847,16 @@ void MediaPlayerPrivateMediaFoundation::Direct3DPresenter::paintCurrentFrame(Gra
         return;
     auto* data = static_cast<const DWORD*>(lockedRect.pBits);
 
-    int pitchInByte = lockedRect.Pitch;
+    size_t pitchInByte = lockedRect.Pitch;
     ASSERT(!(pitchInByte % 4));
-    int pitchInDWORD = pitchInByte / 4;
-    auto wholeInput = unsafeMakeSpan(data, pitchInDWORD * height);
-    Vector<byte> buffer(wholeInput.size_bytes());
-    auto wholeOutput = buffer.mutableSpan();
+    size_t pitchInDWORD = pitchInByte / 4;
+    auto wholeInput = unsafeMakeSpan(data, pitchInDWORD * desc.Height);
+    // The image owns its pixels: a context that records (WPE's layers) draws it later,
+    // on another thread.
+    auto pixels = SkData::MakeUninitialized(wholeInput.size_bytes());
+    auto wholeOutput = unsafeMakeSpan(static_cast<uint8_t*>(pixels->writable_data()), pixels->size());
 
-    for (unsigned y = 0; y < height; ++y) {
+    for (UINT y = 0; y < desc.Height; ++y) {
         auto lineInput = wholeInput.subspan(pitchInDWORD * y, pitchInDWORD);
         auto lineOutput = wholeOutput.subspan(pitchInByte * y, pitchInByte);
         auto output = lineOutput.begin();
@@ -2863,14 +2868,13 @@ void MediaPlayerPrivateMediaFoundation::Direct3DPresenter::paintCurrentFrame(Gra
         }
     }
 
-    auto imageInfo = SkImageInfo::Make(width, height, colorType, kUnpremul_SkAlphaType);
-    auto pixmap = SkPixmap(imageInfo, wholeOutput.data(), pitchInByte);
-    auto skImage = SkImages::RasterFromPixmap(pixmap, nullptr, nullptr);
-    auto image = NativeImage::create(WTF::move(skImage));
-    FloatRect srcRect(0, 0, width, height);
-    context.drawNativeImage(*image, destRect, srcRect);
-
     m_memSurface->UnlockRect();
+
+    auto imageInfo = SkImageInfo::Make(desc.Width, desc.Height, colorType, kUnpremul_SkAlphaType);
+    RefPtr image = NativeImage::create(SkImages::RasterFromData(imageInfo, WTF::move(pixels), pitchInByte));
+    if (!image)
+        return;
+    context.drawNativeImage(*image, destRect, FloatRect(0, 0, desc.Width, desc.Height));
 }
 #endif
 

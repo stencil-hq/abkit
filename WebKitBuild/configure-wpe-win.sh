@@ -14,9 +14,10 @@
 # the partitioned HTTP cache, and PaymentRequest with no payment method behind
 # it; autocapitalize is off as it is there. Images are color managed (lcms2)
 # and AVIF and JPEG XL decode (libavif, libjxl), all from MSYS2 as the other
-# libraries are.
-# Off, each needing port work of its own on Windows: media (GStreamer, and with
-# it Web Audio, MediaStream, WebRTC, MSE, WebCodecs, Encrypted Media), WebGL and
+# libraries are. <video> and <audio> play through Media Foundation, Windows' own
+# (the Win port's player, its frames painted through Skia): no codecs ship.
+# Off, each needing port work of its own on Windows: the rest of media (Web Audio,
+# MediaStream, WebRTC, MSE, WebCodecs and Encrypted Media are GStreamer's), WebGL and
 # WebGPU (ANGLE's D3D backend is not wired to the WPE platform), the GPU
 # process, gamepads, WebAuthn, speech (no Windows synthesizer backend), and
 # DMA-BUF frames.
@@ -47,7 +48,7 @@ exec cmake -S "$root" -B "$root/WebKitBuild/wpe-win-$arch" -G Ninja \
 	-DENABLE_WPE_LEGACY_API=OFF -DENABLE_WPE_QT_API=OFF \
 	-DUSE_ATK=OFF -DUSE_FLITE=OFF -DUSE_GBM=OFF -DUSE_LIBBACKTRACE=OFF -DUSE_LIBDRM=OFF \
 	-DUSE_LIBHYPHEN=OFF -DUSE_SYSPROF_CAPTURE=OFF -DUSE_LCMS=ON -DUSE_AVIF=ON -DUSE_JPEGXL=ON \
-	-DENABLE_BUBBLEWRAP_SANDBOX=OFF -DENABLE_VIDEO=OFF -DENABLE_WEB_AUDIO=OFF -DUSE_GSTREAMER=OFF \
+	-DENABLE_BUBBLEWRAP_SANDBOX=OFF -DENABLE_VIDEO=ON -DENABLE_WEB_AUDIO=OFF -DUSE_GSTREAMER=OFF \
 	-DENABLE_MEDIA_STREAM=OFF -DENABLE_MEDIA_RECORDER=OFF -DENABLE_WEB_CODECS=OFF \
 	-DENABLE_SPEECH_SYNTHESIS=OFF -DENABLE_SPELLCHECK=OFF -DENABLE_GAMEPAD=OFF -DENABLE_WEB_AUTHN=OFF \
 	-DENABLE_WEBDRIVER=OFF -DENABLE_GPU_PROCESS=OFF -DENABLE_PDFJS=ON -DENABLE_THUNDER=OFF \

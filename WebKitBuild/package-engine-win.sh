@@ -11,6 +11,9 @@
 # fontconfig look for their modules and configuration relative to their own
 # DLLs (lib\gio\modules and etc\fonts beside them), so the directory works
 # wherever it is copied with nothing set in the environment.
+# FEATURES lists, one per line, what the build has that an earlier Windows
+# engine lacked, for clients to route pages by: `media` when it plays video and
+# audio (Media Foundation; Tern sends such pages to WebView2 otherwise).
 # Usage: package-engine-win.sh x64|arm64 BUILD_DIR OUT_DIR
 # llvm-objdump comes from WEBKIT_LLVM_BIN, else PATH.
 set -e
@@ -44,6 +47,10 @@ cp "$deps/lib/gio/modules/libgioopenssl.dll" "$out/lib/gio/modules/"
 # Where fontconfig looks from its own DLL: the system's fonts, per fonts.conf;
 # conf.d's links are copied as the files they name.
 cp -RL "$deps/etc/fonts" "$out/etc/fonts"
+: >"$out/FEATURES"
+if grep -q '^ENABLE_VIDEO:BOOL=ON$' "$build/CMakeCache.txt"; then
+	echo media >>"$out/FEATURES"
+fi
 
 # Every DLL imported, transitively, that the build or the sysroot provides (the
 # rest are Windows' own). The import tables name
@@ -84,7 +91,7 @@ windows_dll() {
 	ws2_32.dll|crypt32.dll|bcrypt.dll|ncrypt.dll|secur32.dll|shlwapi.dll|dnsapi.dll|iphlpapi.dll|winmm.dll|\
 	dwmapi.dll|uxtheme.dll|usp10.dll|version.dll|userenv.dll|netapi32.dll|rpcrt4.dll|comctl32.dll|comdlg32.dll|\
 	dbghelp.dll|psapi.dll|ntdll.dll|ucrtbase.dll|setupapi.dll|imm32.dll|msimg32.dll|winhttp.dll|wininet.dll|\
-	d3d9.dll|d3d11.dll|d3d12.dll|dxgi.dll|d3dcompiler_47.dll|opengl32.dll|mfplat.dll|mf.dll|mfreadwrite.dll|\
+	d3d9.dll|d3d11.dll|d3d12.dll|dxgi.dll|d3dcompiler_47.dll|opengl32.dll|mfplat.dll|mf.dll|mfreadwrite.dll|evr.dll|dxva2.dll|\
 	propsys.dll|shcore.dll|powrprof.dll|wtsapi32.dll|normaliz.dll|mswsock.dll|cfgmgr32.dll|hid.dll|winspool.drv|\
 	dwrite.dll|windowscodecs.dll|wldap32.dll|credui.dll|msvcrt.dll|synchronization.dll) return 0 ;;
 	*) return 1 ;;

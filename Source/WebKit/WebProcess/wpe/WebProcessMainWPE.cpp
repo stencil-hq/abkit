@@ -44,6 +44,10 @@
 #include <wtf/SystemTracing.h>
 #endif
 
+#if USE(MEDIA_FOUNDATION)
+#include <objbase.h>
+#endif
+
 #if USE(SKIA_OPENTYPE_SVG)
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/modules/svg/SkSVGOpenTypeSVGDecoder.h>
@@ -63,6 +67,13 @@ public:
 
 #if USE(GCRYPT)
         PAL::GCrypt::initialize();
+#endif
+
+#if USE(MEDIA_FOUNDATION)
+        // Media Foundation's objects are COM's, as in the Win port's web process; they
+        // work from a thread that something made an apartment of its own before, too.
+        HRESULT hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        RELEASE_ASSERT(SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE);
 #endif
 
         SkGraphics::Init();
