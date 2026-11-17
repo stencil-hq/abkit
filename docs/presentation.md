@@ -44,6 +44,12 @@ swap chain could not be made), its frames come to the host as buffers, and the h
 itself: in a child window of its own there, of the frame's size at the top left, below the web process's (whose
 frames cover it), disabled and transparent to hits as well. Either way the client sees the page's frames in `N`.
 
+A web process that crashes in the graphics stack (a display driver, Direct3D or ANGLE, as the host's web process
+extension finds) costs the host the GPU: from then on its pages draw in software, their frames coming as buffers
+as above. Each page that drew with the GPU and crashed loads again, reporting no `failed`; pages opened later
+draw in software from the start, and pages still running keep the GPU until they crash too. That lasts until
+the host exits.
+
 While a `capture` is under way the web process presents nothing into the window, which keeps the frame it last
 showed. `"to":null`, `close`, or presenting into another window ends the presentation: window `N` keeps the
 last frame the web process presented into it (the host's child window for it stays until the block closes), and

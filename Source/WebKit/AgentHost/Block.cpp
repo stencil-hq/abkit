@@ -74,6 +74,14 @@ void Block::setFeature(const char* identifier, bool enabled)
     g_warning("the engine has no feature named %s", identifier);
 }
 
+#if defined(_WIN32)
+void Block::drawWithoutGPU()
+{
+    setFeature("HardwareAcceleration", false);
+    m_drawsWithGPU = false;
+}
+#endif
+
 void Block::open(const std::string& url)
 {
     m_settings = GRef<WebKitSettings>::adopt(webkit_settings_new());
@@ -83,6 +91,10 @@ void Block::open(const std::string& url)
     // The page is always focused in an active window, and renders no frame nobody asked for.
     setFeature("FocusEmulation", true);
     setFeature("CompositionSuppressed", true);
+#if defined(_WIN32)
+    if (!m_host.drawsWithGPU())
+        drawWithoutGPU();
+#endif
     applyDefaultIdentity();
 
     m_contentManager = GRef<WebKitUserContentManager>::adopt(webkit_user_content_manager_new());
@@ -666,11 +678,32 @@ void Block::webProcessTerminated(WebKitWebProcessTerminationReason reason)
 {
     if (reason == WEBKIT_WEB_PROCESS_TERMINATED_BY_API)
         return;
-    m_error = reason == WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT ? "The page's web process went over its memory limit" : "The page's web process crashed";
     stopWatchingResponsiveness();
     m_frames.clear();
     m_frameCalls.clear();
     failEvaluations(std::exchange(m_evaluations, { }), "eval: the page's web process is gone");
+#if defined(_WIN32)
+    // A web process that crashed in the graphics stack took the GPU with it, not the page: the page comes back,
+    // drawn in software, once. (Reloaded after the engine is done telling of the crash.)
+    if (reason == WEBKIT_WEB_PROCESS_CRASHED && m_settings && m_drawsWithGPU && !m_host.drawsWithGPU()) {
+        drawWithoutGPU();
+        runAfter(0, [weakThis = weak_from_this()] {
+            auto block = weakThis.lock();
+            if (!block || block->m_closed)
+                return;
+            // The page that was showing comes back from history; one the process went with before it showed
+            // loads again.
+            auto* view = block->m_view.get();
+            const char* uri = webkit_web_view_get_uri(view);
+            if (webkit_back_forward_list_get_current_item(webkit_web_view_get_back_forward_list(view)))
+                webkit_web_view_reload(view);
+            else if (uri && *uri && strcmp(uri, "about:blank"))
+                webkit_web_view_load_uri(view, uri);
+        });
+        return;
+    }
+#endif
+    m_error = reason == WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT ? "The page's web process went over its memory limit" : "The page's web process crashed";
     auto event = eventOfType("failed");
     event.setString("message", *m_error);
     // The page that was showing went with its process, unlike a load that failed.

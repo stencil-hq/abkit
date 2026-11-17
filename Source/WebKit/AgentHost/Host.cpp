@@ -125,17 +125,28 @@ bool Host::start(int input, int output)
     // round, this process never hears of its helper processes and no page loads. Making any WebKit object does
     // it, and the context is the first one made.
     m_context = GRef<WebKitWebContext>::adopt(webkit_web_context_new());
-    g_signal_connect(m_context.get(), "initialize-web-process-extensions", G_CALLBACK(+[](WebKitWebContext* context, gpointer) {
+    g_signal_connect(m_context.get(), "initialize-web-process-extensions", G_CALLBACK(+[](WebKitWebContext* context, [[maybe_unused]] gpointer host) {
         // The host's extension is in a directory beside its executable.
         auto directory = Platform::executableDirectory();
         if (directory.empty())
             return;
         GChars extensions(g_build_filename(directory.c_str(), extensionsDirectoryName, nullptr));
-        if (g_file_test(extensions.get(), G_FILE_TEST_IS_DIR))
-            webkit_web_context_set_web_process_extensions_directory(context, extensions.get());
-        else
+        if (!g_file_test(extensions.get(), G_FILE_TEST_IS_DIR)) {
             g_warning("no directory %s: the pages' console messages will not be reported", extensions.get());
-    }), nullptr);
+            return;
+        }
+        webkit_web_context_set_web_process_extensions_directory(context, extensions.get());
+#if defined(_WIN32)
+        auto& self = *static_cast<Host*>(host);
+        if (self.m_graphicsCrashFile.empty()) {
+            auto& temporary = self.temporaryDirectory();
+            if (!temporary.empty())
+                self.m_graphicsCrashFile = takeString(g_build_filename(temporary.c_str(), "graphics-crash", nullptr));
+        }
+        if (!self.m_graphicsCrashFile.empty())
+            webkit_web_context_set_web_process_extensions_initialization_user_data(context, g_variant_new_string(self.m_graphicsCrashFile.c_str()));
+#endif
+    }), this);
 
     m_display = GRef<WPEDisplay>::adopt(createDisplay());
     if (!m_display)
@@ -173,6 +184,21 @@ void Host::stop()
     }
 #endif
 }
+
+#if defined(_WIN32)
+bool Host::drawsWithGPU()
+{
+    if (!m_drawsWithGPU || m_graphicsCrashFile.empty())
+        return m_drawsWithGPU;
+    char* module = nullptr;
+    if (!g_file_get_contents(m_graphicsCrashFile.c_str(), &module, nullptr, nullptr))
+        return true;
+    g_warning("a web process crashed in %s: pages draw in software from now on", module);
+    g_free(module);
+    m_drawsWithGPU = false;
+    return false;
+}
+#endif
 
 void Host::handleClosed(const char* error)
 {

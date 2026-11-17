@@ -13,6 +13,11 @@ What the `events` op ([protocol.md](protocol.md)) returns for a block. Every eve
 (`name`, a CSS cursor keyword such as `default`, `pointer`, `text`: the page's cursor changed, reported only while
 the block is presented, and once when a presentation starts).
 
+`failed` with `gone` (`true`): the page's web process ended (it crashed, or went over its memory limit), and the
+page that was showing with it; a navigation (`goto`, `nav`) starts another process. On Windows a page whose web
+process crashed in the graphics stack reports none: it loads again, drawn in software
+([presentation.md](presentation.md#windows)).
+
 `contextMenu`: a right-click (or the Menu key) the page left to the engine, which shows no menu of its own: the
 client may show one. `x`, `y` (CSS px, where the pointer last was), `link`, `image`, `media` (the addresses under
 it, each only when there is one), `editable`, `selection` (a field, selected content), `back`, `forward` (history).

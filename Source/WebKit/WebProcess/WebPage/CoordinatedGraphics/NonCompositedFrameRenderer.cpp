@@ -198,6 +198,18 @@ void NonCompositedFrameRenderer::updateRendering()
     webPage->finalizeRenderingUpdate({ });
     webPage->flushPendingEditorStateUpdate();
 
+    if (m_isCompositionSuppressed) {
+        // Nothing is painted: the frame that ends the suppression paints all of the page. What waits for drawing,
+        // and a forced repaint, have no frame to wait for, so they are done now.
+        webPage->didUpdateRendering({ });
+        if (RefPtr drawingArea = webPage->drawingArea())
+            drawingArea->dispatchPendingCallbacksAfterEnsuringDrawing();
+        if (m_forcedRepaintAsyncCallback)
+            m_forcedRepaintAsyncCallback();
+        WTFEndSignpost(this, NonCompositedRenderingUpdate);
+        return;
+    }
+
 #if ENABLE(DAMAGE_TRACKING)
     if (m_frameDamage && m_frameDamage->isEmpty() && !m_forcedRepaintAsyncCallback) {
         webPage->didUpdateRendering({ });
@@ -336,6 +348,17 @@ void NonCompositedFrameRenderer::updateRenderingWithForcedRepaint()
     protect(m_webPage)->corePage()->forceRepaintAllFrames();
     addDirtyRect(m_webPage->bounds());
     updateRendering();
+}
+
+void NonCompositedFrameRenderer::setCompositionSuppressed(bool suppressed)
+{
+    if (m_isCompositionSuppressed == suppressed)
+        return;
+
+    m_isCompositionSuppressed = suppressed;
+    // What changed meanwhile was not painted: the frame that ends the suppression is all of the page.
+    if (!suppressed)
+        setNeedsDisplay();
 }
 
 bool NonCompositedFrameRenderer::ensureDrawing()

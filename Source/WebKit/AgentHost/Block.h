@@ -147,6 +147,10 @@ private:
     void inspectorViewGone();
     static void inspectorViewFinalized(gpointer block, GObject*);
     void setFeature(const char* identifier, bool enabled);
+#if defined(_WIN32)
+    // Has the page drawn in software (the HardwareAcceleration feature off) from its next web process on.
+    void drawWithoutGPU();
+#endif
     void connectSignals();
     void uriChanged();
     void titleChanged();
@@ -304,6 +308,11 @@ private:
     std::weak_ptr<Block> m_inspector;
     // A Web Inspector's block (openInspector()): a view and no web view of its own.
     bool m_isInspector { false };
+#if defined(_WIN32)
+    // Whether the page draws with the GPU: unless the host gave it up (Host::drawsWithGPU()) before the page opened
+    // or after its web process crashed.
+    bool m_drawsWithGPU { true };
+#endif
 
     // Events: the last `ringSize` of them, numbered from 1.
     static constexpr size_t ringSize = 4096;

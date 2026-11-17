@@ -109,6 +109,12 @@ public:
     // A directory for what is not to outlive this process: made when first asked for, removed by stop().
     // Empty when it cannot be made.
     const std::string& temporaryDirectory();
+#if defined(_WIN32)
+    // Whether pages draw with the GPU. They do until a web process crashes in the graphics stack (a display
+    // driver, Direct3D or ANGLE), which the host's web process extension writes down in a file of the host's;
+    // from then on pages draw in software, which leaves the GPU and its driver out.
+    bool drawsWithGPU();
+#endif
     // Dark or light appearance. It is the display's, so every block's: the last request wins.
     void setDarkAppearance(bool);
     // Applies the system's appearance: the Mac's (dark or light) on macOS, light elsewhere.
@@ -152,6 +158,12 @@ private:
     std::map<std::string, std::shared_ptr<PresentClient>> m_presentClients;
     uint64_t m_lastBlock { 0 };
     std::string m_frameToken;
+#if defined(_WIN32)
+    // Where web processes write down a crash in the graphics stack (the module's path), in the temporary
+    // directory; empty until the first web process starts, or without that directory.
+    std::string m_graphicsCrashFile;
+    bool m_drawsWithGPU { true };
+#endif
 };
 
 } // namespace AgentHost

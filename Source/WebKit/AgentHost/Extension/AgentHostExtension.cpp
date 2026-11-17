@@ -27,10 +27,16 @@
 // process (from the `extensions` directory beside the host's executable). It
 // tells the host what pages write to their consoles, which the engine does
 // not tell its embedder otherwise, so that no script has to listen for it
-// inside the page.
+// inside the page. On Windows it also writes down a crash of the process in
+// the graphics stack, for the host to draw its pages without the GPU from
+// then on (Host::drawsWithGPU()).
 
 #include "../ExtensionMessages.h"
 #include <wpe/webkit-web-process-extension.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 static const char* levelName(WebKitConsoleMessageLevel level)
 {
@@ -84,8 +90,86 @@ static void consoleMessageSent(WebKitWebPage* page, WebKitConsoleMessage* messag
     G_GNUC_END_IGNORE_DEPRECATIONS
 }
 
-extern "C" G_MODULE_EXPORT void webkit_web_process_extension_initialize(WebKitWebProcessExtension* extension)
+#if defined(_WIN32)
+
+// The file the host named (UTF-16): a crash in the graphics stack writes the module's path into it.
+static const wchar_t* graphicsCrashFile;
+static LPTOP_LEVEL_EXCEPTION_FILTER previousExceptionFilter;
+
+// The modules of the graphics stack outside the driver store: Direct3D and DXGI, WARP, and ANGLE.
+static const wchar_t* const graphicsModules[] = {
+    L"d3d11.dll", L"d3d12.dll", L"d3d12core.dll", L"dxgi.dll", L"d3d10warp.dll", L"libegl.dll", L"libglesv2.dll",
+};
+
+// Whether `text` starts with lowercase ASCII `prefix`, ignoring case; `whole`: and ends there.
+static bool startsWithIgnoringASCIICase(const wchar_t* text, const wchar_t* prefix, bool whole)
 {
+    for (; *prefix; ++text, ++prefix) {
+        wchar_t character = *text >= L'A' && *text <= L'Z' ? *text - L'A' + L'a' : *text;
+        if (character != *prefix)
+            return false;
+    }
+    return !whole || !*text;
+}
+
+// Whether the module at `path` is of the graphics stack: a display driver (Windows installs every user-mode
+// display driver into its driver store) or one of `graphicsModules`.
+static bool isGraphicsModule(const wchar_t* path)
+{
+    const wchar_t* name = path;
+    for (const wchar_t* character = path; *character; ++character) {
+        if (startsWithIgnoringASCIICase(character, L"\\driverstore\\", false))
+            return true;
+        if (*character == L'\\' || *character == L'/')
+            name = character + 1;
+    }
+    for (auto* module : graphicsModules) {
+        if (startsWithIgnoringASCIICase(name, module, true))
+            return true;
+    }
+    return false;
+}
+
+// The process is going down with an exception nothing handled: when it was raised in the graphics stack, the
+// module's path goes into the host's file. It allocates nothing: the crash may have broken the heap.
+static LONG WINAPI graphicsCrashFilter(EXCEPTION_POINTERS* exception)
+{
+    // A stack overflow leaves no stack to work on.
+    if (exception && exception->ExceptionRecord && exception->ExceptionRecord->ExceptionCode != EXCEPTION_STACK_OVERFLOW) {
+        HMODULE module = nullptr;
+        wchar_t path[MAX_PATH];
+        auto address = static_cast<LPCWSTR>(exception->ExceptionRecord->ExceptionAddress);
+        if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, address, &module)) {
+            DWORD length = GetModuleFileNameW(module, path, MAX_PATH);
+            if (length && length < MAX_PATH && isGraphicsModule(path)) {
+                char text[MAX_PATH * 3];
+                int size = WideCharToMultiByte(CP_UTF8, 0, path, static_cast<int>(length), text, sizeof(text), nullptr, nullptr);
+                HANDLE file = CreateFileW(graphicsCrashFile, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+                if (file != INVALID_HANDLE_VALUE) {
+                    DWORD written = 0;
+                    WriteFile(file, text, static_cast<DWORD>(size > 0 ? size : 0), &written, nullptr);
+                    CloseHandle(file);
+                }
+            }
+        }
+    }
+    return previousExceptionFilter ? previousExceptionFilter(exception) : EXCEPTION_CONTINUE_SEARCH;
+}
+
+#endif
+
+// `userData`: on Windows, the path of the file a crash in the graphics stack is written down in (a string).
+extern "C" G_MODULE_EXPORT void webkit_web_process_extension_initialize_with_user_data(WebKitWebProcessExtension* extension, [[maybe_unused]] const GVariant* userData)
+{
+#if defined(_WIN32)
+    auto* data = const_cast<GVariant*>(userData);
+    if (data && g_variant_is_of_type(data, G_VARIANT_TYPE_STRING)) {
+        // Kept for as long as the process runs.
+        graphicsCrashFile = reinterpret_cast<const wchar_t*>(g_utf8_to_utf16(g_variant_get_string(data, nullptr), -1, nullptr, nullptr, nullptr));
+        if (graphicsCrashFile)
+            previousExceptionFilter = SetUnhandledExceptionFilter(graphicsCrashFilter);
+    }
+#endif
     g_signal_connect(extension, "page-created", G_CALLBACK(+[](WebKitWebProcessExtension*, WebKitWebPage* page, gpointer) {
         g_signal_connect(page, "console-message-sent", G_CALLBACK(consoleMessageSent), nullptr);
     }), nullptr);

@@ -39,7 +39,6 @@
 #include "ShadowRoot.h"
 #include "SpeculationRules.h"
 #include "URLPattern.h"
-#include "URLPatternOptions.h"
 
 namespace WebCore {
 

@@ -79,6 +79,7 @@ private:
 #endif
 
     void releaseMemory(WTF::Critical) override;
+    void setCompositionSuppressed(bool) override;
 
     const WeakRef<WebPage> m_webPage;
     const Ref<AcceleratedSurface> m_surface;
@@ -86,6 +87,7 @@ private:
     bool m_pendingNotifyFrame { false };
     bool m_isWaitingForFrameComplete { false };
     bool m_shouldRenderFollowupFrame { false };
+    bool m_isCompositionSuppressed { false };
 #if ENABLE(DAMAGE_TRACKING)
     std::optional<WebCore::Damage> m_frameDamage;
     std::optional<Vector<WebCore::Region>> m_frameDamageHistoryForTesting;
