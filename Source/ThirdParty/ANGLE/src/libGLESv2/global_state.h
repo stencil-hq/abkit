@@ -96,7 +96,20 @@ ANGLE_INLINE ScopedContextMutexLock LockAndTryMergeContextMutexes(gl::Context *c
     return lock;
 }
 
-#if !defined(ANGLE_ENABLE_CONTEXT_MUTEX)
+#if !defined(ANGLE_ENABLE_CONTEXT_MUTEX) && defined(ANGLE_ENABLE_SHARE_CONTEXT_LOCK) && \
+    defined(ANGLE_FORCE_CONTEXT_CHECK_EVERY_CALL)
+// WebKit (WPE on Windows): every GL call holds the global lock (SCOPED_SHARE_CONTEXT_LOCK), as the
+// contexts of a display share its one D3D11 device context. EGL calls draw with it too (a swap
+// copies to and presents the swap chain, surfaces are made and released), so they hold it as well:
+// without a context mutex nothing else keeps them off the threads drawing meanwhile. Some EGL
+// entry points hold the global lock already; it is recursive in this configuration. The global
+// lock comes after the display and surface locks; eglReleaseThread takes the display lock under
+// it and could deadlock against them (WebKit never calls it).
+#    define ANGLE_EGL_SCOPED_CONTEXT_LOCK(EP, THREAD, ...) \
+        egl::ScopedGlobalEGLMutexLock shareContextLock
+#    define ANGLE_EGL_SCOPED_CONTEXT_LOCK_DPY(EP, THREAD, DPY, ...) \
+        egl::ScopedGlobalEGLMutexLock shareContextLock
+#elif !defined(ANGLE_ENABLE_CONTEXT_MUTEX)
 #    define ANGLE_EGL_SCOPED_CONTEXT_LOCK(EP, THREAD, ...)
 #    define ANGLE_EGL_SCOPED_CONTEXT_LOCK_DPY(EP, THREAD, DPY, ...)
 #else

@@ -64,6 +64,9 @@ class SwapChain11 final : public SwapChainD3D
 
   private:
     void release();
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+    void releaseFrameLatencyWaitable();
+#endif
     angle::Result initPassThroughResources(DisplayD3D *displayD3D);
 
     void releaseOffscreenColorBuffer();
@@ -100,6 +103,11 @@ class SwapChain11 final : public SwapChainD3D
     angle::ComPtr<IDXGISwapChain> mSwapChain;
     angle::ComPtr<IDXGISwapChain1> mSwapChain1;
     angle::ComPtr<IDXGIKeyedMutex> mKeyedMutex;
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+    // WebKit (WPE): signaled when the display took a frame, for a swap chain made with
+    // DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT (NativeWindow11Win32); null otherwise.
+    HANDLE mFrameLatencyWaitable = nullptr;
+#endif
 
     TextureHelper11 mBackBufferTexture;
     d3d11::RenderTargetView mBackBufferRTView;

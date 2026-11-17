@@ -33,10 +33,15 @@ if (is_win)
     # cache per display, so every call must hold the global lock and treat a
     # call on another context than the last as a context switch; without
     # both, tiles repainted after the first frame drew with another thread's
-    # state (missing or garbage pixels) or crashed in StateManager11.
+    # state (missing or garbage pixels) or crashed in StateManager11. EGL
+    # calls hold the global lock too (global_state.h): eglSwapBuffers on the
+    # compositor thread presented while the painting workers drew, and
+    # Intel's threaded driver crashed in its Present. The lock is recursive,
+    # as some EGL entry points hold it already.
     list(APPEND ANGLE_DEFINITIONS
         ANGLE_ENABLE_SHARE_CONTEXT_LOCK=1
         ANGLE_FORCE_CONTEXT_CHECK_EVERY_CALL=1
+        ANGLE_ENABLE_GLOBAL_MUTEX_RECURSION=1
     )
     # The web process presents into its embedder's window: with a flip-model
     # swap chain at most one frame ahead (see NativeWindow11Win32.cpp).

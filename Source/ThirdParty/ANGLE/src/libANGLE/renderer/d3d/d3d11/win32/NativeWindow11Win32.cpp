@@ -154,13 +154,16 @@ HRESULT NativeWindow11Win32::createSwapChain(ID3D11Device *device,
         swapChainDesc.Flags         = 0;
 #if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
         // WebKit (WPE): a flip-model swap chain, which DWM composes without a
-        // copy and without tearing (it allows no multisampling).
+        // copy and without tearing (it allows no multisampling). Its presents
+        // never wait for the display: SwapChain11 waits on its frame latency
+        // object instead, once ANGLE's lock is released.
         const bool flipModel = samples <= 1;
         if (flipModel)
         {
             swapChainDesc.SampleDesc.Count = 1;
             swapChainDesc.BufferCount      = 2;
             swapChainDesc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+            swapChainDesc.Flags            = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
         }
 #endif
         angle::ComPtr<IDXGISwapChain1> swapChain1;
@@ -172,11 +175,11 @@ HRESULT NativeWindow11Win32::createSwapChain(ID3D11Device *device,
             // At most one frame queued ahead of the display.
             if (flipModel)
             {
-                angle::ComPtr<IDXGIDevice1> dxgiDevice =
-                    angle::DynamicCastComObject<IDXGIDevice1>(device);
-                if (dxgiDevice)
+                angle::ComPtr<IDXGISwapChain2> swapChain2 =
+                    angle::DynamicCastComObject<IDXGISwapChain2>(swapChain1.Get());
+                if (swapChain2)
                 {
-                    dxgiDevice->SetMaximumFrameLatency(1);
+                    swapChain2->SetMaximumFrameLatency(1);
                 }
             }
 #endif

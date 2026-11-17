@@ -11,6 +11,7 @@
 
 #include <EGL/eglext.h>
 
+#include "libANGLE/Display.h"
 #include "libANGLE/features.h"
 #include "libANGLE/renderer/d3d/DisplayD3D.h"
 #include "libANGLE/renderer/d3d/d3d11/NativeWindow11.h"
@@ -114,6 +115,9 @@ void SwapChain11::release()
 
     mSwapChain1.Reset();
     mSwapChain.Reset();
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+    releaseFrameLatencyWaitable();
+#endif
     mKeyedMutex.Reset();
     mBackBufferTexture.reset();
     mBackBufferRTView.reset();
@@ -136,6 +140,17 @@ void SwapChain11::release()
         mShareHandle = nullptr;
     }
 }
+
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+void SwapChain11::releaseFrameLatencyWaitable()
+{
+    if (mFrameLatencyWaitable)
+    {
+        CloseHandle(mFrameLatencyWaitable);
+        mFrameLatencyWaitable = nullptr;
+    }
+}
+#endif
 
 void SwapChain11::releaseOffscreenColorBuffer()
 {
@@ -505,8 +520,9 @@ EGLint SwapChain11::resize(DisplayD3D *displayD3D, EGLint backbufferWidth, EGLin
         return EGL_BAD_ALLOC;
     }
 
+    // The flags the swap chain was made with (a frame latency object's cannot change).
     hr = mSwapChain->ResizeBuffers(desc.BufferCount, backbufferWidth, backbufferHeight,
-                                   getSwapChainNativeFormat(), 0);
+                                   getSwapChainNativeFormat(), desc.Flags);
 
     if (FAILED(hr))
     {
@@ -611,6 +627,9 @@ EGLint SwapChain11::reset(DisplayD3D *displayD3D,
     // old render target still exists for the purpose of preserving its contents.
     mSwapChain1.Reset();
     mSwapChain.Reset();
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+    releaseFrameLatencyWaitable();
+#endif
     mBackBufferTexture.reset();
     mBackBufferRTView.reset();
 
@@ -654,6 +673,23 @@ EGLint SwapChain11::reset(DisplayD3D *displayD3D,
         }
 
         mSwapChain1 = angle::DynamicCastComObject<IDXGISwapChain1>(mSwapChain.Get());
+
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+        // WebKit (WPE): the frame latency object of a flip-model swap chain (NativeWindow11Win32).
+        // Its first slot is taken now, as each later one is after the frame before (present()).
+        angle::ComPtr<IDXGISwapChain2> swapChain2 =
+            angle::DynamicCastComObject<IDXGISwapChain2>(mSwapChain.Get());
+        DXGI_SWAP_CHAIN_DESC1 desc1 = {};
+        if (swapChain2 && SUCCEEDED(swapChain2->GetDesc1(&desc1)) &&
+            (desc1.Flags & DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT))
+        {
+            mFrameLatencyWaitable = swapChain2->GetFrameLatencyWaitableObject();
+            if (mFrameLatencyWaitable)
+            {
+                WaitForSingleObjectEx(mFrameLatencyWaitable, 0, FALSE);
+            }
+        }
+#endif
 
         angle::ComPtr<ID3D11Texture2D> backbufferTexture;
         hr = mSwapChain->GetBuffer(0, IID_PPV_ARGS(&backbufferTexture));
@@ -929,6 +965,23 @@ EGLint SwapChain11::present(DisplayD3D *displayD3D, EGLint x, EGLint y, EGLint w
     }
 
     mFirstSwap = false;
+
+#if defined(ANGLE_HWND_FLIP_MODEL_SWAP_CHAIN)
+    // WebKit (WPE): the frame was queued without waiting. The thread waits for the display to take
+    // it once the EGL call released ANGLE's lock (an unlocked tail call), so the other threads that
+    // draw with this display's device go on meanwhile; the next frame then queues without waiting.
+    // An occluded window took no frame, and is not waited for.
+    HANDLE waitable = nullptr;
+    if (result == S_OK && mFrameLatencyWaitable &&
+        DuplicateHandle(GetCurrentProcess(), mFrameLatencyWaitable, GetCurrentProcess(), &waitable,
+                        0, FALSE, DUPLICATE_SAME_ACCESS))
+    {
+        egl::Display::GetCurrentThreadUnlockedTailCall()->add([waitable](void *) {
+            WaitForSingleObjectEx(waitable, 1000, FALSE);
+            CloseHandle(waitable);
+        });
+    }
+#endif
 
     // Some swapping mechanisms such as DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL unbind the current render
     // target. Mark it dirty. Use the proxy context in display since there is none available.
