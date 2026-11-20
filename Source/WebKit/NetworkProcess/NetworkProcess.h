@@ -353,7 +353,7 @@ public:
     void setOptInCookiePartitioningEnabled(PAL::SessionID, bool) const;
 #endif
 
-    void preconnectTo(PAL::SessionID, WebPageProxyIdentifier, WebCore::PageIdentifier, WebCore::ResourceRequest&&, WebCore::StoredCredentialsPolicy, std::optional<NavigatingToAppBoundDomain>, OptionSet<WebCore::AdvancedPrivacyProtections>, uint64_t requiredCookiesVersion);
+    void preconnectTo(PAL::SessionID, std::optional<WebPageProxyIdentifier>, std::optional<WebCore::PageIdentifier>, WebCore::ResourceRequest&&, WebCore::StoredCredentialsPolicy, std::optional<NavigatingToAppBoundDomain>, OptionSet<WebCore::AdvancedPrivacyProtections>, uint64_t requiredCookiesVersion);
 
     void setSessionIsControlledByAutomation(PAL::SessionID, bool);
     NODELETE bool sessionIsControlledByAutomation(PAL::SessionID) const;

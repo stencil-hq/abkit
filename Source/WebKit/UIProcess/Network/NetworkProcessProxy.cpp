@@ -1856,7 +1856,7 @@ void NetworkProcessProxy::testProcessIncomingSyncMessagesWhenWaitingForSyncReply
     reply(handled);
 }
 
-void NetworkProcessProxy::preconnectTo(PAL::SessionID sessionID, WebPageProxyIdentifier webPageProxyID, WebCore::PageIdentifier webPageID, WebCore::ResourceRequest&& request, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections)
+void NetworkProcessProxy::preconnectTo(PAL::SessionID sessionID, std::optional<WebPageProxyIdentifier> webPageProxyID, std::optional<WebCore::PageIdentifier> webPageID, WebCore::ResourceRequest&& request, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections)
 {
 #if PLATFORM(COCOA)
     if (!isUIThread()) {

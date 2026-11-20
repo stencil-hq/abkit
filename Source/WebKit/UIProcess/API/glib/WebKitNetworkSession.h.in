@@ -118,6 +118,10 @@ WEBKIT_API void
 webkit_network_session_prefetch_dns                              (WebKitNetworkSession         *session,
                                                                   const char                   *hostname);
 
+WEBKIT_API void
+webkit_network_session_preconnect                                (WebKitNetworkSession         *session,
+                                                                  const char                   *uri);
+
 WEBKIT_API WebKitDownload *
 webkit_network_session_download_uri                              (WebKitNetworkSession         *session,
                                                                   const char                   *uri);

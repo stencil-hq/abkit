@@ -45,7 +45,7 @@ Tern's `agent` engine are two).
   the context menus their pages leave to the engine ([events.md](events.md)); `live` says `input` takes a user's
   steps as they come; `inspect` says the `inspect` op exists; `present` (macOS, Windows) says blocks can be
   presented to another process
-  ([presentation.md](presentation.md)).
+  ([presentation.md](presentation.md)); `preconnect` says the `preconnect` op exists.
 - `{"hello":{"clipboard":"system"}}`, from a client that shows the host's pages to its user, makes the clipboard
   of the host's pages the system's (macOS: the general pasteboard): what they copy goes there, what other apps
   put there they paste, and the `clipboard` op reads and writes it. The welcome then lists `systemClipboard`;
@@ -59,7 +59,7 @@ Tern's `agent` engine are two).
 ## Blocks
 
 A block is one web view. Ids are positive integers, never reused in a process. Every op but `open`, `blocks`,
-`clipboard` and `clear` takes `block`.
+`clipboard`, `clear` and `preconnect` takes `block`.
 
 | Op | Fields | Answer |
 |---|---|---|
@@ -76,6 +76,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `inspect` | | `{"block"}`: the page's Web Inspector, opened in a block of its own (the one open already, when it is). That block takes `present`, `viewport`, `focus`, `input`, `events` and `menu` (others answer `unsupported`); `close` closes the inspector, and the block closes with the inspected one |
 | `menu` | `item` (an `id`) | `{}`; the item chosen of the last menu a `contextMenu` event with `items` asked for ([events.md](events.md)) |
 | `clear` | `profile` (a name) | `{}` once that profile's website data (cookies, storage, caches) is erased; a profile never opened, or without data, is no error; `null` is `invalid` (a store of a block's own goes with its block). Blocks open on the profile stay open and find the data gone |
+| `preconnect` | `url` (`http` or `https`), `profile` (a name, default `"agent"`; `null` is `invalid`) | `{}` at once. The profile's network session resolves the URL's host and connects to it (TCP, and TLS for `https`) in the background, as a page does before it loads an address, so a page of that profile loading from the same origin soon after skips the lookup and the handshakes: for 10 s the page makes no connection of its own before its load, which takes the one made ahead, connected or still connecting. Nothing is requested from the server; a connection that fails is no error, and one left idle closes as the engine's idle connections do. A profile not opened yet gets its store, as `open` would make it |
 
 `open` with `about:blank` loads nothing, so the first `goto` is the view's first history entry; `committed` and
 `loaded` are still reported for it.

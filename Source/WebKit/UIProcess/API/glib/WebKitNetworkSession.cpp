@@ -35,6 +35,8 @@
 #include "WebKitPrivate.h"
 #include "WebKitWebsiteDataManagerPrivate.h"
 #include "WebProcessPool.h"
+#include "WebsiteDataStoreConfiguration.h"
+#include <WebCore/ResourceRequest.h>
 #include <glib/gi18n-lib.h>
 #include <pal/HysteresisActivity.h>
 #include <wtf/HashSet.h>
@@ -630,6 +632,41 @@ void webkit_network_session_prefetch_dns(WebKitNetworkSession* session, const ch
         websiteDataStore->networkProcess().send(Messages::NetworkProcess::PrefetchDNS(String::fromUTF8(hostname)), 0);
     }
     session->priv->dnsPrefetchHystereris.impulse();
+}
+
+/**
+ * webkit_network_session_preconnect:
+ * @session: a #WebKitNetworkSession
+ * @uri: an `http` or `https` URI
+ *
+ * Connect to the server of the given @uri in advance: resolve its host name, open a
+ * connection to it and, for `https`, complete the TLS handshake, so that if a URI of
+ * the same origin is requested soon the load starts without waiting for them: for
+ * 10 seconds a web view loading from that origin makes no connection ahead of its own
+ * and its load takes this one, connected or still connecting. The connection is kept
+ * as an idle one of the session's. Nothing is requested from the server, and URIs of
+ * other schemes are ignored.
+ *
+ * Since: 2.56
+ */
+void webkit_network_session_preconnect(WebKitNetworkSession* session, const char* uri)
+{
+    g_return_if_fail(WEBKIT_IS_NETWORK_SESSION(session));
+    g_return_if_fail(uri);
+
+    URL url { String::fromUTF8(uri) };
+    if (!url.isValid() || !url.protocolIsInHTTPFamily())
+        return;
+
+    Ref websiteDataStore = webkitWebsiteDataManagerGetDataStore(session->priv->websiteDataManager.get());
+    if (!websiteDataStore->configuration().allowsServerPreconnect())
+        return;
+
+    // As a page's own preconnect before it loads a main resource (WebPageProxy::preconnectTo), for no page.
+    WebCore::ResourceRequest request { WTF::move(url) };
+    request.setFirstPartyForCookies(request.url());
+    request.setPriority(WebCore::ResourceLoadPriority::VeryHigh);
+    protect(websiteDataStore->networkProcess())->preconnectTo(websiteDataStore->sessionID(), std::nullopt, std::nullopt, WTF::move(request), WebCore::StoredCredentialsPolicy::Use, std::nullopt, { });
 }
 
 /**

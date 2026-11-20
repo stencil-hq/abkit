@@ -177,7 +177,7 @@ public:
     void websiteDataOriginDirectoryForTesting(PAL::SessionID, WebCore::ClientOrigin&&, OptionSet<WebsiteDataType>, CompletionHandler<void(const String&)>&&);
     void lastPageLoadNetworkActivityCompletionCodeForTesting(PAL::SessionID, WebCore::PageIdentifier, CompletionHandler<void(std::optional<NetworkActivityTracker::CompletionCode>)>&&);
 
-    void preconnectTo(PAL::SessionID, WebPageProxyIdentifier, WebCore::PageIdentifier, WebCore::ResourceRequest&&, WebCore::StoredCredentialsPolicy, std::optional<NavigatingToAppBoundDomain>, OptionSet<WebCore::AdvancedPrivacyProtections>);
+    void preconnectTo(PAL::SessionID, std::optional<WebPageProxyIdentifier>, std::optional<WebCore::PageIdentifier>, WebCore::ResourceRequest&&, WebCore::StoredCredentialsPolicy, std::optional<NavigatingToAppBoundDomain>, OptionSet<WebCore::AdvancedPrivacyProtections>);
 
     void clearPrevalentResource(PAL::SessionID, const RegistrableDomain&, CompletionHandler<void()>&&);
     void clearUserInteraction(PAL::SessionID, const RegistrableDomain&, CompletionHandler<void()>&&);

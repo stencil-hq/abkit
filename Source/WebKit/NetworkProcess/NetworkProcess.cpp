@@ -1960,7 +1960,35 @@ void NetworkProcess::setOptInCookiePartitioningEnabled(PAL::SessionID sessionID,
 }
 #endif
 
-void NetworkProcess::preconnectTo(PAL::SessionID sessionID, WebPageProxyIdentifier webPageProxyID, WebCore::PageIdentifier webPageID, WebCore::ResourceRequest&& request, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections, uint64_t requiredCookiesVersion)
+#if ENABLE(SERVER_PRECONNECT) && USE(SOUP)
+// When a session last preconnected to an origin for no page (webkit_network_session_preconnect, ahead of a page),
+// by "session origin".
+static HashMap<String, MonotonicTime>& preconnectsAhead()
+{
+    static NeverDestroyed<HashMap<String, MonotonicTime>> preconnects;
+    return preconnects;
+}
+
+// Whether a page's own preconnect to `url`, before it loads its main resource, should go: not when the session
+// preconnected to the origin ahead of the page in the last 10 s. libsoup hands a load the newest of the origin's
+// connections still connecting, which would be the page's own, started after the one made ahead; without it the
+// load takes the one made ahead, connected or still connecting. A preconnect for no page is recorded and goes.
+static bool shouldPreconnect(PAL::SessionID sessionID, const URL& url, bool forPage)
+{
+    auto& ahead = preconnectsAhead();
+    auto now = MonotonicTime::now();
+    ahead.removeIf([&](auto& entry) {
+        return now - entry.value > 10_s;
+    });
+    auto key = makeString(sessionID.toUInt64(), ' ', url.protocolHostAndPort());
+    if (forPage)
+        return !ahead.contains(key);
+    ahead.set(WTF::move(key), now);
+    return true;
+}
+#endif
+
+void NetworkProcess::preconnectTo(PAL::SessionID sessionID, std::optional<WebPageProxyIdentifier> webPageProxyID, std::optional<WebCore::PageIdentifier> webPageID, WebCore::ResourceRequest&& request, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections, uint64_t requiredCookiesVersion)
 {
     auto url = request.url();
     auto userAgent = request.httpUserAgent();
@@ -1976,6 +2004,13 @@ void NetworkProcess::preconnectTo(PAL::SessionID sessionID, WebPageProxyIdentifi
     CheckedPtr session = networkSession(sessionID);
     if (!session)
         return;
+
+#if USE(SOUP)
+    if (!shouldPreconnect(sessionID, url, webPageProxyID.has_value())) {
+        LOG_WITH_STREAM(Network, stream << "(NetworkProcess) The page's load takes the connection made ahead to "_s << url.string());
+        return;
+    }
+#endif
 
     NetworkLoadParameters parameters;
     parameters.request = WTF::move(request);

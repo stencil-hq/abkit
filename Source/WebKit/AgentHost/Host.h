@@ -138,6 +138,7 @@ private:
     void listBlocks(const Reply&);
     void clipboard(const Json& operation, const Reply&);
     void clearProfile(const Json& operation, const Reply&);
+    void preconnect(const Json& operation, const Reply&);
     void closeBlock(uint64_t, const Reply&);
     void presentClientGone(const std::string& service);
 

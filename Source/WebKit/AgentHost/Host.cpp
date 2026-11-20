@@ -237,6 +237,8 @@ void Host::handleFrame(std::string&& payload)
 #if defined(__APPLE__) || defined(_WIN32)
         ops += ",\"present\"";
 #endif
+        // `preconnect`: the op that connects to a server ahead of a page's load.
+        ops += ",\"preconnect\"";
         auto clipboard = hello.isObject() ? hello.get("clipboard") : Json();
         if (clipboard.isString() && clipboard.toString() == "system" && useSystemClipboard(m_display.get()))
             ops += ",\"systemClipboard\"";
@@ -295,6 +297,10 @@ void Host::dispatch(const Json& operation, const Reply& reply)
     }
     if (*name == "clear") {
         clearProfile(operation, reply);
+        return;
+    }
+    if (*name == "preconnect") {
+        preconnect(operation, reply);
         return;
     }
     auto identifier = blockIdentifier(operation);
@@ -596,6 +602,33 @@ void Host::clearProfile(const Json& operation, const Reply& reply)
         else
             reply->failed("clear: " + takeError(error, "the website data could not be erased"));
     }));
+}
+
+// Resolves a server's name and connects to it (TCP, and TLS for `https`) in a profile's network session, before
+// a page of the profile loads from it: the page's load takes the idle connection. Nothing is requested.
+void Host::preconnect(const Json& operation, const Reply& reply)
+{
+    auto url = operation.stringMember("url");
+    GChars scheme(url ? g_uri_parse_scheme(url->c_str()) : nullptr);
+    if (!scheme || (g_ascii_strcasecmp(scheme.get(), "https") && g_ascii_strcasecmp(scheme.get(), "http"))) {
+        reply->invalid("preconnect: `url` is an http or https URL");
+        return;
+    }
+    std::string name = "agent";
+    if (auto member = operation.get("profile")) {
+        name = member.isString() ? member.toString() : std::string();
+        if (name.empty() || name == "." || name == ".." || name.find_first_of("/\\") != std::string::npos || name.find('\0') != std::string::npos) {
+            reply->invalid("preconnect: `profile` names a profile (a store of a block's own has no connections to share)");
+            return;
+        }
+    }
+    auto session = sessionForProfile(name);
+    if (!session) {
+        reply->failed("preconnect: the profile's website data store could not be made");
+        return;
+    }
+    webkit_network_session_preconnect(session.get(), url->c_str());
+    reply->ok();
 }
 
 // A client that died, or that a message could not reach: its blocks are presented no more.
