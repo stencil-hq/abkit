@@ -382,6 +382,7 @@ bool Block::handle(const std::string& name, const Json& operation, const Reply& 
         { "allow", &Block::setAllowedHosts },
         { "insecure", &Block::setInsecure },
         { "fileAccess", &Block::setFileAccess },
+        { "muted", &Block::setMuted },
         { "credentials", &Block::setCredentials },
         { "downloads", &Block::setDownloads },
         { "files", &Block::setFiles },

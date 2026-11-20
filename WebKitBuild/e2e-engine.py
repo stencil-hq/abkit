@@ -410,7 +410,7 @@ def test_inspect(executable, helper):
         inspector, frame = present_inspector(host, block, receiver)
         # Every page-only operation must be rejected before validating its fields.
         unsupported = ("state goto nav dialogs dialog scripts eval edit capture cookies setCookie "
-                       "deleteCookie agent appearance allow insecure fileAccess credentials downloads "
+                       "deleteCookie agent appearance allow insecure fileAccess muted credentials downloads "
                        "files dom identity inspect pdf media").split()
         for op in unsupported:
             host.call(op, block=inspector, error="unsupported")

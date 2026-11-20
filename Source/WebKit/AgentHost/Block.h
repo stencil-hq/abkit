@@ -185,6 +185,7 @@ private:
     void setIdentity(const Json&, const Reply&);
     void setInsecure(const Json&, const Reply&);
     void setFileAccess(const Json&, const Reply&);
+    void setMuted(const Json&, const Reply&);
     void setCredentials(const Json&, const Reply&);
     void setDownloads(const Json&, const Reply&);
     void setAllowedHosts(const Json&, const Reply&);

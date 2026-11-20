@@ -242,6 +242,19 @@ void Block::setFileAccess(const Json& operation, const Reply& reply)
     reply->ok();
 }
 
+// A client that keeps a page its user closed (Tern parks it a while for a reopen) silences it meanwhile: every
+// frame's audio, cross-origin ones included.
+void Block::setMuted(const Json& operation, const Reply& reply)
+{
+    auto value = operation.booleanMember("value");
+    if (!value) {
+        reply->invalid("`value` must be true or false");
+        return;
+    }
+    webkit_web_view_set_is_muted(m_view.get(), *value);
+    reply->ok();
+}
+
 void Block::setCredentials(const Json& operation, const Reply& reply)
 {
     auto username = operation.get("username");

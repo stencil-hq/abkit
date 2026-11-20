@@ -101,6 +101,7 @@ A block is one web view. Ids are positive integers, never reused in a process. E
 | `allow` | `hosts` (exact names and `*.domain`, or `null`) | `{}` |
 | `insecure` | `value` | `{}`; `true` accepts invalid certificates |
 | `fileAccess` | `value` | `{}`; `true` lets a `file:` document read other files (fetch, XHR, frames, canvas pixels) as if they shared its origin, as Chromium's `--allow-file-access-from-files` does. Off by default; documents loaded afterwards see the change |
+| `muted` | `value` | `{}`; `true` silences the page's audio, every frame's, until `false` (the default) |
 | `credentials` | `username`, `password`, or neither | `{}` |
 | `downloads` | `dir` (or `null`: downloads are cancelled) | `{}` |
 | `identity` | `seed`, `screen`, `window` ([page.md](page.md)) | `{}` |
