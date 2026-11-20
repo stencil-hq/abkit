@@ -74,6 +74,7 @@ platform/graphics/egl/BitmapTexturePool.cpp @no-unify
 platform/graphics/egl/GLContext.cpp @no-unify
 platform/graphics/egl/GLContextWrapper.cpp @no-unify
 platform/graphics/egl/GLDisplay.cpp @no-unify
+platform/graphics/egl/GLShaderCache.cpp @no-unify
 platform/graphics/egl/GLFence.cpp @no-unify
 platform/graphics/egl/GLFenceEGL.cpp @no-unify
 platform/graphics/egl/GLFenceGL.cpp @no-unify

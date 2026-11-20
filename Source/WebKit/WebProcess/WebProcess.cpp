@@ -190,6 +190,10 @@
 #include "UserMediaCaptureManager.h"
 #endif
 
+#if USE(ANGLE) && USE(GLIB)
+#include <WebCore/GLShaderCache.h>
+#endif
+
 #if USE(CG)
 #include <WebCore/ImageDecoderCG.h>
 #endif
@@ -835,6 +839,10 @@ void WebProcess::setWebsiteDataStoreParameters(WebProcessDataStoreParameters&& p
 {
     ASSERT(!m_sessionID);
     m_sessionID = parameters.sessionID;
+#if USE(ANGLE) && USE(GLIB)
+    // What an ephemeral session's pages compile stays out of the shader cache on disk.
+    WebCore::GLShaderCache::setPersistent(!m_sessionID->isEphemeral());
+#endif
 
 #if ENABLE(VIDEO)
     if (!parameters.mediaCacheDirectory.isEmpty())

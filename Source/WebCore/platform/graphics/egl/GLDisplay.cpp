@@ -22,6 +22,7 @@
 
 #include "FourCC.h"
 #include "GLContext.h"
+#include "GLShaderCache.h"
 #include "Logging.h"
 #include <array>
 #include <wtf/Locker.h>
@@ -81,6 +82,11 @@ RefPtr<GLDisplay> GLDisplay::create(EGLDisplay eglDisplay)
 
     if (eglInitialize(eglDisplay, nullptr, nullptr) == EGL_FALSE)
         return nullptr;
+
+#if USE(ANGLE) && USE(GLIB) && !USE(LIBEPOXY)
+    // This port's EGL is ANGLE's: what it compiles (the compositor's shaders, WebGL programs) is kept.
+    GLShaderCache::attach(eglDisplay);
+#endif
 
     return adoptRef(new GLDisplay(eglDisplay));
 }

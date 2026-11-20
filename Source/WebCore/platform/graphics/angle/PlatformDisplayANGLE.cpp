@@ -23,6 +23,7 @@
 #if ENABLE(WEBGL)
 #include "ANGLEHeaders.h"
 #include "GLContext.h"
+#include "GLShaderCache.h"
 #include "Logging.h"
 
 namespace WebCore {
@@ -63,6 +64,9 @@ EGLDisplay PlatformDisplay::angleEGLDisplay() const
         return EGL_NO_DISPLAY;
     }
     LOG(WebGL, "ANGLE initialised Major: %d Minor: %d", majorVersion, minorVersion);
+#if USE(GLIB)
+    GLShaderCache::attach(angleDisplay);
+#endif
 
     m_angleEGLDisplay = angleDisplay;
     return m_angleEGLDisplay;
