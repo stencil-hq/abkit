@@ -28,7 +28,13 @@
 
 #if USE(ANGLE) && USE(GLIB)
 
+#if ENABLE(WEBGL)
 #include "ANGLEHeaders.h"
+#else
+// This port's EGL is ANGLE's (only WebGL needs ANGLE beside a system EGL).
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#endif
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -141,12 +147,18 @@ static void prune()
 
 void attach(EGLDisplay display)
 {
+#if ENABLE(WEBGL)
     const char* extensions = EGL_QueryString(display, EGL_EXTENSIONS);
-    if (!extensions || !strstr(extensions, "EGL_ANDROID_blob_cache") || directory().isNull())
+    auto setBlobCacheFuncs = EGL_SetBlobCacheFuncsANDROID;
+#else
+    const char* extensions = eglQueryString(display, EGL_EXTENSIONS);
+    auto setBlobCacheFuncs = reinterpret_cast<PFNEGLSETBLOBCACHEFUNCSANDROIDPROC>(eglGetProcAddress("eglSetBlobCacheFuncsANDROID"));
+#endif
+    if (!extensions || !strstr(extensions, "EGL_ANDROID_blob_cache") || !setBlobCacheFuncs || directory().isNull())
         return;
     static std::once_flag pruneOnce;
     std::call_once(pruneOnce, prune);
-    EGL_SetBlobCacheFuncsANDROID(display, set, get);
+    setBlobCacheFuncs(display, set, get);
 }
 
 void setPersistent(bool persistent)
