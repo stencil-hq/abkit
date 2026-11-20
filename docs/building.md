@@ -33,8 +33,12 @@ system, and on a `v<version>` tag publishes the archives to build.stencil.so.
 
 ## macOS
 
-`WebKitBuild/darwin/build-engine.sh darwin-arm64|darwin-x64 OUT_DIR`, on a Mac with Xcode (or its command line
-tools) and Homebrew. Homebrew no longer builds for Intel Macs, so on Apple silicon darwin-x64 takes the Brewfile's
+`WebKitBuild/darwin/build-engine.sh darwin-arm64|darwin-x64 OUT_DIR`, on a Mac with Xcode and Homebrew. Xcode's
+Metal toolchain compiles ANGLE's internal Metal shaders at build time (`Source/ThirdParty/ANGLE/PlatformWPE.cmake`;
+compiled from source in each web process instead, they cost it up to two seconds before its first page loads):
+build-engine.sh downloads it when it is missing (`xcodebuild -downloadComponent MetalToolchain`), and a configure
+without it fails; `-DANGLE_METAL_DEVELOPER_DIR=DIR` names the developer directory to take it from. Homebrew no
+longer builds for Intel Macs, so on Apple silicon darwin-x64 takes the Brewfile's
 last x86_64 bottles from ghcr.io, poured into `/usr/local` (`WebKitBuild/darwin/x86-homebrew.py`, with `sudo`), and
 runs the steps below under Rosetta, with Apple silicon's clang compiling for x86_64. Its steps can be run alone:
 

@@ -20,6 +20,62 @@ if (is_apple)
         list(REMOVE_ITEM ANGLEGLESv2_LIBRARIES ${QUARTZ_LIBRARY})
         list(APPEND ANGLEGLESv2_LIBRARIES ${QUARTZCORE_LIBRARY})
     endif ()
+
+    # The Metal backend draws its blits, clears and mipmaps with an internal shader library.
+    # Compiled from source as each web process starts, it costs that process up to two seconds
+    # whenever the system's Metal compiler cache misses (a new engine build, an evicted cache),
+    # and the page's first load waits behind it. It is compiled here instead and loaded as a
+    # binary (ANGLE_METAL_HAS_PREBUILT_INTERNAL_SHADERS, as in ANGLE's own build, BUILD.gn),
+    # with the Metal toolchain of a developer directory: ANGLE_METAL_DEVELOPER_DIR, else the
+    # first of DEVELOPER_DIR, xcode-select's and /Applications/Xcode.app that has one. Since
+    # Xcode 26 the toolchain is a component of its own: `xcodebuild -downloadComponent
+    # MetalToolchain`.
+    set(ANGLE_METAL_DEVELOPER_DIR "" CACHE PATH "Developer directory whose Metal toolchain compiles ANGLE's internal shaders")
+    execute_process(COMMAND xcode-select -p OUTPUT_VARIABLE _angle_selected_developer_dir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    set(_angle_metal_developer_dir "")
+    foreach (_angle_candidate IN ITEMS "${ANGLE_METAL_DEVELOPER_DIR}" "$ENV{DEVELOPER_DIR}" "${_angle_selected_developer_dir}" "/Applications/Xcode.app/Contents/Developer")
+        if (NOT _angle_candidate OR NOT IS_DIRECTORY "${_angle_candidate}")
+            continue ()
+        endif ()
+        execute_process(COMMAND ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metal RESULT_VARIABLE _angle_metal_found OUTPUT_QUIET ERROR_QUIET)
+        execute_process(COMMAND ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metallib RESULT_VARIABLE _angle_metallib_found OUTPUT_QUIET ERROR_QUIET)
+        if (_angle_metal_found EQUAL 0 AND _angle_metallib_found EQUAL 0)
+            set(_angle_metal_developer_dir "${_angle_candidate}")
+            break ()
+        endif ()
+    endforeach ()
+    if (NOT _angle_metal_developer_dir)
+        message(FATAL_ERROR "ANGLE's internal Metal shaders need the Metal toolchain (metal, metallib): install Xcode and run `xcodebuild -downloadComponent MetalToolchain`, or set ANGLE_METAL_DEVELOPER_DIR to a developer directory that has it.")
+    endif ()
+    message(STATUS "ANGLE's internal Metal shaders: Metal toolchain of ${_angle_metal_developer_dir}")
+
+    set(_angle_metal_dir "${CMAKE_CURRENT_BINARY_DIR}/metal")
+    set(_angle_metal_source "${CMAKE_CURRENT_SOURCE_DIR}/src/libANGLE/renderer/metal/shaders/mtl_internal_shaders_autogen.metal")
+    set(_angle_metal_air "${_angle_metal_dir}/mtl_internal_shaders_autogen.air")
+    set(_angle_metal_lib "${_angle_metal_dir}/mtl_internal_shaders_autogen.metallib")
+    set(_angle_metal_header "${_angle_metal_dir}/mtl_internal_shaders_metallib.h")
+    set(_angle_xcrun ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_metal_developer_dir} xcrun -sdk macosx)
+    add_custom_command(
+        OUTPUT ${_angle_metal_air}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${_angle_metal_dir}
+        COMMAND ${_angle_xcrun} metal -c ${_angle_metal_source} -o ${_angle_metal_air} --std=macos-metal2.1 -mmacosx-version-min=10.14
+        DEPENDS ${_angle_metal_source}
+        COMMENT "Compiling ANGLE's internal Metal shaders"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${_angle_metal_lib}
+        COMMAND ${_angle_xcrun} metallib ${_angle_metal_air} -o ${_angle_metal_lib}
+        DEPENDS ${_angle_metal_air}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${_angle_metal_header}
+        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/libANGLE/renderer/metal/shaders/embed_in_header.py
+            --source ${_angle_metal_lib} --variable-name gDefaultMetallib --header ${_angle_metal_header}
+        DEPENDS ${_angle_metal_lib} ${CMAKE_CURRENT_SOURCE_DIR}/src/libANGLE/renderer/metal/shaders/embed_in_header.py
+        VERBATIM)
+    list(APPEND ANGLE_SOURCES ${_angle_metal_header})
+    list(APPEND ANGLE_PRIVATE_INCLUDE_DIRECTORIES ${_angle_metal_dir})
+    list(APPEND ANGLE_DEFINITIONS ANGLE_METAL_HAS_PREBUILT_INTERNAL_SHADERS)
     return ()
 endif ()
 

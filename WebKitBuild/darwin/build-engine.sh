@@ -43,6 +43,18 @@ if [ "$target" = darwin-x64 ] && [ "$(uname -m)" = arm64 ]; then
 fi
 [ "$(uname -m)" = "$arch" ] || { echo "build-engine: $target builds on an $arch Mac, not $(uname -m)" >&2; exit 2; }
 
+# ANGLE's internal Metal shaders are compiled at build time
+# (Source/ThirdParty/ANGLE/PlatformWPE.cmake) with Xcode's Metal toolchain,
+# which Xcode 26 and later download as a component of its own.
+xcode=$(xcode-select -p 2>/dev/null)
+case $xcode in
+*/Contents/Developer) ;;
+*) xcode=/Applications/Xcode.app/Contents/Developer ;;
+esac
+if ! DEVELOPER_DIR="$xcode" xcrun -sdk macosx -f metal >/dev/null 2>&1; then
+	DEVELOPER_DIR="$xcode" xcodebuild -downloadComponent MetalToolchain
+fi
+
 # Homebrew's pkg-config answers with paths in the command line tools' SDK
 # (libffi's headers, for one); compiling against another SDK (Xcode's, where it
 # is the selected developer directory) puts that SDK's C headers ahead of
@@ -56,6 +68,6 @@ if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" != 1 ]; then
 	brew bundle --no-upgrade --file="$here/Brewfile"
 fi
 sh "$here/build-deps.sh"
-sh "$root/WebKitBuild/configure-wpe-darwin.sh"
+sh "$root/WebKitBuild/configure-wpe-darwin.sh" -DANGLE_METAL_DEVELOPER_DIR="$xcode"
 nice ninja -C "$root/WebKitBuild/wpe-darwin"
 sh "$root/WebKitBuild/package-engine.sh" "$root/WebKitBuild/wpe-darwin" "$out"
