@@ -164,8 +164,10 @@ def main():
     try:
         host.send({"hello": {}})
         welcome = host.receive()
-        ops = welcome["welcome"]["ops"]
-        print(f"welcome: {ops}")
+        welcome = welcome["welcome"]
+        build = welcome.get("build", {})
+        print(f"welcome: {welcome['ops']}, revision {welcome.get('revision', 0)}, "
+              f"{build.get('commit')} built {build.get('date')}")
 
         block = host.call("open", url="about:blank", width=640, height=480)["block"]
         host.call("goto", block=block, url=PAGE)

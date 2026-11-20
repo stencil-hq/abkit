@@ -40,6 +40,16 @@
 
 namespace AgentHost {
 
+// The protocol's revision, which the welcome reports. It goes up with each fix or change a client may
+// need (a client refuses a host older than it needs); a new capability is an op the welcome lists instead.
+// Hosts without one are revision 0. 1: a navigation after a process swap no longer waits out the
+// responsiveness timeout and reloads, dropped navigations and opened media files no longer fail pages.
+static constexpr unsigned protocolRevision = 1;
+
+// The build's identity, written by BuildIdentity.cmake.
+extern const char buildCommit[];
+extern const char buildDate[];
+
 Responder::Responder(std::weak_ptr<Transport> transport, const char* channel, std::string&& id)
     : m_transport(std::move(transport))
     , m_channel(channel)
@@ -230,7 +240,8 @@ void Host::handleFrame(std::string&& payload)
         auto clipboard = hello.isObject() ? hello.get("clipboard") : Json();
         if (clipboard.isString() && clipboard.toString() == "system" && useSystemClipboard(m_display.get()))
             ops += ",\"systemClipboard\"";
-        m_transport->send("{\"welcome\":{\"ops\":[" + ops + "]}}");
+        m_transport->send("{\"welcome\":{\"ops\":[" + ops + "],\"revision\":" + std::to_string(protocolRevision)
+            + ",\"build\":{\"commit\":" + Json::quote(buildCommit) + ",\"date\":" + Json::quote(buildDate) + "}}}");
         return;
     }
     for (const char* channel : { "browser", "fork" }) {

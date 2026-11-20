@@ -78,7 +78,8 @@ class Host:
         self.diagnostics.start()
         try:
             self.send({"hello": {"clipboard": "system"} if system else {}})
-            self.ops = self.answer("welcome")["welcome"]["ops"]
+            self.welcome = self.answer("welcome")["welcome"]
+            self.ops = self.welcome["ops"]
         except Exception:
             self.__exit__(*sys.exc_info())
             raise
@@ -218,7 +219,10 @@ def test_welcome(executable, helper):
         with Host(executable, system) as host:
             require({"contextMenu", "live", "inspect", "present"}.issubset(host.ops), f"missing ops: {host.ops}")
             require(("systemClipboard" in host.ops) == system, f"wrong clipboard negotiation: {host.ops}")
-    return "contextMenu live inspect present; systemClipboard only when requested"
+            require(host.welcome.get("revision", 0) >= 1, f"no protocol revision: {host.welcome}")
+            build = host.welcome.get("build", {})
+            require(build.get("commit") and build.get("date"), f"no build identity: {host.welcome}")
+    return "contextMenu live inspect present; systemClipboard only when requested; revision and build reported"
 
 
 def test_keys(executable, helper):

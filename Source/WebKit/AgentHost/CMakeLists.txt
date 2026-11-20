@@ -21,6 +21,18 @@ set(ABHost_SOURCES
     main.cpp
 )
 
+# The build's identity (its commit, and when it was built), which the welcome reports: written on
+# every build, so that ABHost always says the build it is from.
+set(ABHost_BUILD_IDENTITY ${CMAKE_CURRENT_BINARY_DIR}/BuildIdentity.cpp)
+add_custom_target(ABHostBuildIdentity
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DOUTPUT=${ABHost_BUILD_IDENTITY}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/BuildIdentity.cmake
+    BYPRODUCTS ${ABHost_BUILD_IDENTITY}
+    VERBATIM
+)
+list(APPEND ABHost_SOURCES ${ABHost_BUILD_IDENTITY})
+set(ABHost_DEPENDENCIES ABHostBuildIdentity)
+
 set(ABHost_PRIVATE_INCLUDE_DIRECTORIES
     ${CMAKE_BINARY_DIR}
     ${DERIVED_SOURCES_WEBKIT_DIR}

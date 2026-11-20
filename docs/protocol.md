@@ -32,7 +32,14 @@ Tern's `agent` engine are two).
 ## Envelope
 
 - `{"hello":{}}` is answered
-  `{"welcome":{"ops":["browser","dom","console","network","responsive","contextMenu","live","inspect","present"]}}`.
+  `{"welcome":{"ops":["browser","dom","console","network","responsive","contextMenu","live","inspect","present","preconnect"],"revision":1,"build":{"commit":"dfd39ac3e5f","date":"2026-11-20T08:10:00Z"}}}`.
+  `revision` is the protocol's revision: it goes up with each fix or change a client may need to rely on, so a
+  client that needs one refuses an older host (one without `revision` is revision 0); a new capability is listed
+  in `ops` instead. `build` names the host's build: `commit` is the source's commit (`-dirty` when it was built
+  with changes to it, `unknown` without git), `date` when it was built (UTC). Revisions:
+  - 1: a navigation after a process swap no longer waits out the [responsiveness](#responsiveness) timeout, ends
+    a working web process and reloads; a dropped navigation, or a page that opens a media file, no longer fails
+    the page; `build` is reported.
   `dom` says the `dom` op exists; `console` and `network` say those event families are reported; `responsive`
   says the host watches whether pages answer ([Responsiveness](#responsiveness)); `contextMenu` says blocks report
   the context menus their pages leave to the engine ([events.md](events.md)); `live` says `input` takes a user's
