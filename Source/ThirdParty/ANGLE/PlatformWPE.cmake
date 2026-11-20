@@ -32,6 +32,13 @@ if (is_apple)
     # MetalToolchain`.
     set(ANGLE_METAL_DEVELOPER_DIR "" CACHE PATH "Developer directory whose Metal toolchain compiles ANGLE's internal shaders")
     execute_process(COMMAND xcode-select -p OUTPUT_VARIABLE _angle_selected_developer_dir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    # Under Rosetta (an x86_64 engine built on Apple silicon) the toolchain answers only natively; the
+    # library it makes is the same for every Mac.
+    execute_process(COMMAND sysctl -n sysctl.proc_translated OUTPUT_VARIABLE _angle_translated OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    set(_angle_native "")
+    if (_angle_translated STREQUAL "1")
+        set(_angle_native /usr/bin/arch -arm64)
+    endif ()
     set(_angle_metal_developer_dir "")
     set(_angle_metal_tried "")
     foreach (_angle_candidate IN ITEMS "${ANGLE_METAL_DEVELOPER_DIR}" "$ENV{DEVELOPER_DIR}" "${_angle_selected_developer_dir}" "/Applications/Xcode.app/Contents/Developer")
@@ -42,8 +49,8 @@ if (is_apple)
             string(APPEND _angle_metal_tried "\n  ${_angle_candidate}: no such directory")
             continue ()
         endif ()
-        execute_process(COMMAND ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metal RESULT_VARIABLE _angle_metal_found OUTPUT_QUIET ERROR_VARIABLE _angle_metal_error ERROR_STRIP_TRAILING_WHITESPACE)
-        execute_process(COMMAND ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metallib RESULT_VARIABLE _angle_metallib_found OUTPUT_QUIET ERROR_VARIABLE _angle_metallib_error ERROR_STRIP_TRAILING_WHITESPACE)
+        execute_process(COMMAND ${_angle_native} /usr/bin/env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metal RESULT_VARIABLE _angle_metal_found OUTPUT_QUIET ERROR_VARIABLE _angle_metal_error ERROR_STRIP_TRAILING_WHITESPACE)
+        execute_process(COMMAND ${_angle_native} /usr/bin/env DEVELOPER_DIR=${_angle_candidate} xcrun -sdk macosx -f metallib RESULT_VARIABLE _angle_metallib_found OUTPUT_QUIET ERROR_VARIABLE _angle_metallib_error ERROR_STRIP_TRAILING_WHITESPACE)
         if (_angle_metal_found EQUAL 0 AND _angle_metallib_found EQUAL 0)
             set(_angle_metal_developer_dir "${_angle_candidate}")
             break ()
@@ -60,7 +67,7 @@ if (is_apple)
     set(_angle_metal_air "${_angle_metal_dir}/mtl_internal_shaders_autogen.air")
     set(_angle_metal_lib "${_angle_metal_dir}/mtl_internal_shaders_autogen.metallib")
     set(_angle_metal_header "${_angle_metal_dir}/mtl_internal_shaders_metallib.h")
-    set(_angle_xcrun ${CMAKE_COMMAND} -E env DEVELOPER_DIR=${_angle_metal_developer_dir} xcrun -sdk macosx)
+    set(_angle_xcrun ${_angle_native} /usr/bin/env DEVELOPER_DIR=${_angle_metal_developer_dir} xcrun -sdk macosx)
     add_custom_command(
         OUTPUT ${_angle_metal_air}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${_angle_metal_dir}
