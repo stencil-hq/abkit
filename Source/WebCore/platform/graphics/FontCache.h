@@ -246,6 +246,10 @@ private:
     NODELETE FontDatabase& database(AllowUserInstalledFonts);
 #endif
 
+#if USE(SKIA)
+    sk_sp<SkTypeface> matchFamilyStyle(const String& familyName, const SkFontStyle&);
+#endif
+
     Timer m_purgeTimer;
 
     WeakHashSet<FontSelector> m_clients;
@@ -291,6 +295,10 @@ private:
 #if USE(SKIA)
     mutable sk_sp<SkFontMgr> m_fontManager;
     SkiaHarfBuzzFontCache m_harfBuzzFontCache;
+    // The font manager's matches (none included) by family name and packed style: the same for
+    // every size and locale, while a page in many languages asks for each family in each of them,
+    // and one fontconfig match goes through every font of the system.
+    HashMap<std::pair<String, uint32_t>, sk_sp<SkTypeface>> m_familyStyleMatches;
 #if !OS(ANDROID) && !PLATFORM(WIN)
     SkiaSystemFallbackFontCache m_skiaSystemFallbackFontCache;
 #endif

@@ -607,7 +607,7 @@ std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDe
         return nullptr;
     auto familyName = getFamilyNameStringFromFamily(family);
     auto skFontStyle = skiaFontStyle(fontDescription);
-    auto typeface = fontManager().matchFamilyStyle(familyName.utf8().legacyCStringPointer(), skFontStyle);
+    auto typeface = matchFamilyStyle(familyName, skFontStyle);
     if (!typeface)
         return nullptr;
 
@@ -615,7 +615,7 @@ std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDe
     // The italic of the Mac's system font has no width axis. Core Text answers a request for a
     // condensed or expanded italic with the upright face at that width.
     if (skFontStyle.slant() != SkFontStyle::kUpright_Slant && fontDescription.width() != normalWidthValue() && familyName != family.string() && !defaultFontVariationValues(*typeface).contains(FontVariationAxisTag::wdth)) {
-        if (auto upright = fontManager().matchFamilyStyle(familyName.utf8().legacyCStringPointer(), SkFontStyle(skFontStyle.weight(), skFontStyle.width(), SkFontStyle::kUpright_Slant)); upright && defaultFontVariationValues(*upright).contains(FontVariationAxisTag::wdth))
+        if (auto upright = matchFamilyStyle(familyName, SkFontStyle(skFontStyle.weight(), skFontStyle.width(), SkFontStyle::kUpright_Slant)); upright && defaultFontVariationValues(*upright).contains(FontVariationAxisTag::wdth))
             typeface = WTF::move(upright);
     }
 #endif
@@ -644,6 +644,16 @@ std::unique_ptr<FontPlatformData> FontCache::createFontPlatformData(const FontDe
     return platformDataUniquePtr;
 }
 
+sk_sp<SkTypeface> FontCache::matchFamilyStyle(const String& familyName, const SkFontStyle& style)
+{
+    if (familyName.isNull())
+        return fontManager().matchFamilyStyle(nullptr, style);
+    uint32_t packedStyle = (static_cast<uint32_t>(style.weight()) << 16) | (static_cast<uint32_t>(style.width()) << 8) | static_cast<uint32_t>(style.slant());
+    return m_familyStyleMatches.ensure({ familyName, packedStyle }, [&] {
+        return fontManager().matchFamilyStyle(familyName.utf8().legacyCStringPointer(), style);
+    }).iterator->value;
+}
+
 ASCIILiteral FontCache::platformAlternateFamilyName(const String&)
 {
     return { };
@@ -657,10 +667,12 @@ void FontCache::platformReleaseNoncriticalMemory()
                 customPlatformData->clearVariationTypefacesCache();
         });
     }
+    m_familyStyleMatches.clear();
 }
 
 void FontCache::platformInvalidate()
 {
+    m_familyStyleMatches.clear();
 }
 
 void FontCache::platformPurgeInactiveFontData()
