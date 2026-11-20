@@ -1130,6 +1130,9 @@ void WebProcessPool::initializeNewWebProcess(WebProcessProxy& process, WebsiteDa
 
     // Add any platform specific parameters
     platformInitializeWebProcess(process, parameters);
+#if PLATFORM(GTK) || PLATFORM(WPE)
+    parameters.isPrewarmed = isPrewarmed == WebProcessProxy::IsPrewarmed::Yes;
+#endif
 
     RefPtr injectedBundleInitializationUserData = m_injectedBundleClient->getInjectedBundleInitializationUserData(*this);
     if (!injectedBundleInitializationUserData)
@@ -1637,6 +1640,8 @@ Ref<WebPageProxy> WebProcessPool::createWebPage(PageClient& pageClient, Ref<API:
             m_dummyProcessProxies.add(pageConfiguration->websiteDataStore().sessionID(), *process);
             m_processes.append(*process);
         }
+        // The first load will need a process: one launches now, for that load to take instead of waiting for a launch.
+        didReachGoodTimeToPrewarm(protect(pageConfiguration->websiteDataStore()).ptr());
     } else {
         WEBPROCESSPOOL_RELEASE_LOG(Process, "createWebPage: Not delaying WebProcess launch");
         process = processForSite(protect(pageConfiguration->websiteDataStore()), WebProcessProxy::IsolatedProcessType::MainFrame, std::nullopt, std::nullopt, lockdownMode, enhancedSecurity, pageConfiguration, processCrossOriginIsolationForBrowsingContextGroup(crossOriginMode));
@@ -1782,7 +1787,14 @@ void WebProcessPool::postMessageToInjectedBundle(const String& messageName, API:
 
 void WebProcessPool::didReachGoodTimeToPrewarm(WebsiteDataStore* websiteDataStore)
 {
-    if (!configuration().isAutomaticProcessWarmingEnabled() || !configuration().processSwapsOnNavigation() || usesSingleWebProcess())
+#if PLATFORM(WPE)
+    // A page waits for its first load to launch its process whether or not navigations swap processes, and that
+    // load takes the spare one.
+    bool spareIsUsed = true;
+#else
+    bool spareIsUsed = configuration().processSwapsOnNavigation();
+#endif
+    if (!configuration().isAutomaticProcessWarmingEnabled() || !spareIsUsed || usesSingleWebProcess())
         return;
 
     if (MemoryPressureHandler::singleton().isUnderMemoryPressure()) {

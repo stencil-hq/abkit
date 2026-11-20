@@ -56,9 +56,25 @@ bool updateSharedPreferencesForWebProcess(SharedPreferencesForWebProcess&, const
 // The subset of SharedPreferencesForWebProcess that backs JSC::Options feature flags.
 // It is delivered in WebProcessCreationParameters and applied to the process-global
 // JSC::Options before the first VM freezes them.
+// Its defaults are the preferences' defaults on this platform: what a page with default preferences needs, so a
+// process launched before any page (a prewarmed one) can take such a page.
 struct JSCOptionsForWebProcess {
 <% @jscOptions.each do |pref| -%>
+<%- if pref.defaultValues.size() == 1 -%>
     bool <%= pref.nameLower %> { <%= pref.defaultValues["default"] %> };
+<%- else -%>
+<%-   pref.defaultValues.each_with_index do |(key, value), index| -%>
+<%-     if index == 0 -%>
+#if <%= key %>
+<%-     elsif index != pref.defaultValues.size() - 1 -%>
+#elif <%= key %>
+<%-     else -%>
+#else
+<%-     end -%>
+    bool <%= pref.nameLower %> { <%= value %> };
+<%-   end -%>
+#endif
+<%- end -%>
 <% end -%>
 
     bool operator==(const JSCOptionsForWebProcess&) const = default;

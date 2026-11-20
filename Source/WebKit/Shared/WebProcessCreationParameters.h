@@ -253,6 +253,8 @@ struct WebProcessCreationParameters {
     std::optional<MemoryPressureHandler::Configuration> memoryPressureHandlerConfiguration;
     bool disableFontHintingForTesting { false };
     OptionSet<AvailableInputDevices> availableInputDevices;
+    // Launched ahead of the page that will take it (WebProcessPool::prewarmProcess()): it warms up meanwhile.
+    bool isPrewarmed { false };
 #endif
 
 #if PLATFORM(GTK)

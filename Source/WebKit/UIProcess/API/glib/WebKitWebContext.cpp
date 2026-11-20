@@ -451,8 +451,17 @@ static void webkitWebContextConstructed(GObject* object)
     configuration->setUsesWebProcessCache(true);
 #if PLATFORM(GTK) && !USE(GTK4)
     configuration->setProcessSwapsOnNavigation(priv->psonEnabled);
+#elif PLATFORM(WPE)
+    // A page keeps its one web process for its whole life: navigating to another site stays in it, and so do
+    // the pages it keeps for going back. Documents asking for cross-origin isolation still get one of their own.
+    configuration->setProcessSwapsOnNavigation(false);
 #else
     configuration->setProcessSwapsOnNavigation(true);
+#endif
+#if PLATFORM(WPE)
+    // A spare web process is kept running: a page's first load, and a navigation to another site, take it
+    // instead of waiting for a process to launch and initialize (WebProcessPool::prewarmProcess()).
+    configuration->setIsAutomaticProcessWarmingEnabled(true);
 #endif
     if (priv->memoryPressureSettings) {
         configuration->setMemoryPressureHandlerConfiguration(webkitMemoryPressureSettingsGetMemoryPressureHandlerConfiguration(priv->memoryPressureSettings));

@@ -71,6 +71,12 @@
 #define ENABLE_PDFJS 1
 #endif
 
+// WPE keeps one web process per page for the page's whole life (WebKitWebContext.cpp): no process
+// outlives its page to serve a later one.
+#if !defined(ENABLE_WEBPROCESS_CACHE) && PLATFORM(WPE)
+#define ENABLE_WEBPROCESS_CACHE 0
+#endif
+
 #if !defined(ENABLE_WEBPROCESS_CACHE)
 #define ENABLE_WEBPROCESS_CACHE 1
 #endif

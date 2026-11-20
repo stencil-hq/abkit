@@ -17,6 +17,14 @@ Tern's `agent` engine are two).
   payload length followed by UTF-8 JSON (at most 256 MiB). Nothing else is written to standard output: the host
   keeps a private duplicate for the protocol and points descriptor 1 at standard error. Diagnostics go to
   standard error (`G_MESSAGES_DEBUG=ABHost` adds the host's debug log).
+- The engine runs one network process for every block, and one web process per block from its first load until
+  it closes: navigating to another site stays in it, as do the pages it keeps for going back, and no process
+  outlives its block. Only a document asking for cross-origin isolation (`Cross-Origin-Opener-Policy` with
+  `Cross-Origin-Embedder-Policy`) moves its block to a process of its own.
+- From the first `open` on, the engine also keeps one spare web process running, launched and initialized ahead
+  of need: a block's first load starts in it at once instead of waiting about 70 ms (macOS) for a process to
+  launch. Another is launched in its place when that load finishes or the next block opens. The spare belongs to
+  the profile of the block that last opened or loaded (another profile's block replaces it with one of its own).
 - The host exits with status 0 when standard input ends, after closing every block. It reads no environment
   variables and finds the engine through its rpath, and its web process extension in `extensions/` beside its
   own executable.

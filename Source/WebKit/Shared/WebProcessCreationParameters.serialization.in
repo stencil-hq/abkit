@@ -190,6 +190,7 @@ using WebCore::SystemSettings::State = WebCore::SystemSettingsState;
     std::optional<MemoryPressureHandlerConfiguration> memoryPressureHandlerConfiguration;
     bool disableFontHintingForTesting;
     OptionSet<WebKit::AvailableInputDevices> availableInputDevices;
+    bool isPrewarmed;
 #endif
 
 #if PLATFORM(GTK)

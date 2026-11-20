@@ -798,6 +798,9 @@ void WebProcess::initializeWebProcess(WebProcessCreationParameters&& parameters,
             defaultLanguage();
         });
     }
+#elif PLATFORM(GTK) || PLATFORM(WPE)
+    if (parameters.isPrewarmed)
+        prewarmGlobally();
 #endif
 
     setQuirkTable(WTF::move(parameters.quirkTable));
@@ -953,6 +956,13 @@ void WebProcess::prewarmGlobally()
 
 #if PLATFORM(MAC)
     WebCore::LocalDefaultSystemAppearance appearance(false);
+#endif
+#if PLATFORM(WPE) && OS(DARWIN)
+    // A page's drawing area sets the display up (EGL on ANGLE's Metal device, with its shader library) as the
+    // page is created, holding up its first load by tens of milliseconds: it is done here, before a page takes
+    // the process. (Every page draws with the GPU there; elsewhere a page may not, and a graphics driver that
+    // fails would take every prewarmed process down with it.)
+    initializePlatformDisplayIfNeeded();
 #endif
 }
 
