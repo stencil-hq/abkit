@@ -47,6 +47,8 @@ public:
 private:
     HashMap<String, std::unique_ptr<FontSetCache>> m_cache;
     HashMap<std::pair<String, int>, sk_sp<SkTypeface>> m_typefaceCache;
+    // Whether each font file a fallback was looked for in is there, for every locale's fonts.
+    HashMap<String, bool> m_fileExists;
 };
 
 } // namespace WebCore
