@@ -46,10 +46,68 @@
 #include <wtf/SafeStrerror.h>
 #endif
 
+#if OS(DARWIN)
+#include <sys/stat.h>
+#include <wtf/Deque.h>
+#include <wtf/Lock.h>
+#include <wtf/MonotonicTime.h>
+#include <wtf/NeverDestroyed.h>
+#include <wtf/RunLoop.h>
+#endif
+
 namespace IPC {
 
 static constexpr size_t s_messageMaxSize = 4096;
 static constexpr size_t s_attachmentMaxAmount = 254;
+
+#if OS(DARWIN)
+// Darwin collects descriptors in flight (unp_gc, run as Unix sockets close while any descriptor is in a message)
+// and shuts every socket it finds no reference to outside a message. A socket the receiver is taking out of a
+// message is briefly in neither, so a connection handed to another process (a web process's to the network
+// process, through the UI process) could arrive shut: it read end of file, refused what its peer sent ("Invalid
+// argument"), and the page's load failed with an internal error. The sender keeps a reference to every socket it
+// sends until the receiver has surely taken it.
+class SentSockets {
+public:
+    static SentSockets& singleton()
+    {
+        static NeverDestroyed<SentSockets> sockets;
+        return sockets;
+    }
+
+    void hold(const Vector<UnixFileDescriptor>& attachments)
+    {
+        for (auto& attachment : attachments) {
+            struct stat status;
+            if (!attachment || fstat(attachment.value(), &status) || !S_ISSOCK(status.st_mode))
+                continue;
+            Locker locker { m_lock };
+            m_held.append({ MonotonicTime::now() + holdTime, attachment.duplicate() });
+            if (!std::exchange(m_releaseScheduled, true))
+                RunLoop::mainSingleton().dispatchAfter(holdTime, [] { singleton().release(); });
+        }
+    }
+
+private:
+    static constexpr Seconds holdTime = 2_s;
+
+    void release()
+    {
+        Vector<UnixFileDescriptor> released;
+        Locker locker { m_lock };
+        auto now = MonotonicTime::now();
+        while (!m_held.isEmpty() && m_held.first().first <= now)
+            released.append(m_held.takeFirst().second);
+        m_releaseScheduled = !m_held.isEmpty();
+        if (m_releaseScheduled)
+            RunLoop::mainSingleton().dispatchAfter(m_held.first().first - now, [] { singleton().release(); });
+    }
+
+    Lock m_lock;
+    Deque<std::pair<MonotonicTime, UnixFileDescriptor>> m_held WTF_GUARDED_BY_LOCK(m_lock);
+    bool m_releaseScheduled WTF_GUARDED_BY_LOCK(m_lock) { false };
+};
+#endif
 
 class AttachmentInfo {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(AttachmentInfo);
@@ -501,6 +559,9 @@ bool Connection::sendOutputMessage(UnixMessage&& outputMessage)
         m_outgoingHardwareBuffers = WTF::move(hardwareBuffers);
         if (!sendOutgoingHardwareBuffers())
             return false;
+#endif
+#if OS(DARWIN)
+        SentSockets::singleton().hold(attachments);
 #endif
         return true;
     }
