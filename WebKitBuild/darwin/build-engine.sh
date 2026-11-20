@@ -51,9 +51,13 @@ case $xcode in
 */Contents/Developer) ;;
 *) xcode=/Applications/Xcode.app/Contents/Developer ;;
 esac
-if ! DEVELOPER_DIR="$xcode" xcrun -sdk macosx -f metal >/dev/null 2>&1; then
+metal_tools() {
+	DEVELOPER_DIR="$xcode" xcrun -sdk macosx -f metal && DEVELOPER_DIR="$xcode" xcrun -sdk macosx -f metallib
+}
+if ! metal_tools >/dev/null 2>&1; then
 	DEVELOPER_DIR="$xcode" xcodebuild -downloadComponent MetalToolchain
 fi
+echo "build-engine: Metal toolchain of $xcode:" $(metal_tools 2>&1)
 
 # Homebrew's pkg-config answers with paths in the command line tools' SDK
 # (libffi's headers, for one); compiling against another SDK (Xcode's, where it
